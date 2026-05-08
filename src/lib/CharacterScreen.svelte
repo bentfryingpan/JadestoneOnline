@@ -30,23 +30,23 @@
 
     const SLOTS = {
         // Weapons – left column
-        kinetic:  { l:  8.4, t: 27.0 },
-        energy:   { l:  8.4, t: 41.8 },
-        power:    { l:  8.4, t: 57.0 },
-        ghost:    { l:  8.4, t: 72.3, small: true },
-        vehicle:  { l:  8.4, t: 85.5, small: true },
+        kinetic:  { l:  8.4, t: 25.0 },
+        energy:   { l:  8.4, t: 38.0 },
+        power:    { l:  8.4, t: 52.0 },
+        ghost:    { l:  8.4, t: 66.0, small: true },
+        vehicle:  { l:  8.4, t: 80.0, small: true },
 
         // Armor – right column
-        helmet:   { l: 91.5, t: 17.8 },
-        gauntlets:{ l: 91.5, t: 31.1 },
-        chest:    { l: 91.5, t: 44.3 },
-        legs:     { l: 91.5, t: 57.0 },
-        classItem:{ l: 91.5, t: 69.2 },
-        ship:     { l: 91.5, t: 81.5, small: true },
+        helmet:   { l: 91.5, t: 14.0 },
+        gauntlets:{ l: 91.5, t: 27.5 },
+        chest:    { l: 91.5, t: 41.0 },
+        legs:     { l: 91.5, t: 53.5 },
+        classItem:{ l: 91.5, t: 66.0 },
+        ship:     { l: 91.5, t: 79.0, small: true },
     };
 
-    // Power level display position (where "331" appears in the reference)
-    const POWER_POS = { l: 76.0, t: 19.5 };
+    // Power level display position (where the number appears in the screenshot)
+    const POWER_POS = { l: 73.5, t: 18.0 };
 
     // Helper: inline style to centre an icon at (l%, t%)
     function iconStyle(l, t, size) {
@@ -72,13 +72,12 @@
     <div class="absolute inset-0">
 
         <!-- ── Stats mask: covers the stat numbers in the centre-right area ── -->
-        <!-- Radial gradient centred on the stats cluster -->
         <div class="absolute pointer-events-none"
-             style="left:62%; top:35%; width:26%; height:38%;
+             style="left:54%; top:26%; width:26%; height:44%;
                     background: radial-gradient(ellipse at 50% 50%,
-                        rgba(30,28,35,0.92) 0%,
-                        rgba(30,28,35,0.70) 45%,
-                        transparent 75%);"></div>
+                        rgba(0,0,0,0.88) 0%,
+                        rgba(0,0,0,0.70) 42%,
+                        transparent 72%);"></div>
 
         <!-- ── Power level overlay (replaces the screenshot number) ── -->
         {#if light !== undefined}

@@ -9,14 +9,6 @@
 
     const bgImage = $derived(classKey && element ? `/subclass/${classKey}/${element}/bg.png` : null);
 
-    // Gradient colour to blend out bottom-left stat numbers
-    const maskColors = {
-        strand:    '#010d04', stasis:    '#03080f',
-        void:      '#06021a', solar:     '#130400',
-        arc:       '#020810', prismatic: '#0f0618'
-    };
-    const maskColor = $derived(maskColors[element] ?? '#080808');
-
     // ── Slot positions: left% and top% are the CENTRE of each icon slot,
     //    measured as a percentage of the FULL native image dimensions.
     //    All non-prismatic elements share the same positions (only bg changes).
@@ -38,13 +30,13 @@
             { l: 66.3, t: 37.5 }
         ],
         fragStart: { l: 31.0, t: 71.5 },
-        fragStep:  6.0
+        fragStep:  5.5
     };
 
     const PRI = {
         transcendence: [
-            { l: 37.8, t: 20.0 },
-            { l: 43.4, t: 20.0 }
+            { l: 37.8, t: 23.5 },
+            { l: 43.4, t: 23.5 }
         ],
         abilities: [
             { l: 32.8, t: 44.5 },
@@ -57,7 +49,7 @@
             { l: 66.3, t: 44.5 }
         ],
         fragStart: { l: 31.0, t: 71.5 },
-        fragStep:  6.0
+        fragStep:  5.5
     };
 
     const layout = $derived(isPrismatic ? PRI : STD);
@@ -85,9 +77,9 @@
     <!-- Overlay canvas (covers image exactly) -->
     <div class="absolute inset-0 pointer-events-none">
 
-        <!-- Stat mask: erases the bottom-left armor-stat numbers -->
+        <!-- Stat mask: covers the bottom-left armor-stat numbers -->
         <div class="absolute inset-0"
-             style="background: radial-gradient(ellipse 22% 32% at 0% 102%, {maskColor} 0%, {maskColor} 35%, transparent 62%);"></div>
+             style="background: radial-gradient(ellipse 32% 52% at -2% 108%, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.92) 30%, rgba(0,0,0,0.60) 58%, transparent 76%);"></div>
 
         <!-- Subtle right-edge fade -->
         <div class="absolute inset-0"
