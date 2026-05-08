@@ -7,7 +7,8 @@
     const characters = $derived(Object.values(data.profile?.characters?.data ?? {}).sort((a, b) => new Date(b.dateLastPlayed) - new Date(a.dateLastPlayed)));
 
     let claiming = $state(false);
-    let claimed = $state(data.isClaimed);
+    let claimed = $state(false);
+    $effect(() => { claimed = data.isClaimed; });
 
     async function claimProfile() {
         claiming = true;
