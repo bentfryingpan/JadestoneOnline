@@ -1,6 +1,7 @@
 <script>
     import { untrack } from 'svelte';
     import SubclassScreen from '$lib/SubclassScreen.svelte';
+    import CharacterScreen from '$lib/CharacterScreen.svelte';
 
     let { data } = $props();
 
@@ -301,6 +302,12 @@
         <!-- ════════════════════════════════════════════════ LOADOUT ════ -->
         {:else if activeTab === 'loadout'}
 
+        <!-- Character screen screenshot overlay -->
+        <div class="mb-6">
+            <CharacterScreen {char} {eq} light={char?.light} />
+        </div>
+
+        <!-- Detailed weapon + armor cards below the screen -->
         <div class="grid grid-cols-2 gap-6">
 
             <!-- LEFT: Weapons -->
