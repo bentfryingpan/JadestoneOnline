@@ -1,8 +1,10 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
+import { supabaseAdmin } from '$lib/supabase-server.js';
 import { error } from '@sveltejs/kit';
 
-export async function load({ params }) {
+export async function load({ params, parent }) {
     const { name, code } = params;
+    const { user } = await parent();
 
     const searchRes = await fetch(
         `https://www.bungie.net/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(name + '#' + code)}/`,
@@ -15,7 +17,6 @@ export async function load({ params }) {
         throw error(404, 'Player not found');
     }
 
-    // Use crossSaveOverride if set, otherwise prefer Steam (3), then first result
     let player = searchData.Response.find(p => p.crossSaveOverride === p.membershipType);
     if (!player) player = searchData.Response.find(p => p.membershipType === 3) ?? searchData.Response[0];
 
@@ -39,10 +40,24 @@ export async function load({ params }) {
         recentMatches = actData.Response?.activities ?? [];
     }
 
+    // Check claim status
+    const { data: dbPlayer } = await supabaseAdmin
+        .from('players')
+        .select('claimed_by')
+        .eq('id', player.membershipId)
+        .single();
+
+    const isClaimed = !!dbPlayer?.claimed_by;
+    const isOwner = user?.membershipId === player.membershipId;
+    const canClaim = isOwner && !isClaimed;
+
     return {
         player,
         profile,
         recentMatches,
-        characterIds
+        characterIds,
+        isClaimed,
+        isOwner,
+        canClaim
     };
 }

@@ -5,6 +5,27 @@
     const raceNames = { 0: 'Human', 1: 'Awoken', 2: 'Exo' };
 
     const characters = $derived(Object.values(data.profile?.characters?.data ?? {}).sort((a, b) => new Date(b.dateLastPlayed) - new Date(a.dateLastPlayed)));
+
+    let claiming = $state(false);
+    let claimed = $state(data.isClaimed);
+
+    async function claimProfile() {
+        claiming = true;
+        const res = await fetch('/api/claim', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                membershipId: data.player.membershipId,
+                membershipType: data.player.membershipType,
+                bungieName: data.player.bungieGlobalDisplayName,
+                bungieCode: data.player.bungieGlobalDisplayNameCode
+            })
+        });
+
+        const result = await res.json();
+        if (result.success) claimed = true;
+        claiming = false;
+    }
 </script>
 
 <div class="min-h-screen bg-gray-900 text-white">
@@ -21,9 +42,22 @@
                 <div class="w-full h-full bg-gray-600"></div>
                 {/if}
             </div>
-            <div>
+            <div class="flex-1">
                 <h1 class="text-3xl font-bold">{data.player.bungieGlobalDisplayName}</h1>
                 <p class="text-gray-400">#{data.player.bungieGlobalDisplayNameCode}</p>
+            </div>
+            <div class="pb-1">
+                {#if claimed}
+                    <span class="bg-green-800 text-green-300 px-3 py-1 rounded text-sm font-semibold">✓ Claimed</span>
+                {:else if data.canClaim}
+                    <button
+                        onclick={claimProfile}
+                        disabled={claiming}
+                        class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-4 py-2 rounded font-semibold text-sm"
+                    >
+                        {claiming ? 'Claiming...' : 'Claim this profile'}
+                    </button>
+                {/if}
             </div>
         </div>
     </div>
