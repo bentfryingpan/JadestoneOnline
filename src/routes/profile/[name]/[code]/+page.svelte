@@ -1,5 +1,6 @@
 <script>
     import { untrack } from 'svelte';
+    import SubclassScreen from '$lib/SubclassScreen.svelte';
 
     let { data } = $props();
 
@@ -291,7 +292,7 @@
         <!-- ════════════════════════════════════════════════ CHARACTER ════ -->
         {:else if activeTab === 'character'}
 
-        <div class="grid grid-cols-[1fr_280px_1fr] gap-4">
+        <div class="grid grid-cols-[220px_1fr_220px] gap-4">
 
             <!-- LEFT: Weapons -->
             <div class="flex flex-col gap-3">
@@ -401,100 +402,9 @@
                 {/if}
             </div>
 
-            <!-- CENTER: Subclass -->
-            <div class="flex flex-col gap-3 rounded-lg border {subclassTheme.border} {subclassTheme.bg} p-4">
-
-                {#if eq.subclass}
-                <div class="flex items-center gap-3 pb-3 border-b border-white/10">
-                    <img src={eq.subclass.icon} alt={eq.subclass.name} class="w-12 h-12 rounded border-2 {subclassTheme.border} shadow-lg" />
-                    <div>
-                        <p class="font-bold text-sm">{eq.subclass.name}</p>
-                        <p class="text-[10px] {subclassTheme.text} uppercase tracking-wider">{classNames[char.classType]} Subclass</p>
-                    </div>
-                </div>
-                {/if}
-
-                {#if sockets.super}
-                <div>
-                    <p class="text-[9px] text-gray-500 uppercase tracking-[0.15em] font-bold mb-1.5">Super</p>
-                    <div class="group relative flex items-center gap-2.5 bg-black/20 border border-white/8 rounded p-2.5 cursor-default hover:border-white/15">
-                        <img src={sockets.super.icon} alt={sockets.super.name} class="w-10 h-10 rounded border {subclassTheme.border}" />
-                        <div>
-                            <p class="text-sm font-semibold">{sockets.super.name}</p>
-                            <p class="text-[9px] text-gray-500">Super Ability</p>
-                        </div>
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-20 pointer-events-none">
-                            <div class="bg-[#1c1f2e] border border-white/20 text-xs text-white px-3 py-2 rounded shadow-xl w-44">
-                                <p class="font-bold">{sockets.super.name}</p>
-                                {#if sockets.super.description}<p class="text-gray-400 mt-0.5 text-[10px] leading-snug">{sockets.super.description}</p>{/if}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {/if}
-
-                {#if sockets.abilities?.length}
-                <div>
-                    <p class="text-[9px] text-gray-500 uppercase tracking-[0.15em] font-bold mb-1.5">Abilities</p>
-                    <div class="grid grid-cols-2 gap-1.5">
-                        {#each sockets.abilities as ability}
-                        <div class="group relative flex flex-col items-center gap-1 bg-black/20 border border-white/8 rounded p-2 hover:border-white/15 cursor-default">
-                            <img src={ability.icon} alt={ability.name} class="w-10 h-10 rounded" />
-                            <p class="text-[9px] text-gray-400 text-center leading-tight">{ability.itemTypeDisplayName}</p>
-                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-20 pointer-events-none">
-                                <div class="bg-[#1c1f2e] border border-white/20 text-xs text-white px-3 py-2 rounded shadow-xl w-44 text-center">
-                                    <p class="font-bold">{ability.name}</p>
-                                    {#if ability.description}<p class="text-gray-400 mt-0.5 text-[10px] leading-snug">{ability.description}</p>{/if}
-                                </div>
-                            </div>
-                        </div>
-                        {/each}
-                    </div>
-                </div>
-                {/if}
-
-                {#if sockets.aspects?.length}
-                <div>
-                    <p class="text-[9px] text-gray-500 uppercase tracking-[0.15em] font-bold mb-1.5">Aspects</p>
-                    <div class="flex flex-col gap-1.5">
-                        {#each sockets.aspects as aspect}
-                        <div class="group relative flex items-center gap-2.5 bg-black/20 border border-white/8 rounded p-2.5 hover:border-white/15 cursor-default">
-                            <img src={aspect.icon} alt={aspect.name} class="w-9 h-9 rounded border border-white/15 shrink-0" />
-                            <div class="min-w-0">
-                                <p class="text-xs font-semibold truncate">{aspect.name}</p>
-                                <p class="text-[9px] text-gray-500">Aspect</p>
-                            </div>
-                            <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block z-20 pointer-events-none">
-                                <div class="bg-[#1c1f2e] border border-white/20 text-xs text-white px-3 py-2 rounded shadow-xl w-48">
-                                    <p class="font-bold">{aspect.name}</p>
-                                    {#if aspect.description}<p class="text-gray-400 mt-0.5 text-[10px] leading-snug">{aspect.description}</p>{/if}
-                                </div>
-                            </div>
-                        </div>
-                        {/each}
-                    </div>
-                </div>
-                {/if}
-
-                {#if sockets.fragments?.length}
-                <div>
-                    <p class="text-[9px] text-gray-500 uppercase tracking-[0.15em] font-bold mb-1.5">Fragments</p>
-                    <div class="grid grid-cols-4 gap-1">
-                        {#each sockets.fragments as fragment}
-                        <div class="group relative flex flex-col items-center bg-black/20 border border-white/8 rounded p-1.5 hover:border-white/15 cursor-default">
-                            <img src={fragment.icon} alt={fragment.name} class="w-9 h-9 rounded" />
-                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-20 pointer-events-none">
-                                <div class="bg-[#1c1f2e] border border-white/20 text-xs text-white px-3 py-2 rounded shadow-xl w-44 text-center">
-                                    <p class="font-bold">{fragment.name}</p>
-                                    {#if fragment.description}<p class="text-gray-400 mt-0.5 text-[10px] leading-snug">{fragment.description}</p>{/if}
-                                </div>
-                            </div>
-                        </div>
-                        {/each}
-                    </div>
-                </div>
-                {/if}
-
+            <!-- CENTER: Subclass screen overlay -->
+            <div class="flex flex-col gap-2">
+                <SubclassScreen {char} {eq} {sockets} />
             </div>
 
             <!-- RIGHT: Armor + Stats -->
