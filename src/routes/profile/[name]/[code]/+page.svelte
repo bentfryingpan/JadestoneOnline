@@ -378,28 +378,25 @@
                     </div>
                 {/each}
 
-                <!-- Utility row -->
-                <p class="text-[10px] text-gray-500 uppercase tracking-[0.15em] font-bold mt-1">Utility</p>
-                <div class="grid grid-cols-3 gap-2">
-                    {#each ['ghost','vehicle','ship'] as slot}
-                    {@const item = eq[slot]}
-                    <div class="group relative bg-[#13161e] border border-white/8 rounded p-2 flex flex-col items-center gap-1.5 hover:border-white/15 transition-colors cursor-default">
-                        {#if item}
-                        <img src={item.icon} alt={item.name} class="w-10 h-10 rounded border border-white/15" />
-                        <p class="text-[9px] text-gray-400 text-center truncate w-full">{item.name}</p>
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-20 pointer-events-none">
-                            <div class="bg-[#1c1f2e] border border-white/20 text-xs text-white px-2 py-1.5 rounded shadow-xl w-36 text-center">
-                                <p class="font-bold">{item.name}</p>
-                                <p class="text-gray-500 capitalize">{slot}</p>
-                            </div>
-                        </div>
-                        {:else}
-                        <div class="w-10 h-10 rounded border border-dashed border-white/10"></div>
-                        <p class="text-[9px] text-gray-600 capitalize">{slot}</p>
+                <!-- Artifact -->
+                {#if data.artifact}
+                <div class="mt-1">
+                    <p class="text-[10px] text-gray-500 uppercase tracking-[0.15em] font-bold mb-2">Seasonal Artifact</p>
+                    <div class="bg-[#13161e] border border-white/8 rounded-lg p-3 flex items-center gap-3 hover:border-white/15 transition-colors">
+                        {#if data.artifact.icon}
+                        <img src={data.artifact.icon} alt={data.artifact.name} class="w-12 h-12 rounded border border-white/20 shrink-0" />
                         {/if}
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-bold truncate">{data.artifact.name}</p>
+                            <p class="text-[10px] text-gray-500 mt-0.5">{data.artifact.pointsAcquired.toLocaleString()} points</p>
+                        </div>
+                        <div class="shrink-0 text-right">
+                            <p class="text-xl font-black text-yellow-400">+{data.artifact.powerBonus}</p>
+                            <p class="text-[9px] text-gray-500 uppercase tracking-wider">Power</p>
+                        </div>
                     </div>
-                    {/each}
                 </div>
+                {/if}
             </div>
 
             <!-- CENTER: Subclass -->
@@ -496,15 +493,6 @@
                 </div>
                 {/if}
 
-                <!-- Emblem -->
-                {#if eq.emblem}
-                <div class="mt-auto pt-3 border-t border-white/8">
-                    <div class="flex items-center gap-2 bg-black/20 border border-white/8 rounded p-2">
-                        <img src={eq.emblem.icon} alt={eq.emblem.name} class="w-9 h-9 rounded shrink-0" />
-                        <p class="text-[10px] font-medium truncate">{eq.emblem.name}</p>
-                    </div>
-                </div>
-                {/if}
             </div>
 
             <!-- RIGHT: Armor + Stats -->

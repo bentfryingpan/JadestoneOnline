@@ -18,7 +18,7 @@ const BUCKET_HASHES = {
     284967655:  'ship',
     4274335291: 'emblem',
     3284755031: 'subclass',
-    1506418338: 'subclass'
+    1506418338: 'artifact'
 };
 
 export const ARMOR_STATS = [
@@ -92,9 +92,9 @@ export async function load({ params, parent }) {
 
     const { membershipType, membershipId } = player;
 
-    // components: 100=profile, 200=characters, 202=characterEquipment, 205=characterProgressions, 304=itemStats, 305=itemSockets
+    // components: 100=profile, 104=profileProgression(artifact), 200=characters, 202=characterEquipment, 205=characterProgressions, 304=itemStats, 305=itemSockets
     const [profileData, clanData] = await Promise.all([
-        bungieGet(`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,200,202,205,304,305`),
+        bungieGet(`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,104,200,202,205,304,305`),
         bungieGet(`/Platform/GroupV2/User/${membershipType}/${membershipId}/0/1/`)
     ]);
 
@@ -102,10 +102,24 @@ export async function load({ params, parent }) {
     const charIds    = profile?.profile?.data?.characterIds ?? [];
     const characters = profile?.characters?.data ?? {};
     const equipData  = profile?.characterEquipment?.data ?? {};
-    const socketsData   = profile?.itemComponents?.sockets?.data ?? {};
+    const socketsData    = profile?.itemComponents?.sockets?.data ?? {};
     const statsComponent = profile?.itemComponents?.stats?.data ?? {};
     const progressions   = profile?.characterProgressions?.data ?? {};
     const clan = clanData.Response?.results?.[0]?.group ?? null;
+
+    // Seasonal artifact (component 104)
+    const artifactData = profile?.profileProgression?.data?.seasonalArtifact ?? null;
+    let artifact = null;
+    if (artifactData?.artifactHash) {
+        const artifactDef = await manifestItem(artifactData.artifactHash);
+        artifact = {
+            name: artifactDef?.displayProperties?.name ?? 'Seasonal Artifact',
+            icon: artifactDef?.displayProperties?.icon ? BUNGIE_ROOT + artifactDef.displayProperties.icon : null,
+            powerBonus: artifactData.powerBonus ?? 0,
+            pointsAcquired: artifactData.pointsAcquired ?? 0,
+            pointsUsed: artifactData.pointsUsed ?? 0
+        };
+    }
 
     const sortedCharIds = [...charIds].sort((a, b) =>
         new Date(characters[b]?.dateLastPlayed ?? 0) - new Date(characters[a]?.dateLastPlayed ?? 0)
@@ -231,6 +245,7 @@ export async function load({ params, parent }) {
         clan,
         emblemBackground,
         gambitProgression,
+        artifact,
         isClaimed, isOwner, canClaim,
         armorStatMeta: ARMOR_STATS
     };
