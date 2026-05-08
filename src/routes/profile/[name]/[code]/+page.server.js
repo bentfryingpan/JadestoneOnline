@@ -21,7 +21,7 @@ const BUCKET_HASHES = {
     1506418338: 'artifact'
 };
 
-export const ARMOR_STATS = [
+const ARMOR_STATS = [
     { hash: 2996146975, name: 'Mobility',   short: 'MOB', color: 'bg-sky-400',     text: 'text-sky-400'     },
     { hash: 392767087,  name: 'Resilience', short: 'RES', color: 'bg-green-400',   text: 'text-green-400'   },
     { hash: 1943323491, name: 'Recovery',   short: 'REC', color: 'bg-fuchsia-400', text: 'text-fuchsia-400' },
