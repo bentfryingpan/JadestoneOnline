@@ -1,4 +1,6 @@
 <script>
+    import { untrack } from 'svelte';
+
     let { data } = $props();
 
     const classNames = { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' };
@@ -29,7 +31,7 @@
     };
 
     let activeTab  = $state('overview');
-    let activeChar = $state(data.characterIds[0] ?? null);
+    let activeChar = $state(untrack(() => data.characterIds[0] ?? null));
     let claiming   = $state(false);
     let claimed    = $state(false);
 
