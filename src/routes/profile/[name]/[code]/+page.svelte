@@ -1,19 +1,19 @@
 <script>
     let { data } = $props();
-    const { player, profile } = data;
 
-    const characters = Object.values(profile?.characters?.data ?? {}).sort((a, b) => new Date(b.dateLastPlayed) - new Date(a.dateLastPlayed));
     const classNames = { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' };
     const raceNames = { 0: 'Human', 1: 'Awoken', 2: 'Exo' };
+
+    const characters = $derived(Object.values(data.profile?.characters?.data ?? {}).sort((a, b) => new Date(b.dateLastPlayed) - new Date(a.dateLastPlayed)));
 </script>
 
 <div class="min-h-screen bg-gray-900 text-white">
     <div class="h-48 bg-gradient-to-r from-gray-800 to-gray-900 relative">
         <div class="absolute bottom-0 left-0 p-6 flex items-end gap-4">
             <div class="w-20 h-20 rounded-full bg-gray-700 border-2 border-green-400 overflow-hidden">
-                {#if profile?.profile?.data?.userInfo?.iconPath}
+                {#if data.profile?.profile?.data?.userInfo?.iconPath}
                 <img
-                    src="https://www.bungie.net{profile.profile.data.userInfo.iconPath}"
+                    src="https://www.bungie.net{data.profile.profile.data.userInfo.iconPath}"
                     alt="avatar"
                     class="w-full h-full object-cover"
                 />
@@ -22,8 +22,8 @@
                 {/if}
             </div>
             <div>
-                <h1 class="text-3xl font-bold">{player.bungieGlobalDisplayName}</h1>
-                <p class="text-gray-400">#{player.bungieGlobalDisplayNameCode}</p>
+                <h1 class="text-3xl font-bold">{data.player.bungieGlobalDisplayName}</h1>
+                <p class="text-gray-400">#{data.player.bungieGlobalDisplayNameCode}</p>
             </div>
         </div>
     </div>
@@ -59,7 +59,7 @@
                 {#each data.recentMatches as match}
                 <div class="flex justify-between items-center py-2 border-b border-gray-700">
                     <div>
-                        <p class="font-semibold">{match.activityDetails?.referenceId ? 'Gambit' : 'Unknown'}</p>
+                        <p class="font-semibold">Gambit</p>
                         <p class="text-gray-400 text-sm">{new Date(match.period).toLocaleDateString()}</p>
                     </div>
                     <div class="text-right">
