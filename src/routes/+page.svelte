@@ -1,52 +1,57 @@
 <script>
+    import { goto } from '$app/navigation';
+
+    let { data } = $props();
     let name = $state('');
-    let player = $state(null);
-    let loading = $state(false);
     let error = $state(null);
 
     async function search() {
-        loading = true;
-        error = null;
-        player = null;
-
-        const res = await fetch(`/api/player?name=${encodeURIComponent(name)}`);
-        const data = await res.json();
-
-        if (data.ErrorCode !== 1) {
-            error = 'Player not found.';
-        } else {
-            player = data.Response.find(p => p.membershipType === 3) ?? data.Response[0];
+        if (!name.includes('#')) {
+            error = 'Please enter your full Bungie name e.g. bent#9599';
+            return;
         }
+        const [playerName, code] = name.split('#');
+        goto(`/profile/${encodeURIComponent(playerName)}/${code}`);
+    }
 
-        loading = false;
+    function handleKeydown(e) {
+        if (e.key === 'Enter') search();
     }
 </script>
 
 <main class="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-8">
-    <h1 class="text-4xl font-bold mb-8">Jadestone</h1>
+    <div class="absolute top-4 right-4">
+        {#if data.user}
+            <div class="flex items-center gap-3">
+                <span class="text-gray-300 text-sm">{data.user.displayName}</span>
+                <a href="/auth/logout" class="text-gray-400 hover:text-white text-sm">Sign out</a>
+            </div>
+        {:else}
+            <a href="/auth/login" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded font-semibold text-sm">
+                Sign in with Bungie
+            </a>
+        {/if}
+    </div>
 
-    <div class="flex gap-2 mb-8">
+    <h1 class="text-4xl font-bold mb-2">Jadestone</h1>
+    <p class="text-gray-400 mb-8">Gambit Stats & Leaderboards</p>
+
+    <div class="flex gap-2 mb-4">
         <input
             bind:value={name}
+            onkeydown={handleKeydown}
             placeholder="Bungie name e.g. bent#9599"
             class="bg-gray-800 border border-gray-600 rounded px-4 py-2 w-72"
         />
         <button
-            on:click={search}
+            onclick={search}
             class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded font-semibold"
         >
             Search
         </button>
     </div>
 
-    {#if loading}
-        <p>Loading...</p>
-    {:else if error}
-        <p class="text-red-400">{error}</p>
-    {:else if player}
-        <div class="bg-gray-800 rounded p-6 w-full max-w-md">
-            <p class="text-xl font-bold">{player.bungieGlobalDisplayName}#{player.bungieGlobalDisplayNameCode}</p>
-            <p class="text-gray-400 text-sm mt-1">Membership ID: {player.membershipId}</p>
-        </div>
+    {#if error}
+        <p class="text-red-400 text-sm">{error}</p>
     {/if}
 </main>
