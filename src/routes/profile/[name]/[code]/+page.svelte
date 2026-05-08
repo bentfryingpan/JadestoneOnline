@@ -176,7 +176,7 @@
     <!-- ── Tabs ── -->
     <div class="border-b border-white/10 bg-[#10121a] px-8">
         <nav class="flex gap-1">
-            {#each [['overview','Overview'],['character','Character'],['matches','Matches'],['stats','Stats']] as [id, label]}
+            {#each [['overview','Overview'],['subclass','Subclass'],['loadout','Weapons & Armor'],['matches','Matches'],['stats','Stats']] as [id, label]}
                 <button onclick={() => activeTab = id}
                     class="px-5 py-3 text-sm font-semibold transition-colors border-b-2 {activeTab === id
                         ? 'border-emerald-400 text-white'
@@ -289,10 +289,19 @@
         {/if}
 
 
-        <!-- ════════════════════════════════════════════════ CHARACTER ════ -->
-        {:else if activeTab === 'character'}
+        <!-- ════════════════════════════════════════════════ SUBCLASS ════ -->
+        {:else if activeTab === 'subclass'}
 
-        <div class="grid grid-cols-[220px_1fr_220px] gap-4">
+        <div class="max-w-4xl mx-auto">
+            <!-- Character selector reminder -->
+            <SubclassScreen {char} {eq} {sockets} />
+        </div>
+
+
+        <!-- ════════════════════════════════════════════════ LOADOUT ════ -->
+        {:else if activeTab === 'loadout'}
+
+        <div class="grid grid-cols-2 gap-6">
 
             <!-- LEFT: Weapons -->
             <div class="flex flex-col gap-3">
@@ -400,11 +409,6 @@
                     </div>
                 </div>
                 {/if}
-            </div>
-
-            <!-- CENTER: Subclass screen overlay -->
-            <div class="flex flex-col gap-2">
-                <SubclassScreen {char} {eq} {sockets} />
             </div>
 
             <!-- RIGHT: Armor + Stats -->
