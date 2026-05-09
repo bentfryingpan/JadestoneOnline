@@ -92,7 +92,8 @@ async function paginateChar(membershipType, membershipId, charId, maxPages) {
     return allActivities;
 }
 
-export async function GET({ url }) {
+export async function GET({ url, setHeaders }) {
+    setHeaders({ 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=120' });
     const membershipType = url.searchParams.get('membershipType');
     const membershipId   = url.searchParams.get('membershipId');
     // Accept comma-separated charIds to aggregate across all characters

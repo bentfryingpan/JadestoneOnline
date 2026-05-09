@@ -4,6 +4,11 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+
+		<!-- Pre-open sockets to Bungie's CDN so icons/images are instant -->
+		<link rel="preconnect" href="https://www.bungie.net" crossorigin />
+		<link rel="dns-prefetch" href="https://www.bungie.net" />
+
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

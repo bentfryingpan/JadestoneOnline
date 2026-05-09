@@ -1,5 +1,6 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
+import { cacheGet, cacheSet, MANIFEST_TTL, PROFILE_TTL } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
@@ -35,19 +36,27 @@ async function bungieGet(url) {
 }
 
 async function fetchDef(hash) {
+    // Manifest definitions are versioned by Bungie and change only on patch days.
+    // Cache them for 1 hour. On a warm instance, loadout tabs skip ALL these calls.
+    const cacheKey = `manifest:${hash}`;
+    const cached   = cacheGet(cacheKey);
+    if (cached !== undefined) return [hash, cached];
+
     try {
         const r = await fetch(
             `${BUNGIE_ROOT}/Platform/Destiny2/Manifest/DestinyInventoryItemDefinition/${hash}/`,
             { headers: { 'X-API-Key': BUNGIE_API_KEY } }
         );
-        const d = await r.json();
-        return [hash, d.Response ?? null];
+        const d   = await r.json();
+        const def = d.Response ?? null;
+        cacheSet(cacheKey, def, MANIFEST_TTL);
+        return [hash, def];
     } catch {
         return [hash, null];
     }
 }
 
-export async function GET({ url }) {
+export async function GET({ url, setHeaders }) {
     const membershipType = url.searchParams.get('membershipType');
     const membershipId   = url.searchParams.get('membershipId');
     const charId         = url.searchParams.get('charId');
@@ -55,6 +64,9 @@ export async function GET({ url }) {
     if (!membershipType || !membershipId || !charId) {
         return json({ error: 'Missing params' }, { status: 400 });
     }
+
+    // Tell Vercel CDN to cache this response for 60s and serve stale for 30s
+    setHeaders({ 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30' });
 
     // ── 1. One Bungie call: equipment + sockets + instances + artifact ─────────
     // 104=profileProgressions(artifact), 202=characterEquipment,

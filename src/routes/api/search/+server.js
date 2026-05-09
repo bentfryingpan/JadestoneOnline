@@ -3,9 +3,11 @@ import { json } from '@sveltejs/kit';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
-export async function GET({ url }) {
+export async function GET({ url, setHeaders }) {
     const q = (url.searchParams.get('q') ?? '').trim();
     if (q.length < 2) return json([]);
+    // CDN can cache search suggestions for 5 min — player names are stable
+    setHeaders({ 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' });
 
     // Strip the #code suffix if present (search by name only)
     const displayNamePrefix = q.includes('#') ? q.split('#')[0].trim() : q;
