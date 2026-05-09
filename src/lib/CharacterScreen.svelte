@@ -139,16 +139,16 @@
                             {#if perks.intrinsic || perks.main.length}
                                 <div class="flex gap-1 mt-1.5 flex-wrap items-center">
                                     {#if perks.intrinsic}
-                                        <PerkIcon perk={perks.intrinsic} ring="ring-yellow-600/60" />
+                                        {@render PerkIcon(perks.intrinsic, 'ring-yellow-600/60')}
                                     {/if}
                                     {#each perks.main.slice(0, 4) as perk}
-                                        <PerkIcon {perk} ring="ring-white/10" />
+                                        {@render PerkIcon(perk)}
                                     {/each}
                                     {#if perks.mw}
-                                        <PerkIcon perk={perks.mw} ring="ring-amber-400/60" labelClass="text-amber-300" prefix="MW: " />
+                                        {@render PerkIcon(perks.mw, 'ring-amber-400/60', 'text-amber-300', 'MW: ')}
                                     {/if}
                                     {#if perks.mod}
-                                        <PerkIcon perk={perks.mod} ring="ring-blue-400/40" labelClass="text-blue-300" />
+                                        {@render PerkIcon(perks.mod, 'ring-blue-400/40', 'text-blue-300')}
                                     {/if}
                                 </div>
                             {/if}

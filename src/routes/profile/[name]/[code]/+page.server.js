@@ -141,7 +141,14 @@ export async function load({ params, parent, setHeaders }) {
     const gambitProgression = progressions[mainCharId]?.progressions?.[3008065600];
 
     return {
-        player: { membershipType, membershipId, displayName: name },
+        // Expose the fields the page template expects, using URL params as the
+        // canonical name/code (they were already used to resolve the player).
+        player: {
+            membershipType,
+            membershipId,
+            bungieGlobalDisplayName:     name,
+            bungieGlobalDisplayNameCode: code,
+        },
         characters,
         characterIds: sortedCharIds,
         membershipType, membershipId,
