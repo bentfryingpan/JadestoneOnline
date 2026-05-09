@@ -5,20 +5,11 @@ import { error } from '@sveltejs/kit';
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
 const BUCKET_HASHES = {
-    1498876634: 'kinetic',
-    2465295065: 'energy',
-    953998645:  'power',
-    3448274439: 'helmet',
-    3551918588: 'gauntlets',
-    14239492:   'chest',
-    20886954:   'legs',
-    1585787867: 'classItem',
-    4023194814: 'ghost',
-    2025709351: 'vehicle',
-    284967655:  'ship',
-    4274335291: 'emblem',
-    3284755031: 'subclass',
-    1506418338: 'artifact'
+    1498876634: 'kinetic',  2465295065: 'energy',   953998645:  'power',
+    3448274439: 'helmet',   3551918588: 'gauntlets', 14239492:   'chest',
+    20886954:   'legs',     1585787867: 'classItem', 4023194814: 'ghost',
+    2025709351: 'vehicle',  284967655:  'ship',      4274335291: 'emblem',
+    3284755031: 'subclass', 1506418338: 'artifact'
 };
 
 const ARMOR_STATS = [
@@ -30,7 +21,6 @@ const ARMOR_STATS = [
     { hash: 4244567218, name: 'Strength',   short: 'STR', color: 'bg-red-400',     text: 'text-red-400'     }
 ];
 
-// Per-request manifest cache — deduplicates repeated hash lookups across characters/weapons
 let _cache;
 
 async function bungieGet(url) {
@@ -59,11 +49,10 @@ async function resolveWeaponPerks(instanceId, socketsData) {
             if (!pName || pName === 'Default Shader' || pName === 'Empty Mod Socket') return null;
             if (typeName.includes('tracker') || typeName.includes('shader') || typeName.includes('ornament')) return null;
             return {
-                hash: s.plugHash,
-                name: pName,
+                hash: s.plugHash, name: pName,
                 icon: def.displayProperties?.icon ? BUNGIE_ROOT + def.displayProperties.icon : null,
                 isEnabled: s.isEnabled,
-                isIntrinsic: typeName.includes('intrinsic'),
+                isIntrinsic:  typeName.includes('intrinsic'),
                 isMasterwork: typeName.includes('masterwork'),
                 isMod: typeName.includes('weapon mod') || typeName.includes('armor mod'),
                 itemTypeDisplayName: def.itemTypeDisplayName ?? '',
@@ -79,53 +68,53 @@ export async function load({ params, parent }) {
     const { name, code } = params;
     const { user } = await parent();
 
+    // ── 1. Resolve player ──────────────────────────────────────────────────────
     const searchData = await bungieGet(
         `/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(name + '#' + code)}/`
     );
-
     if (searchData.ErrorCode !== 1 || !searchData.Response.length) {
         throw error(404, 'Player not found');
     }
-
-    let player = searchData.Response.find(p => p.crossSaveOverride === p.membershipType);
-    if (!player) player = searchData.Response.find(p => p.membershipType === 3) ?? searchData.Response[0];
-
+    let player = searchData.Response.find(p => p.crossSaveOverride === p.membershipType)
+              ?? searchData.Response.find(p => p.membershipType === 3)
+              ?? searchData.Response[0];
     const { membershipType, membershipId } = player;
 
-    // components: 100=profile, 104=profileProgression(artifact), 200=characters, 202=characterEquipment, 205=characterProgressions, 304=itemStats, 305=itemSockets
+    // ── 2. Parallel: profile data + clan + gambit stats + recent matches ───────
     const [profileData, clanData] = await Promise.all([
         bungieGet(`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,104,200,202,205,304,305`),
         bungieGet(`/Platform/GroupV2/User/${membershipType}/${membershipId}/0/1/`)
     ]);
 
-    const profile    = profileData.Response ?? {};
-    const charIds    = profile?.profile?.data?.characterIds ?? [];
-    const characters = profile?.characters?.data ?? {};
-    const equipData  = profile?.characterEquipment?.data ?? {};
-    const socketsData    = profile?.itemComponents?.sockets?.data ?? {};
-    const statsComponent = profile?.itemComponents?.stats?.data ?? {};
-    const progressions   = profile?.characterProgressions?.data ?? {};
-    const clan = clanData.Response?.results?.[0]?.group ?? null;
-
-    // Seasonal artifact (component 104)
-    const artifactData = profile?.profileProgression?.data?.seasonalArtifact ?? null;
-    let artifact = null;
-    if (artifactData?.artifactHash) {
-        const artifactDef = await manifestItem(artifactData.artifactHash);
-        artifact = {
-            name: artifactDef?.displayProperties?.name ?? 'Seasonal Artifact',
-            icon: artifactDef?.displayProperties?.icon ? BUNGIE_ROOT + artifactDef.displayProperties.icon : null,
-            powerBonus: artifactData.powerBonus ?? 0,
-            pointsAcquired: artifactData.pointsAcquired ?? 0,
-            pointsUsed: artifactData.pointsUsed ?? 0
-        };
-    }
+    const profile      = profileData.Response ?? {};
+    const charIds      = profile?.profile?.data?.characterIds ?? [];
+    const characters   = profile?.characters?.data ?? {};
+    const equipData    = profile?.characterEquipment?.data ?? {};
+    const socketsData  = profile?.itemComponents?.sockets?.data ?? {};
+    const statsComp    = profile?.itemComponents?.stats?.data ?? {};
+    const progressions = profile?.characterProgressions?.data ?? {};
+    const clan         = clanData.Response?.results?.[0]?.group ?? null;
 
     const sortedCharIds = [...charIds].sort((a, b) =>
         new Date(characters[b]?.dateLastPlayed ?? 0) - new Date(characters[a]?.dateLastPlayed ?? 0)
     );
     const mainCharId = sortedCharIds[0];
 
+    // Artifact
+    const artifactData = profile?.profileProgression?.data?.seasonalArtifact ?? null;
+    let artifact = null;
+    if (artifactData?.artifactHash) {
+        const def = await manifestItem(artifactData.artifactHash);
+        artifact = {
+            name:           def?.displayProperties?.name ?? 'Seasonal Artifact',
+            icon:           def?.displayProperties?.icon ? BUNGIE_ROOT + def.displayProperties.icon : null,
+            powerBonus:     artifactData.powerBonus     ?? 0,
+            pointsAcquired: artifactData.pointsAcquired ?? 0,
+            pointsUsed:     artifactData.pointsUsed     ?? 0
+        };
+    }
+
+    // ── 3. Gambit stats + recent matches (parallel) ───────────────────────────
     let recentMatches = [];
     let lifetimeStats = null;
 
@@ -138,103 +127,106 @@ export async function load({ params, parent }) {
         lifetimeStats = acctStats.Response?.gambit?.allTime ?? null;
     }
 
-    // Resolve equipment per character
+    // ── 4. Resolve equipment (loadout tab) ────────────────────────────────────
     const characterEquipment = {};
-
     for (const charId of sortedCharIds) {
         const items = equipData[charId]?.items ?? [];
-
         const resolved = await Promise.all(
             items.map(async (item) => {
-                const def = await manifestItem(item.itemHash);
+                const def  = await manifestItem(item.itemHash);
                 const slot = BUCKET_HASHES[def?.inventory?.bucketTypeHash] ?? 'other';
-
                 const itemData = {
                     instanceId: item.itemInstanceId,
-                    hash: item.itemHash,
-                    name: def?.displayProperties?.name ?? 'Unknown',
-                    icon: def?.displayProperties?.icon ? BUNGIE_ROOT + def.displayProperties.icon : null,
+                    hash:       item.itemHash,
+                    name:       def?.displayProperties?.name ?? 'Unknown',
+                    icon:       def?.displayProperties?.icon ? BUNGIE_ROOT + def.displayProperties.icon : null,
                     screenshot: def?.screenshot ? BUNGIE_ROOT + def.screenshot : null,
-                    tierType: def?.inventory?.tierType,
-                    itemType: def?.itemType,
-                    itemSubType: def?.itemSubType,
+                    tierType:   def?.inventory?.tierType,
+                    itemType:   def?.itemType,
+                    itemSubType:def?.itemSubType,
                     damageType: def?.defaultDamageType,
-                    slot,
-                    flavorText: def?.flavorText ?? '',
+                    slot, flavorText: def?.flavorText ?? '',
                     itemTypeDisplayName: def?.itemTypeDisplayName ?? ''
                 };
-
-                // Weapon perks (itemType 3)
-                if (def?.itemType === 3 && item.itemInstanceId) {
+                if (def?.itemType === 3 && item.itemInstanceId)
                     itemData.perks = await resolveWeaponPerks(item.itemInstanceId, socketsData);
-                }
-
-                // Armor stats (itemType 2)
-                if (def?.itemType === 2 && item.itemInstanceId && statsComponent[item.itemInstanceId]) {
-                    const raw = statsComponent[item.itemInstanceId].stats ?? {};
+                if (def?.itemType === 2 && item.itemInstanceId && statsComp[item.itemInstanceId]) {
+                    const raw = statsComp[item.itemInstanceId].stats ?? {};
                     itemData.armorStats = ARMOR_STATS.map(({ hash, name, short, color, text }) => ({
-                        name, short, color, text,
-                        value: raw[hash]?.value ?? 0
+                        name, short, color, text, value: raw[hash]?.value ?? 0
                     }));
                 }
-
                 return itemData;
             })
         );
-
         const grouped = {};
-        for (const item of resolved) {
-            grouped[item.slot] = item;
-        }
+        for (const item of resolved) grouped[item.slot] = item;
 
         // Subclass sockets
         const subclassItem = resolved.find(i => i.slot === 'subclass');
         if (subclassItem?.instanceId && socketsData[subclassItem.instanceId]) {
             const sockets = socketsData[subclassItem.instanceId].sockets ?? [];
-            const resolvedSockets = await Promise.all(
-                sockets.map(async (s) => {
-                    if (!s.plugHash || !s.isVisible) return null;
-                    const def = await manifestItem(s.plugHash);
-                    if (!def) return null;
-                    return {
-                        hash: s.plugHash,
-                        name: def.displayProperties?.name ?? '',
-                        icon: def.displayProperties?.icon ? BUNGIE_ROOT + def.displayProperties.icon : null,
-                        isEnabled: s.isEnabled,
-                        itemTypeDisplayName: def.itemTypeDisplayName ?? '',
-                        description: def.displayProperties?.description ?? ''
-                    };
-                })
-            );
-            const valid = resolvedSockets.filter(Boolean);
+            const rs = await Promise.all(sockets.map(async (s) => {
+                if (!s.plugHash || !s.isVisible) return null;
+                const def = await manifestItem(s.plugHash);
+                if (!def) return null;
+                return {
+                    hash: s.plugHash,
+                    name: def.displayProperties?.name ?? '',
+                    icon: def.displayProperties?.icon ? BUNGIE_ROOT + def.displayProperties.icon : null,
+                    isEnabled: s.isEnabled,
+                    itemTypeDisplayName: def.itemTypeDisplayName ?? '',
+                    description: def.displayProperties?.description ?? ''
+                };
+            }));
+            const valid = rs.filter(Boolean);
             grouped.subclassSockets = {
-                super: valid.find(s => s.itemTypeDisplayName?.toLowerCase().includes('super')),
-                abilities: valid.filter(s =>
-                    ['grenade', 'melee', 'class ability', 'movement ability'].some(k =>
-                        s.itemTypeDisplayName?.toLowerCase().includes(k)
-                    )
-                ),
+                super:     valid.find(s => s.itemTypeDisplayName?.toLowerCase().includes('super')),
+                abilities: valid.filter(s => ['grenade','melee','class ability','movement ability'].some(k => s.itemTypeDisplayName?.toLowerCase().includes(k))),
                 aspects:   valid.filter(s => s.itemTypeDisplayName?.toLowerCase().includes('aspect')),
                 fragments: valid.filter(s => s.itemTypeDisplayName?.toLowerCase().includes('fragment'))
             };
         }
-
         characterEquipment[charId] = grouped;
     }
 
-    const mainChar = characters[mainCharId];
-    const emblemBackground = mainChar?.emblemBackgroundPath ? BUNGIE_ROOT + mainChar.emblemBackgroundPath : null;
+    const mainChar       = characters[mainCharId];
+    const emblemBg       = mainChar?.emblemBackgroundPath ? BUNGIE_ROOT + mainChar.emblemBackgroundPath : null;
     const gambitProgression = progressions[mainCharId]?.progressions?.[3008065600];
 
+    // ── 5. Claim status ────────────────────────────────────────────────────────
     const { data: dbPlayer } = await supabaseAdmin
-        .from('players')
-        .select('claimed_by')
-        .eq('id', membershipId)
-        .single();
-
+        .from('players').select('claimed_by').eq('id', membershipId).single();
     const isClaimed = !!dbPlayer?.claimed_by;
     const isOwner   = user?.membershipId === membershipId;
     const canClaim  = isOwner && !isClaimed;
+
+    // ── 6. Passive leaderboard upsert ─────────────────────────────────────────
+    if (lifetimeStats) {
+        const s       = lifetimeStats;
+        const entered = s.activitiesEntered?.basic?.value ?? 0;
+        const won     = s.activitiesWon?.basic?.value     ?? 0;
+        const kills   = s.kills?.basic?.value             ?? 0;
+        const deaths  = s.deaths?.basic?.value            ?? 0;
+        supabaseAdmin.from('player_gambit_stats').upsert({
+            player_id:          parseInt(membershipId),
+            bungie_name:        name,
+            bungie_code:        code,
+            membership_type:    membershipType,
+            activities_entered: entered,
+            activities_won:     won,
+            kills, deaths,
+            assists:            s.assists?.basic?.value           ?? 0,
+            invasions:          s.invasions?.basic?.value         ?? 0,
+            invasion_kills:     s.invasionKills?.basic?.value     ?? 0,
+            invasions_defeated: s.invasionsDefeated?.basic?.value ?? 0,
+            motes_deposited:    s.motesBanked?.basic?.value       ?? 0,
+            motes_lost:         s.motesLost?.basic?.value         ?? 0,
+            kd_ratio:   deaths  > 0 ? +(kills / deaths).toFixed(2)         : kills,
+            win_rate:   entered > 0 ? +((won  / entered) * 100).toFixed(1) : 0,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'player_id' }).then(() => {});
+    }
 
     return {
         player, profile, characters,
@@ -243,7 +235,7 @@ export async function load({ params, parent }) {
         recentMatches,
         lifetimeStats,
         clan,
-        emblemBackground,
+        emblemBg,
         gambitProgression,
         artifact,
         isClaimed, isOwner, canClaim,
