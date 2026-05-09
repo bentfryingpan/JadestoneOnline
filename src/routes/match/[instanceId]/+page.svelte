@@ -204,8 +204,8 @@
 
                                 <!-- Name + class -->
                                 <div class="flex-1 min-w-0">
-                                    {#if player.membershipId && player.name !== 'Unknown'}
-                                        <a href="/profile/{player.name}/{player.code}"
+                                    {#if player.code}
+                                        <a href="/profile/{encodeURIComponent(player.name)}/{player.code}"
                                            onclick={(e) => e.stopPropagation()}
                                            class="text-sm font-semibold text-white hover:text-emerald-400 transition-colors truncate block">
                                             {player.name}<span class="text-slate-600 text-xs font-normal">#{player.code}</span>
@@ -266,9 +266,9 @@
                                     </div>
 
                                     <!-- Profile link -->
-                                    {#if player.membershipId && player.name !== 'Unknown'}
+                                    {#if player.code}
                                         <div class="mt-3 flex justify-end">
-                                            <a href="/profile/{player.name}/{player.code}"
+                                            <a href="/profile/{encodeURIComponent(player.name)}/{player.code}"
                                                class="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
                                                 View full profile
                                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">

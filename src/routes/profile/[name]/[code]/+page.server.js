@@ -14,15 +14,27 @@ export async function load({ params, parent }) {
     const { user } = await parent();
 
     // ── 1. Resolve player ──────────────────────────────────────────────────────
-    const searchData = await bungieGet(
-        `/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(name + '#' + code)}/`
-    );
-    if (searchData.ErrorCode !== 1 || !searchData.Response.length) {
+    let searchData;
+    try {
+        searchData = await bungieGet(
+            `/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(name + '#' + code)}/`
+        );
+    } catch {
+        throw error(502, 'Bungie API unavailable');
+    }
+
+    if (!searchData || searchData.ErrorCode !== 1 || !Array.isArray(searchData.Response) || !searchData.Response.length) {
         throw error(404, 'Player not found');
     }
+
     let player = searchData.Response.find(p => p.crossSaveOverride === p.membershipType)
               ?? searchData.Response.find(p => p.membershipType === 3)
               ?? searchData.Response[0];
+
+    if (!player?.membershipType || !player?.membershipId) {
+        throw error(404, 'Player not found');
+    }
+
     const { membershipType, membershipId } = player;
 
     // ── 2. Parallel: core profile + clan + gambit lifetime stats ──────────────

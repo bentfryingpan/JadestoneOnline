@@ -47,9 +47,20 @@ function buildPlayer(entry) {
     const destinyInfo= player.destinyUserInfo ?? {};
     const bungieInfo = player.bungieNetUserInfo ?? {};
 
-    const name  = destinyInfo.bungieGlobalDisplayName  || bungieInfo.displayName || 'Unknown';
-    const code  = String(destinyInfo.bungieGlobalDisplayNameCode ?? '').padStart(4, '0');
-    const icon  = destinyInfo.iconPath ? BUNGIE_ROOT + destinyInfo.iconPath : null;
+    // Only treat as a linkable Bungie name when BOTH parts are present.
+    // Falling back to the legacy displayName gives a name with no valid code,
+    // which causes 500s on the profile search route.
+    const hasGlobalName = !!(destinyInfo.bungieGlobalDisplayName &&
+                             destinyInfo.bungieGlobalDisplayNameCode != null);
+    const name  = hasGlobalName
+                    ? destinyInfo.bungieGlobalDisplayName
+                    : (bungieInfo.displayName || 'Unknown Guardian');
+    const code  = hasGlobalName
+                    ? String(destinyInfo.bungieGlobalDisplayNameCode).padStart(4, '0')
+                    : null; // null → not linkable
+    const icon  = (destinyInfo.iconPath || bungieInfo.iconPath)
+                    ? BUNGIE_ROOT + (destinyInfo.iconPath || bungieInfo.iconPath)
+                    : null;
     const emblem= entry.player?.emblemHash ?? null;
 
     const classType = player.classType ?? -1;
@@ -112,12 +123,13 @@ export async function load({ params }) {
     const period   = pgcr.period;
     const duration = entries[0]?.values?.activityDurationSeconds?.basic?.value ?? 0;
 
-    // Group entries by team — Gambit is always 2 teams (0 and 1) of 4
-    const teams = { 0: [], 1: [] };
+    // Group entries by actual team value.
+    // Bungie Gambit PGCRs use arbitrary IDs (e.g. 17 / 18), never 0 / 1.
+    const teamMap = {};
     for (const entry of entries) {
-        const team = entry.values?.team?.basic?.value ?? 0;
-        const tid  = team > 1 ? 0 : team; // guard against odd values
-        teams[tid].push(buildPlayer(entry));
+        const teamVal = entry.values?.team?.basic?.value ?? 0;
+        if (!teamMap[teamVal]) teamMap[teamVal] = [];
+        teamMap[teamVal].push(buildPlayer(entry));
     }
 
     // Determine team win/loss — any player on a team with standing 0 won
@@ -125,8 +137,10 @@ export async function load({ params }) {
         return players.some(p => p.standing === 0);
     }
 
-    const teamA = teams[0] ?? [];
-    const teamB = teams[1] ?? [];
+    // Sort keys so team assignment is deterministic; first key → Alpha
+    const teamKeys = Object.keys(teamMap).sort((a, b) => Number(a) - Number(b));
+    const teamA = teamMap[teamKeys[0]] ?? [];
+    const teamB = teamMap[teamKeys[1]] ?? [];
 
     // Map/mode info
     const mapName    = activityDef?.displayProperties?.name    ?? 'Unknown Map';

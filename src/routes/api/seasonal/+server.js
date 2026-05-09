@@ -77,54 +77,66 @@ function emptyBucket(season) {
     };
 }
 
-export async function GET({ url }) {
-    const membershipType = url.searchParams.get('membershipType');
-    const membershipId   = url.searchParams.get('membershipId');
-    const charId         = url.searchParams.get('charId');
-    const maxPages       = parseInt(url.searchParams.get('maxPages') ?? '10', 10);
-
-    if (!membershipType || !membershipId || !charId) {
-        return json({ error: 'Missing params' }, { status: 400 });
-    }
-
-    // Paginate through Gambit activity history (mode=63)
-    // Each page has up to 250 activities. 10 pages = up to 2500 matches.
-    const buckets = {}; // seasonNumber → bucket
-
-    let page = 0;
-    let keepGoing = true;
-
-    while (keepGoing && page < maxPages) {
+// Paginate all Gambit history for a single character, returning raw activity entries
+async function paginateChar(membershipType, membershipId, charId, maxPages) {
+    const allActivities = [];
+    for (let page = 0; page < maxPages; page++) {
         const data = await bungieGet(
             `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=${page}`
         );
-
         if (data.ErrorCode !== 1) break;
-
         const activities = data.Response?.activities ?? [];
-        if (!activities.length) {
-            keepGoing = false;
-            break;
-        }
+        for (const entry of activities) allActivities.push(entry);
+        if (activities.length < 250) break; // exhausted
+    }
+    return allActivities;
+}
 
+export async function GET({ url }) {
+    const membershipType = url.searchParams.get('membershipType');
+    const membershipId   = url.searchParams.get('membershipId');
+    // Accept comma-separated charIds to aggregate across all characters
+    const charIdsParam   = url.searchParams.get('charIds') ?? url.searchParams.get('charId') ?? '';
+    const maxPages       = parseInt(url.searchParams.get('maxPages') ?? '10', 10);
+
+    if (!membershipType || !membershipId || !charIdsParam) {
+        return json({ error: 'Missing params' }, { status: 400 });
+    }
+
+    const charIds = charIdsParam.split(',').map(s => s.trim()).filter(Boolean);
+
+    // Fetch all characters in parallel — each character has independent match history
+    const perCharActivities = await Promise.all(
+        charIds.map(cid => paginateChar(membershipType, membershipId, cid, maxPages))
+    );
+
+    // Merge all activities and deduplicate by instanceId (same match won't appear on multiple chars)
+    const seen    = new Set();
+    const buckets = {}; // seasonNumber → bucket
+
+    for (const activities of perCharActivities) {
         for (const entry of activities) {
+            const instanceId = entry.activityDetails?.instanceId;
+            if (instanceId) {
+                if (seen.has(instanceId)) continue;
+                seen.add(instanceId);
+            }
+
             const period = (entry.period ?? '').slice(0, 10); // "YYYY-MM-DD"
             if (!period) continue;
 
             const season = seasonForDate(period);
-            if (!season) continue; // before our tracked seasons
+            if (!season) continue;
 
             const key = season.number;
             if (!buckets[key]) buckets[key] = emptyBucket(season);
             accumulate(buckets[key], entry);
         }
-
-        // If we got fewer than 250, we've exhausted history
-        if (activities.length < 250) keepGoing = false;
-        page++;
     }
 
-    // Convert to array sorted newest first
+    const totalActivities = [...seen].length;
+
+    // Convert to array sorted newest first, compute derived stats
     const seasons = Object.values(buckets)
         .sort((a, b) => b.seasonNumber - a.seasonNumber)
         .map(b => ({
@@ -141,8 +153,7 @@ export async function GET({ url }) {
             avgInvasions: b.activitiesEntered > 0
                 ? +(b.invasions / b.activitiesEntered).toFixed(2)
                 : 0,
-            pagesScanned: page,
         }));
 
-    return json({ seasons, pagesScanned: page });
+    return json({ seasons, totalActivities, charsScanned: charIds.length });
 }

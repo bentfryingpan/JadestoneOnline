@@ -43,14 +43,16 @@
     let seasonalCharId  = $state(null);
 
     async function fetchSeasonal() {
-        if (seasonalLoading || seasonalCharId === activeChar) return;
+        // Seasonal stats cover ALL characters — no need to re-fetch when switching chars
+        if (seasonalLoading || seasonal) return;
         seasonalLoading = true;
         try {
+            const charIds = data.characterIds.join(',');
             const res = await fetch(
-                `/api/seasonal?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${activeChar}&maxPages=15`
+                `/api/seasonal?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&maxPages=10`
             );
-            seasonal      = await res.json();
-            seasonalCharId = activeChar;
+            seasonal       = await res.json();
+            seasonalCharId = activeChar; // mark as loaded
         } catch (e) {
             console.error('Seasonal fetch failed', e);
         } finally {
@@ -65,9 +67,9 @@
         }
     });
 
-    // Fetch seasonal stats when on seasons tab
+    // Fetch seasonal stats when on seasons tab (account-wide, fetch once)
     $effect(() => {
-        if (tab === 'seasons' && activeChar && activeChar !== seasonalCharId) {
+        if (tab === 'seasons' && !seasonal && !seasonalLoading) {
             fetchSeasonal();
         }
     });
@@ -373,7 +375,9 @@
         {:else}
             <div class="flex items-center justify-between mb-5">
                 <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Season Breakdown</h2>
-                <span class="text-xs text-slate-600">{seasonal.pagesScanned} pages scanned · {seasonal.seasons.length} seasons found</span>
+                <span class="text-xs text-slate-600">
+                    {seasonal.totalActivities?.toLocaleString()} matches across {seasonal.charsScanned} character{seasonal.charsScanned !== 1 ? 's' : ''}
+                </span>
             </div>
 
             <div class="space-y-3">
