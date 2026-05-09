@@ -16,9 +16,65 @@
     let claimed    = $state(false);
     $effect(() => { claimed = data.isClaimed; });
 
+    // ── Lazy loadout state ─────────────────────────────────────────────────────
+    let loadout        = $state(null);
+    let loadoutLoading = $state(false);
+    let loadoutCharId  = $state(null); // charId we have equipment data for
+
+    async function fetchLoadout() {
+        if (loadoutLoading || loadoutCharId === activeChar) return;
+        loadoutLoading = true;
+        try {
+            const res = await fetch(
+                `/api/loadout?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${activeChar}`
+            );
+            loadout       = await res.json();
+            loadoutCharId = activeChar;
+        } catch (e) {
+            console.error('Loadout fetch failed', e);
+        } finally {
+            loadoutLoading = false;
+        }
+    }
+
+    // ── Lazy seasonal stats state ──────────────────────────────────────────────
+    let seasonal        = $state(null);
+    let seasonalLoading = $state(false);
+    let seasonalCharId  = $state(null);
+
+    async function fetchSeasonal() {
+        if (seasonalLoading || seasonalCharId === activeChar) return;
+        seasonalLoading = true;
+        try {
+            const res = await fetch(
+                `/api/seasonal?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${activeChar}&maxPages=15`
+            );
+            seasonal      = await res.json();
+            seasonalCharId = activeChar;
+        } catch (e) {
+            console.error('Seasonal fetch failed', e);
+        } finally {
+            seasonalLoading = false;
+        }
+    }
+
+    // Fetch loadout whenever we're on loadout/subclass tab and don't have data for this char
+    $effect(() => {
+        if ((tab === 'loadout' || tab === 'subclass') && activeChar && activeChar !== loadoutCharId) {
+            fetchLoadout();
+        }
+    });
+
+    // Fetch seasonal stats when on seasons tab
+    $effect(() => {
+        if (tab === 'seasons' && activeChar && activeChar !== seasonalCharId) {
+            fetchSeasonal();
+        }
+    });
+
     // ── Derived ────────────────────────────────────────────────────────────────
     const char    = $derived(data.characters[activeChar] ?? {});
-    const eq      = $derived(data.characterEquipment[activeChar] ?? {});
+    const eq      = $derived(loadout?.equipment ?? {});
     const sockets = $derived(eq.subclassSockets ?? {});
 
     // Gambit rank from progression
@@ -38,7 +94,7 @@
         return Math.round((prog / next) * 100);
     })());
 
-    // Subclass theme
+    // Subclass theme (safe even without loadout — defaults to neutral)
     const subclassTheme = $derived((() => {
         const n = eq.subclass?.name?.toLowerCase() ?? '';
         if (n.includes('void'))   return { border:'border-violet-500', bg:'bg-violet-950/20', text:'text-violet-400', bar:'bg-violet-500' };
@@ -62,34 +118,19 @@
     const winRate  = $derived(entered > 0 ? ((won / entered) * 100).toFixed(1) : '—');
     const kd       = $derived(deaths  > 0 ? (kills / deaths).toFixed(2)        : kills);
 
-    // Armor totals
+    // Armor totals (only meaningful when loadout is available)
+    const armorStatMeta = $derived(loadout?.armorStatMeta ?? []);
     const totalStats = $derived((() => {
+        if (!armorStatMeta.length) return {};
         const slots = ['helmet','gauntlets','chest','legs','classItem'];
         const totals = {};
-        for (const m of data.armorStatMeta) totals[m.name] = 0;
+        for (const m of armorStatMeta) totals[m.name] = 0;
         for (const slot of slots) {
             const item = eq[slot];
             if (item?.armorStats) for (const s of item.armorStats) totals[s.name] += s.value;
         }
         return totals;
     })());
-
-    // Weapon perk helpers
-    const tierBorder = { 6:'border-yellow-400', 5:'border-purple-500', 4:'border-blue-400', 3:'border-green-600', 2:'border-gray-700' };
-    const tierLabel  = { 6:'Exotic', 5:'Legendary', 4:'Rare', 3:'Uncommon', 2:'Common' };
-    const tierBadge  = { 6:'bg-yellow-900/50 text-yellow-300 border-yellow-700', 5:'bg-purple-900/50 text-purple-300 border-purple-700', 4:'bg-blue-900/50 text-blue-300 border-blue-700' };
-    const damageLabel = { 1:'Kinetic', 2:'Arc', 3:'Solar', 4:'Void', 6:'Stasis', 7:'Strand' };
-    const damageColor = { 1:'text-slate-300', 2:'text-cyan-400', 3:'text-orange-400', 4:'text-violet-400', 6:'text-blue-300', 7:'text-emerald-400' };
-
-    function weaponPerks(item) {
-        if (!item?.perks) return { intrinsic:null, main:[], mod:null, mw:null };
-        return {
-            intrinsic: item.perks.find(p => p.isIntrinsic)   ?? null,
-            mw:        item.perks.find(p => p.isMasterwork)  ?? null,
-            mod:       item.perks.find(p => p.isMod)         ?? null,
-            main:      item.perks.filter(p => !p.isIntrinsic && !p.isMasterwork && !p.isMod)
-        };
-    }
 
     // Match helpers
     function matchResult(m) {
@@ -140,13 +181,8 @@
     <div class="absolute bottom-0 left-0 right-0 px-6 pb-5 flex items-end justify-between">
         <!-- Player info -->
         <div class="flex items-end gap-4">
-            <!-- Avatar -->
-            <div class="w-16 h-16 rounded border border-white/10 overflow-hidden bg-white/5 shrink-0">
-                {#if data.profile?.profile?.data?.userInfo?.iconPath}
-                    <img src="https://www.bungie.net{data.profile.profile.data.userInfo.iconPath}"
-                         alt="avatar" class="w-full h-full object-cover" />
-                {/if}
-            </div>
+            <!-- Avatar placeholder -->
+            <div class="w-16 h-16 rounded border border-white/10 overflow-hidden bg-white/5 shrink-0"></div>
             <div>
                 <div class="flex items-center gap-2 mb-0.5">
                     <h1 class="text-2xl font-bold text-white leading-none">
@@ -159,7 +195,10 @@
                 </div>
                 <div class="flex items-center gap-3 text-sm text-slate-400">
                     {#if data.clan}
-                        <span class="text-slate-300">[{data.clan.name}]</span>
+                        <a href="/clan/{data.clan.groupId}"
+                           class="text-slate-300 hover:text-emerald-400 transition-colors">
+                            [{data.clan.name}]
+                        </a>
                         <span class="text-slate-600">·</span>
                     {/if}
                     <span>{classNames[char.classType] ?? ''} · {raceNames[char.raceType] ?? ''}</span>
@@ -187,7 +226,7 @@
     <div class="max-w-6xl mx-auto px-6 flex items-center gap-1 pt-1">
         {#each data.characterIds as charId}
             {@const c = data.characters[charId]}
-            <button onclick={() => activeChar = charId}
+            <button onclick={() => { activeChar = charId; }}
                     class="flex items-center gap-2 px-3 py-2.5 text-sm transition-colors rounded-t
                            {activeChar === charId
                                ? 'text-white border-b-2 border-emerald-400'
@@ -254,10 +293,10 @@
             <!-- Gambit-specific stat cards -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
                 {#each [
-                    { label:'Invasions',        value: fmt(sv('invasions')),          sub: `${fmt(sv('invasionKills'))} invasion kills` },
-                    { label:'Defeated Invaders',value: fmt(sv('invasionsDefeated')),  sub: 'times you stopped an invasion' },
-                    { label:'Motes Deposited',  value: fmt(sv('motesBanked')),        sub: `${fmt(sv('motesLost'))} motes lost` },
-                    { label:'Assists',          value: fmt(sv('assists')),            sub: sdv('kills') + ' kills' },
+                    { label:'Invasions',         value: fmt(sv('invasions')),         sub: `${fmt(sv('invasionKills'))} invasion kills` },
+                    { label:'Defeated Invaders', value: fmt(sv('invasionsDefeated')), sub: 'times you stopped an invasion' },
+                    { label:'Motes Deposited',   value: fmt(sv('motesBanked')),       sub: `${fmt(sv('motesLost'))} motes lost` },
+                    { label:'Assists',           value: fmt(sv('assists')),           sub: sdv('kills') + ' kills' },
                 ] as card}
                     <div class="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
                         <p class="text-xs text-slate-500 uppercase tracking-wider mb-2">{card.label}</p>
@@ -276,9 +315,12 @@
             </div>
             <div class="space-y-1.5">
                 {#each data.recentMatches.slice(0, 5) as match}
-                    {@const result = matchResult(match)}
-                    <div class="flex items-center gap-4 bg-white/[0.02] border border-white/[0.05]
-                                rounded-lg px-4 py-3 hover:bg-white/[0.04] transition-colors">
+                    {@const result     = matchResult(match)}
+                    {@const instanceId = match.activityDetails?.instanceId}
+                    {@const mb         = match.extended?.values?.motesDeposited?.basic?.value ?? null}
+                    <a href={instanceId ? `/match/${instanceId}` : null}
+                       class="flex items-center gap-4 bg-white/[0.02] border border-white/[0.05]
+                              rounded-lg px-4 py-3 hover:bg-white/[0.05] transition-colors group">
                         <!-- Result pill -->
                         <span class="text-xs font-bold w-8 text-center py-0.5 rounded
                                      {result === 'win'  ? 'bg-emerald-500/20 text-emerald-400' :
@@ -294,23 +336,107 @@
                             {match.values?.deaths?.basic?.value ?? 0}D /
                             {match.values?.assists?.basic?.value ?? 0}A
                         </span>
-                        <!-- EGO placeholder -->
-                        <span class="text-xs text-slate-600 font-mono">EGO —</span>
-                    </div>
+                        <!-- Motes banked -->
+                        {#if mb !== null}
+                            <span class="text-xs {mb >= 15 ? 'text-emerald-400' : 'text-slate-500'}">{mb} MB</span>
+                        {/if}
+                        <!-- Arrow -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                             class="w-3.5 h-3.5 text-slate-700 group-hover:text-emerald-500 transition-colors shrink-0">
+                            <path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
                 {/each}
             </div>
         {/if}
 
     <!-- ══ SEASONS ════════════════════════════════════════════════════════════ -->
     {:else if tab === 'seasons'}
-        <div class="flex flex-col items-center justify-center py-24 text-center">
-            <div class="text-4xl mb-4">📅</div>
-            <h2 class="text-lg font-semibold text-white mb-2">Seasonal Breakdowns</h2>
-            <p class="text-slate-500 text-sm max-w-sm">
-                Per-season Gambit stats are coming soon. This will show your performance
-                and EGO rating broken down by each Destiny 2 season.
-            </p>
-        </div>
+        {#if seasonalLoading}
+            <div class="flex flex-col items-center justify-center py-28 gap-3">
+                <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-slate-500 text-sm">Scanning match history…</p>
+                <p class="text-slate-600 text-xs">This scans up to 15 pages of Gambit history</p>
+            </div>
+        {:else if !seasonal || !seasonal.seasons?.length}
+            <div class="flex flex-col items-center justify-center py-24 text-center">
+                <div class="text-4xl mb-4">📅</div>
+                <h2 class="text-lg font-semibold text-white mb-2">No Seasonal Data</h2>
+                <p class="text-slate-500 text-sm max-w-sm">
+                    {#if seasonal}
+                        No Gambit matches found in recent history.
+                    {:else}
+                        Click the Seasons tab to load per-season stats.
+                    {/if}
+                </p>
+            </div>
+        {:else}
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Season Breakdown</h2>
+                <span class="text-xs text-slate-600">{seasonal.pagesScanned} pages scanned · {seasonal.seasons.length} seasons found</span>
+            </div>
+
+            <div class="space-y-3">
+                {#each seasonal.seasons as s}
+                    <div class="bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
+                        <!-- Season header -->
+                        <div class="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-bold text-white">{s.season}</p>
+                                <p class="text-[10px] text-slate-600 uppercase tracking-wider mt-0.5">
+                                    Season {s.seasonNumber} · {s.activitiesEntered} matches
+                                </p>
+                            </div>
+                            <!-- Win rate pill -->
+                            <div class="text-right">
+                                <p class="text-xl font-black {s.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}">
+                                    {s.winRate}%
+                                </p>
+                                <p class="text-[9px] text-slate-600 uppercase tracking-wider">Win Rate</p>
+                            </div>
+                        </div>
+
+                        <!-- Stat grid -->
+                        <div class="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y sm:divide-y-0 divide-white/[0.05]">
+                            {#each [
+                                { label: 'K/D',        val: s.kd,               hi: s.kd >= 1.5 },
+                                { label: 'Wins',       val: s.wins,             hi: false },
+                                { label: 'Motes/Game', val: s.avgMotes,         hi: s.avgMotes >= 15 },
+                                { label: 'Inv/Game',   val: s.avgInvasions,     hi: s.avgInvasions >= 1 },
+                                { label: 'Total Inv',  val: s.invasions,        hi: false },
+                                { label: 'Inv Kills',  val: s.invasionKills,    hi: false },
+                            ] as stat}
+                                <div class="px-4 py-3 text-center">
+                                    <p class="text-sm font-bold {stat.hi ? 'text-emerald-400' : 'text-white'}">
+                                        {stat.val}
+                                    </p>
+                                    <p class="text-[9px] text-slate-600 uppercase tracking-wider mt-0.5">{stat.label}</p>
+                                </div>
+                            {/each}
+                        </div>
+
+                        <!-- Motes breakdown bar -->
+                        {#if s.motesPickedUp > 0}
+                            {@const bankedPct = Math.round((s.motesDeposited / s.motesPickedUp) * 100)}
+                            {@const lostPct   = Math.round((s.motesLost      / s.motesPickedUp) * 100)}
+                            <div class="px-5 py-3 border-t border-white/[0.05]">
+                                <div class="flex items-center gap-2 mb-1.5">
+                                    <span class="text-[9px] text-slate-600 uppercase tracking-wider">Mote efficiency</span>
+                                    <span class="text-[9px] text-emerald-400 font-bold">{bankedPct}% banked</span>
+                                    <span class="text-[9px] text-red-400 ml-auto">{lostPct}% lost</span>
+                                </div>
+                                <div class="h-1.5 rounded-full overflow-hidden flex gap-0.5 bg-white/5">
+                                    <div class="h-full bg-emerald-500 rounded-full"
+                                         style="width: {bankedPct}%"></div>
+                                    <div class="h-full bg-red-500/60 rounded-full"
+                                         style="width: {lostPct}%"></div>
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
 
     <!-- ══ MATCHES ════════════════════════════════════════════════════════════ -->
     {:else if tab === 'matches'}
@@ -324,16 +450,20 @@
         {:else}
             <div class="space-y-1.5">
                 {#each data.recentMatches as match}
-                    {@const result = matchResult(match)}
-                    {@const k  = match.values?.kills?.basic?.value    ?? 0}
-                    {@const d  = match.values?.deaths?.basic?.value   ?? 0}
-                    {@const a  = match.values?.assists?.basic?.value  ?? 0}
-                    {@const dur = match.values?.activityDurationSeconds?.basic?.value ?? 0}
-                    <div class="flex items-center gap-4 bg-white/[0.02] border
-                                {result === 'win'  ? 'border-l-2 border-l-emerald-500 border-white/[0.04]' :
-                                 result === 'loss' ? 'border-l-2 border-l-red-500    border-white/[0.04]' :
-                                                     'border-white/[0.04]'}
-                                rounded-lg px-4 py-3 hover:bg-white/[0.04] transition-colors">
+                    {@const result     = matchResult(match)}
+                    {@const k          = match.values?.kills?.basic?.value                  ?? 0}
+                    {@const d          = match.values?.deaths?.basic?.value                 ?? 0}
+                    {@const a          = match.values?.assists?.basic?.value                ?? 0}
+                    {@const dur        = match.values?.activityDurationSeconds?.basic?.value ?? 0}
+                    {@const mb         = match.extended?.values?.motesDeposited?.basic?.value ?? null}
+                    {@const inv        = match.extended?.values?.invasions?.basic?.value      ?? null}
+                    {@const instanceId = match.activityDetails?.instanceId}
+                    <a href={instanceId ? `/match/${instanceId}` : null}
+                       class="flex items-center gap-4 bg-white/[0.02] border
+                              {result === 'win'  ? 'border-l-2 border-l-emerald-500 border-white/[0.04]' :
+                               result === 'loss' ? 'border-l-2 border-l-red-500    border-white/[0.04]' :
+                                                   'border-white/[0.04]'}
+                              rounded-lg px-4 py-3 hover:bg-white/[0.05] transition-colors group">
                         <!-- Result -->
                         <span class="text-xs font-bold w-8 text-center py-0.5 rounded shrink-0
                                      {result === 'win'  ? 'bg-emerald-500/20 text-emerald-400' :
@@ -350,40 +480,66 @@
                             <span class="text-slate-400">{a}</span>
                             <span class="text-xs text-slate-600 ml-1">K/D/A</span>
                         </div>
+                        <!-- Motes banked -->
+                        {#if mb !== null}
+                            <span class="text-xs {mb >= 15 ? 'text-emerald-400' : 'text-slate-500'} shrink-0 hidden sm:block">
+                                {mb} MB
+                            </span>
+                        {/if}
+                        <!-- Invasions -->
+                        {#if inv !== null && inv > 0}
+                            <span class="text-xs text-violet-400 shrink-0 hidden sm:block">{inv} INV</span>
+                        {/if}
                         <!-- Duration -->
                         {#if dur}
-                            <span class="text-xs text-slate-600 hidden sm:block">
+                            <span class="text-xs text-slate-600 hidden lg:block">
                                 {Math.floor(dur/60)}m {dur%60}s
                             </span>
                         {/if}
-                        <!-- EGO placeholder -->
-                        <span class="text-xs text-slate-600 font-mono shrink-0">EGO —</span>
-                    </div>
+                        <!-- View arrow -->
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                             class="w-3.5 h-3.5 text-slate-700 group-hover:text-emerald-500 transition-colors shrink-0">
+                            <path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
                 {/each}
             </div>
         {/if}
 
     <!-- ══ LOADOUT ════════════════════════════════════════════════════════════ -->
     {:else if tab === 'loadout'}
-        <CharacterScreen
-            character={char}
-            equipment={eq}
-            {subclassTheme}
-            {totalStats}
-            {tierBorder} {tierLabel} {tierBadge}
-            {damageLabel} {damageColor}
-            {weaponPerks}
-            artifact={data.artifact}
-            armorStatMeta={data.armorStatMeta}
-        />
+        {#if loadoutLoading}
+            <div class="flex flex-col items-center justify-center py-28 gap-3">
+                <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-slate-500 text-sm">Loading loadout…</p>
+            </div>
+        {:else if !loadout}
+            <p class="text-slate-500 text-center py-20">Loadout data unavailable.</p>
+        {:else}
+            <CharacterScreen
+                char={char}
+                eq={eq}
+                armorStatMeta={loadout?.armorStatMeta ?? []}
+                artifact={loadout?.artifact}
+            />
+        {/if}
 
     <!-- ══ SUBCLASS ═══════════════════════════════════════════════════════════ -->
     {:else if tab === 'subclass'}
-        <SubclassScreen
-            equipment={eq}
-            {sockets}
-            {subclassTheme}
-        />
+        {#if loadoutLoading}
+            <div class="flex flex-col items-center justify-center py-28 gap-3">
+                <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-slate-500 text-sm">Loading subclass…</p>
+            </div>
+        {:else if !loadout}
+            <p class="text-slate-500 text-center py-20">Subclass data unavailable.</p>
+        {:else}
+            <SubclassScreen
+                char={char}
+                eq={eq}
+                sockets={sockets}
+            />
+        {/if}
     {/if}
 
 </div>

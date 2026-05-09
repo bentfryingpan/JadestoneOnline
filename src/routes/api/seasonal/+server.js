@@ -1,0 +1,148 @@
+import { BUNGIE_API_KEY } from '$env/static/private';
+import { json } from '@sveltejs/kit';
+
+const BUNGIE_ROOT = 'https://www.bungie.net';
+
+// Known Destiny 2 Gambit season date ranges (UTC)
+// Seasons are inclusive of start, exclusive of end
+const SEASONS = [
+    { name: 'Season of the Haunted',  number: 17, start: '2022-05-24', end: '2022-08-23' },
+    { name: 'Season of Plunder',       number: 18, start: '2022-08-23', end: '2022-12-06' },
+    { name: 'Season of the Seraph',   number: 19, start: '2022-12-06', end: '2023-02-28' },
+    { name: 'Season of Defiance',     number: 20, start: '2023-02-28', end: '2023-05-23' },
+    { name: 'Season of the Deep',     number: 21, start: '2023-05-23', end: '2023-09-05' },
+    { name: 'Season of the Witch',    number: 22, start: '2023-09-05', end: '2023-11-28' },
+    { name: 'Season of the Wish',     number: 23, start: '2023-11-28', end: '2024-02-27' },
+    { name: 'The Final Shape / Echoes', number: 24, start: '2024-02-27', end: '2024-10-08' },
+    { name: 'Revenant',               number: 25, start: '2024-10-08', end: '2025-02-04' },
+    { name: 'Heresy',                 number: 26, start: '2025-02-04', end: '2025-05-20' },
+    { name: 'Edge of Fate',           number: 27, start: '2025-05-20', end: '2099-01-01' }, // ongoing
+];
+
+function seasonForDate(isoDate) {
+    for (const s of SEASONS) {
+        if (isoDate >= s.start && isoDate < s.end) return s;
+    }
+    return null;
+}
+
+async function bungieGet(url) {
+    const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
+    return res.json();
+}
+
+// Accumulate stats from an activity entry into a season bucket
+function accumulate(bucket, entry) {
+    const v   = entry.values ?? {};
+    const ext = entry.extended?.values ?? {};
+
+    function n(obj, key) { return obj?.[key]?.basic?.value ?? 0; }
+
+    bucket.activitiesEntered++;
+    const standing = n(v, 'standing'); // 0 = win, 1 = loss
+    if (standing === 0 && n(v, 'completed') === 1) bucket.wins++;
+
+    bucket.kills             += n(v, 'kills');
+    bucket.deaths            += n(v, 'deaths');
+    bucket.assists           += n(v, 'assists');
+    bucket.motesDeposited    += n(ext, 'motesDeposited');
+    bucket.motesDenied       += n(ext, 'motesDenied');
+    bucket.motesPickedUp     += n(ext, 'motesPickedUp');
+    bucket.motesLost         += n(ext, 'motesLost');
+    bucket.invasions         += n(ext, 'invasions');
+    bucket.invasionKills     += n(ext, 'invasionKills');
+    bucket.invasionsDefeated += n(ext, 'invasionsDefeated');
+    bucket.primevalDamage    += n(ext, 'primevalDamage');
+    bucket.durationSeconds   += n(v, 'activityDurationSeconds');
+}
+
+function emptyBucket(season) {
+    return {
+        season: season.name,
+        seasonNumber: season.number,
+        activitiesEntered: 0,
+        wins: 0,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        motesDeposited: 0,
+        motesDenied: 0,
+        motesPickedUp: 0,
+        motesLost: 0,
+        invasions: 0,
+        invasionKills: 0,
+        invasionsDefeated: 0,
+        primevalDamage: 0,
+        durationSeconds: 0,
+    };
+}
+
+export async function GET({ url }) {
+    const membershipType = url.searchParams.get('membershipType');
+    const membershipId   = url.searchParams.get('membershipId');
+    const charId         = url.searchParams.get('charId');
+    const maxPages       = parseInt(url.searchParams.get('maxPages') ?? '10', 10);
+
+    if (!membershipType || !membershipId || !charId) {
+        return json({ error: 'Missing params' }, { status: 400 });
+    }
+
+    // Paginate through Gambit activity history (mode=63)
+    // Each page has up to 250 activities. 10 pages = up to 2500 matches.
+    const buckets = {}; // seasonNumber → bucket
+
+    let page = 0;
+    let keepGoing = true;
+
+    while (keepGoing && page < maxPages) {
+        const data = await bungieGet(
+            `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=${page}`
+        );
+
+        if (data.ErrorCode !== 1) break;
+
+        const activities = data.Response?.activities ?? [];
+        if (!activities.length) {
+            keepGoing = false;
+            break;
+        }
+
+        for (const entry of activities) {
+            const period = (entry.period ?? '').slice(0, 10); // "YYYY-MM-DD"
+            if (!period) continue;
+
+            const season = seasonForDate(period);
+            if (!season) continue; // before our tracked seasons
+
+            const key = season.number;
+            if (!buckets[key]) buckets[key] = emptyBucket(season);
+            accumulate(buckets[key], entry);
+        }
+
+        // If we got fewer than 250, we've exhausted history
+        if (activities.length < 250) keepGoing = false;
+        page++;
+    }
+
+    // Convert to array sorted newest first
+    const seasons = Object.values(buckets)
+        .sort((a, b) => b.seasonNumber - a.seasonNumber)
+        .map(b => ({
+            ...b,
+            winRate: b.activitiesEntered > 0
+                ? +((b.wins / b.activitiesEntered) * 100).toFixed(1)
+                : 0,
+            kd: b.deaths > 0
+                ? +(b.kills / b.deaths).toFixed(2)
+                : b.kills,
+            avgMotes: b.activitiesEntered > 0
+                ? +(b.motesDeposited / b.activitiesEntered).toFixed(1)
+                : 0,
+            avgInvasions: b.activitiesEntered > 0
+                ? +(b.invasions / b.activitiesEntered).toFixed(2)
+                : 0,
+            pagesScanned: page,
+        }));
+
+    return json({ seasons, pagesScanned: page });
+}
