@@ -57,13 +57,13 @@
                     <div class="absolute inset-0 rounded-full blur-3xl animate-pulse"
                          style="background: {subclassColor}"></div>
 
-                    {#if eq.subclass?.iconPath}
+                    {#if eq.subclass?.icon}
                         <!-- Real subclass icon inside rotated diamond frame -->
                         <div class="w-20 h-20 bg-[#0a0a0a] border-2 {subclassElement.border}
                                     flex items-center justify-center rotate-45
                                     group-hover:rotate-90 transition-all duration-700 shadow-2xl
                                     {subclassElement.glow} overflow-hidden">
-                            <img src="https://www.bungie.net{eq.subclass.iconPath}" alt=""
+                            <img src="{eq.subclass.icon}" alt=""
                                  class="w-16 h-16 object-cover -rotate-45 group-hover:-rotate-90
                                         transition-all duration-700 scale-110" />
                         </div>
@@ -109,8 +109,8 @@
                             <div class="absolute top-0 left-0 w-full h-px opacity-70
                                         {exotic ? 'bg-amber-500' : 'bg-zinc-100'}"></div>
 
-                            {#if item?.iconPath}
-                                <img src="https://www.bungie.net{item.iconPath}" alt=""
+                            {#if item?.icon}
+                                <img src="{item.icon}" alt=""
                                      class="w-full h-full object-cover" />
                             {:else}
                                 <!-- Diamond placeholder -->
@@ -165,11 +165,11 @@
                 <!-- Real character data — centered -->
                 <div class="relative flex flex-col items-center gap-4 z-10">
                     <!-- Class icon / emblem if available -->
-                    {#if eq.subclass?.iconPath}
+                    {#if eq.subclass?.icon}
                         <div class="w-16 h-16 relative">
                             <div class="absolute inset-0 rounded-full blur-xl opacity-30"
                                  style="background: {subclassColor}"></div>
-                            <img src="https://www.bungie.net{eq.subclass.iconPath}" alt=""
+                            <img src="{eq.subclass.icon}" alt=""
                                  class="w-16 h-16 object-cover opacity-20" />
                         </div>
                     {/if}
@@ -232,8 +232,8 @@
                             <div class="absolute top-0 left-0 w-full h-px opacity-70
                                         {exotic ? 'bg-amber-500' : 'bg-zinc-100'}"></div>
 
-                            {#if item?.iconPath}
-                                <img src="https://www.bungie.net{item.iconPath}" alt=""
+                            {#if item?.icon}
+                                <img src="{item.icon}" alt=""
                                      class="w-full h-full object-cover" />
                             {:else}
                                 <div class="w-full h-full flex items-center justify-center
