@@ -1,7 +1,7 @@
 <script>
     import {
-        STAT_ABILITY_DATA, SOCKET_COLORS, classifySubclassSocket,
-        fmtCooldown, getTierRow
+        STAT_ABILITY_DATA, SECONDARY_ZONE, SOCKET_COLORS, classifySubclassSocket,
+        fmtCooldown, getTierRow, calcSecondary, fmtSecondary
     } from '$lib/d2data.js';
 
     let { char, eq, armorStatMeta = [], artifact = null } = $props();
@@ -259,97 +259,172 @@
                     </div>
 
                     <!-- Rich stat tooltip -->
+                    {@const secondaryDef = SECONDARY_ZONE[stat.hash]}
+                    {@const primaryTier  = Math.min(10, tier)}
                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 hidden group-hover:block
-                                w-64 bg-[#0d0f1a] border border-white/10 rounded-xl p-3
-                                shadow-2xl pointer-events-none">
-                        <div class="flex items-center justify-between mb-2">
+                                w-72 bg-[#0d0f1a] border border-white/10 rounded-xl shadow-2xl pointer-events-none overflow-hidden">
+
+                        <!-- Header -->
+                        <div class="px-3 pt-3 pb-2 flex items-center justify-between
+                                    {val > 100 ? 'bg-amber-950/30' : ''}">
                             <p class="text-xs font-bold {stat.text}">{stat.name}</p>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
-                                         {val >= 100 ? 'bg-amber-500/20 text-amber-300' : 'bg-white/5 text-slate-400'}">
-                                T{Math.min(20, tier)} · {val}
-                            </span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
+                                             {val > 100
+                                                ? 'bg-amber-500/20 text-amber-300'
+                                                : 'bg-white/5 text-slate-400'}">
+                                    T{Math.min(20, tier)} · {val}
+                                </span>
+                                {#if val > 100}
+                                    <span class="text-[9px] text-amber-400 font-bold">✦ SECONDARY</span>
+                                {/if}
+                            </div>
                         </div>
 
                         {#if stat.description}
-                            <p class="text-[10px] text-slate-400 leading-snug mb-2">{stat.description}</p>
+                            <p class="text-[10px] text-slate-400 leading-snug px-3 pb-2">{stat.description}</p>
                         {/if}
 
+                        <!-- ── PRIMARY ZONE ──────────────────────────────── -->
                         {#if abilityData}
-                            <!-- Cooldown / ability table -->
-                            <div class="border-t border-white/[0.06] pt-2 space-y-1.5">
-                                <p class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mb-1">
-                                    {abilityData.label}
+                            <div class="border-t border-white/[0.06] px-3 py-2 space-y-1.5">
+                                <p class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">
+                                    Primary Zone (0–100) · {abilityData.label}
                                 </p>
 
                                 {#if abilityData.format === 'time' && abilityData.table}
-                                    <!-- Simple cooldown table: show T-2 to T+2 around current tier, always show T10 -->
-                                    {@const rows = abilityData.table}
-                                    <div class="grid grid-cols-4 gap-x-2 gap-y-0.5">
-                                        <span class="text-[8px] text-slate-600 font-semibold">Tier</span>
-                                        <span class="text-[8px] text-slate-600 font-semibold col-span-3">Cooldown</span>
-                                        {#each rows as row}
-                                            <span class="text-[9px] font-bold
-                                                         {row.tier === Math.min(10, tier) ? stat.text : 'text-slate-600'}">
-                                                T{row.tier}{row.tier === Math.min(10, tier) ? ' ◀' : ''}
+                                    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                                        {#each abilityData.table as row}
+                                            <span class="text-[9px] font-bold tabular-nums
+                                                         {row.tier === primaryTier ? stat.text : 'text-slate-700'}">
+                                                T{row.tier}{row.tier === primaryTier ? ' ◀' : ''}
                                             </span>
-                                            <span class="text-[9px] col-span-3
-                                                         {row.tier === Math.min(10, tier) ? 'text-white font-bold' : 'text-slate-600'}">
+                                            <span class="text-[9px]
+                                                         {row.tier === primaryTier ? 'text-white font-bold' : 'text-slate-700'}">
                                                 {fmtCooldown(row.seconds)}
                                             </span>
                                         {/each}
                                     </div>
 
-                                {:else if abilityData.format === 'pct_dr' && abilityData.table}
-                                    <div class="grid grid-cols-4 gap-x-2 gap-y-0.5">
-                                        <span class="text-[8px] text-slate-600 font-semibold">Tier</span>
-                                        <span class="text-[8px] text-slate-600 font-semibold col-span-3">DR (PvE)</span>
+                                {:else if abilityData.format === 'pct_dr'}
+                                    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
                                         {#each abilityData.table as row}
-                                            <span class="text-[9px] font-bold
-                                                         {row.tier === Math.min(10, tier) ? stat.text : 'text-slate-600'}">
-                                                T{row.tier}{row.tier === Math.min(10, tier) ? ' ◀' : ''}
+                                            <span class="text-[9px] font-bold tabular-nums
+                                                         {row.tier === primaryTier ? stat.text : 'text-slate-700'}">
+                                                T{row.tier}{row.tier === primaryTier ? ' ◀' : ''}
                                             </span>
-                                            <span class="text-[9px] col-span-3
-                                                         {row.tier === Math.min(10, tier) ? 'text-white font-bold' : 'text-slate-600'}">
-                                                {row.tier === 0 ? 'No bonus' : `+${row.pct.toFixed(2)}% DR`}
+                                            <span class="text-[9px]
+                                                         {row.tier === primaryTier ? 'text-white font-bold' : 'text-slate-700'}">
+                                                {row.tier === 0 ? 'No DR' : `+${row.pct.toFixed(2)}% DR`}
                                             </span>
                                         {/each}
                                     </div>
                                     {#if abilityData.barricade}
-                                        <p class="text-[8px] text-slate-600 mt-1.5 pt-1.5 border-t border-white/[0.04]">
-                                            Titan Barricade at T{Math.min(10,tier)}: {fmtCooldown(getTierRow(abilityData.barricade, Math.min(10,tier)).seconds)}
+                                        <p class="text-[8px] text-slate-600 pt-1 border-t border-white/[0.04]">
+                                            Titan Barricade T{primaryTier}: {fmtCooldown(getTierRow(abilityData.barricade, primaryTier).seconds)}
                                         </p>
                                     {/if}
 
-                                {:else if abilityData.format === 'pct_faster' && abilityData.table}
-                                    <div class="grid grid-cols-4 gap-x-2 gap-y-0.5">
-                                        <span class="text-[8px] text-slate-600 font-semibold">Tier</span>
-                                        <span class="text-[8px] text-slate-600 font-semibold col-span-3">Bonus</span>
+                                {:else if abilityData.format === 'pct_faster'}
+                                    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
                                         {#each abilityData.table as row}
-                                            <span class="text-[9px] font-bold
-                                                         {row.tier === Math.min(10, tier) ? stat.text : 'text-slate-600'}">
-                                                T{row.tier}{row.tier === Math.min(10, tier) ? ' ◀' : ''}
+                                            <span class="text-[9px] font-bold tabular-nums
+                                                         {row.tier === primaryTier ? stat.text : 'text-slate-700'}">
+                                                T{row.tier}{row.tier === primaryTier ? ' ◀' : ''}
                                             </span>
-                                            <span class="text-[9px] col-span-3
-                                                         {row.tier === Math.min(10, tier) ? 'text-white font-bold' : 'text-slate-600'}">
+                                            <span class="text-[9px]
+                                                         {row.tier === primaryTier ? 'text-white font-bold' : 'text-slate-700'}">
                                                 {row.pct === 0 ? 'No bonus' : `${row.pct}% faster charge`}
                                             </span>
                                         {/each}
                                     </div>
 
                                 {:else if abilityData.format === 'class_ability' && abilityData.rift}
-                                    <p class="text-[8px] text-slate-500 mb-1">Warlock Rift at T{Math.min(10,tier)}: <span class="text-white font-bold">{fmtCooldown(getTierRow(abilityData.rift, Math.min(10,tier)).seconds)}</span></p>
-                                    <p class="text-[8px] text-slate-600">Hunter dodge / Titan barricade governed by Weapons / Health stat.</p>
+                                    <p class="text-[9px] text-slate-400">
+                                        Warlock Rift at T{primaryTier}:
+                                        <span class="text-white font-bold">{fmtCooldown(getTierRow(abilityData.rift, primaryTier).seconds)}</span>
+                                    </p>
+                                    <p class="text-[8px] text-slate-600">Dodge / Barricade times on Weapons / Health stat respectively.</p>
                                 {/if}
 
                                 {#if abilityData.note}
-                                    <p class="text-[8px] text-slate-600 italic mt-1 leading-snug border-t border-white/[0.04] pt-1">{abilityData.note}</p>
+                                    <p class="text-[8px] text-slate-600 italic leading-snug">{abilityData.note}</p>
                                 {/if}
                             </div>
                         {/if}
 
-                        <div class="mt-2 pt-2 border-t border-white/[0.06]">
+                        <!-- ── SECONDARY ZONE (101-200) ──────────────────── -->
+                        {#if secondaryDef}
+                            <div class="border-t-2 {val > 100 ? 'border-amber-500/40' : 'border-white/[0.06]'}
+                                        px-3 py-2 {val > 100 ? 'bg-amber-950/20' : ''}">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-[9px] font-semibold uppercase tracking-wider
+                                               {val > 100 ? 'text-amber-400' : 'text-slate-600'}">
+                                        Secondary Zone (101–200) · {secondaryDef.label}
+                                    </p>
+                                    {#if val <= 100}
+                                        <span class="text-[8px] text-slate-700">locked</span>
+                                    {/if}
+                                </div>
+
+                                <!-- Per-bonus rows -->
+                                <div class="space-y-2">
+                                    {#each secondaryDef.bonuses as bonus}
+                                        {@const current = calcSecondary(val, bonus.max)}
+                                        {@const pct     = Math.min(100, ((val - 100) / 100) * 100)}
+                                        <div class="group/sb relative">
+                                            <div class="flex items-center justify-between mb-0.5">
+                                                <span class="text-[9px] {val > 100 ? 'text-slate-300' : 'text-slate-600'}">
+                                                    {bonus.label}
+                                                </span>
+                                                <span class="text-[9px] font-bold tabular-nums
+                                                             {val > 100 ? 'text-amber-300' : 'text-slate-600'}">
+                                                    {val > 100 ? fmtSecondary(current, bonus.unit) ?? '0' : '—'}
+                                                    <span class="text-slate-600 font-normal"> / {fmtSecondary(bonus.max, bonus.unit)}</span>
+                                                </span>
+                                            </div>
+                                            <!-- Progress bar: 0% at stat 100, 100% at stat 200 -->
+                                            <div class="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                <div class="h-full rounded-full transition-all
+                                                            {val > 100 ? 'bg-amber-400' : 'bg-white/10'}"
+                                                     style="width:{val > 100 ? pct.toFixed(1) : 0}%">
+                                                </div>
+                                            </div>
+                                            <!-- Bonus description tooltip-on-tooltip -->
+                                            {#if bonus.desc}
+                                                <div class="absolute right-0 bottom-full mb-1.5 z-[60] hidden group-hover/sb:block
+                                                            w-60 bg-[#0a0c18] border border-amber-500/20 rounded-lg p-2
+                                                            shadow-2xl pointer-events-none">
+                                                    <p class="text-[10px] text-slate-300 leading-snug">{bonus.desc}</p>
+                                                </div>
+                                            {/if}
+                                        </div>
+                                    {/each}
+                                </div>
+
+                                <!-- Highlight breakpoint note -->
+                                {#if secondaryDef.highlight && val >= secondaryDef.highlight}
+                                    <div class="mt-2 px-2 py-1.5 bg-amber-500/10 rounded border border-amber-500/20">
+                                        <p class="text-[9px] text-amber-300 leading-snug">
+                                            ✦ {secondaryDef.highlightNote}
+                                        </p>
+                                    </div>
+                                {:else if secondaryDef.highlight && val < secondaryDef.highlight && val > 100}
+                                    <p class="text-[8px] text-slate-600 mt-1.5 leading-snug italic">
+                                        Notable breakpoint: {secondaryDef.highlightNote}
+                                    </p>
+                                {/if}
+
+                                {#if secondaryDef.note}
+                                    <p class="text-[8px] text-slate-600 italic mt-1.5 leading-snug">{secondaryDef.note}</p>
+                                {/if}
+                            </div>
+                        {/if}
+
+                        <!-- Footer -->
+                        <div class="px-3 py-1.5 border-t border-white/[0.04] bg-white/[0.01]">
                             <p class="text-[8px] text-slate-700">
-                                0–100: primary tiers (T0–T10) · 100–200: secondary bonus zone
+                                0–100: primary tiers (T0–T10) · 101–200: secondary zone, linear per point
                             </p>
                         </div>
                     </div>

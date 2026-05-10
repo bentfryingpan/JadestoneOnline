@@ -1,32 +1,26 @@
 /**
- * Destiny 2 static ability & stat tier data.
+ * Destiny 2 static ability & stat tier data — Edge of Fate (2025)
  *
- * Cooldown values sourced from the community:
+ * Primary-zone cooldowns sourced from:
  *   • Destiny Data Compendium (Mercules904)
  *   • d2foundry.gg
- *   • DestinyItemManager / d2-additional-info
  *
- * Edge of Fate (2025) stat renames:
- *   Mobility     → Weapons (sprint speed, jump height, Hunters: class ability cooldown)
- *   Resilience   → Health  (damage resistance; Titans: barricade cooldown)
- *   Recovery     → Class   (regen speed; Warlocks: rift cooldown)
- *   Discipline   → Grenade (grenade cooldown)
- *   Intellect    → Super   (super recharge speed)
- *   Strength     → Melee   (melee cooldown)
+ * Secondary-zone (101-200) bonuses sourced from:
+ *   • TheGamer Armor 3.0 guide  https://www.thegamer.com/destiny-2-edge-of-fate-armor-rework-guide/
+ *   • Boosting Ground Armor 3.0  https://boosting-ground.com/Destiny2/guides/pve-guides/armor-3-0-complete-guide
  *
- * Hashes are stable across renames — we use the old hashes but display
- * whatever name the manifest returns at runtime.
+ * SCALING RULES (Edge of Fate):
+ *   Primary zone (0-100):   T0-T10, discrete cooldown tiers every 10 points
+ *   Secondary zone (101-200): FULLY LINEAR — every point counts equally
+ *     formula:  bonus = (statValue - 100) / 100 × maxBonus
  *
- * Cooldowns shown in seconds (PvE values). PvP values differ significantly.
- * Ability cooldowns also vary by specific ability — these are baseline averages.
+ * Edge of Fate stat renames (hashes unchanged):
+ *   Mobility   → Weapons  | Resilience → Health | Recovery → Class
+ *   Discipline → Grenade  | Intellect  → Super  | Strength → Melee
  */
 
-// T0–T10: stat value 0–9 = T0, 10–19 = T1, … 100+ = T10
-// Secondary zone T11–T20 (stat 110–200) provides additional damage resistance
-// and ability damage bonuses — not cooldown changes beyond T10.
+// ── Primary zone cooldown tables (T0-T10) ────────────────────────────────────
 
-// ── Grenade cooldowns (Discipline / Grenade stat) ────────────────────────────
-// Source: DDC, representative across most standard grenades (PvE)
 export const GRENADE_COOLDOWNS = [
     { tier: 0,  seconds: 91 },
     { tier: 1,  seconds: 82 },
@@ -41,8 +35,6 @@ export const GRENADE_COOLDOWNS = [
     { tier: 10, seconds: 25 },
 ];
 
-// ── Melee cooldowns (Strength / Melee stat) ───────────────────────────────────
-// Uncharged melee; charged melees have separate internal timers.
 export const MELEE_COOLDOWNS = [
     { tier: 0,  seconds: 91 },
     { tier: 1,  seconds: 82 },
@@ -57,7 +49,6 @@ export const MELEE_COOLDOWNS = [
     { tier: 10, seconds: 25 },
 ];
 
-// ── Warlock Rift cooldowns (Recovery / Class stat) ────────────────────────────
 export const RIFT_COOLDOWNS = [
     { tier: 0,  seconds: 82 },
     { tier: 1,  seconds: 75 },
@@ -72,7 +63,6 @@ export const RIFT_COOLDOWNS = [
     { tier: 10, seconds: 22 },
 ];
 
-// ── Titan Barricade cooldowns (Resilience / Health stat) ─────────────────────
 export const BARRICADE_COOLDOWNS = [
     { tier: 0,  seconds: 46 },
     { tier: 1,  seconds: 42 },
@@ -87,7 +77,6 @@ export const BARRICADE_COOLDOWNS = [
     { tier: 10, seconds: 13 },
 ];
 
-// ── Hunter Dodge cooldowns (Mobility / Weapons stat) ─────────────────────────
 export const DODGE_COOLDOWNS = [
     { tier: 0,  seconds: 29 },
     { tier: 1,  seconds: 26 },
@@ -102,8 +91,6 @@ export const DODGE_COOLDOWNS = [
     { tier: 10, seconds: 7  },
 ];
 
-// ── Resilience damage resistance (PvE) ───────────────────────────────────────
-// Percentage of incoming damage blocked (in addition to base resistance)
 export const RESILIENCE_DR = [
     { tier: 0,  pct: 0    },
     { tier: 1,  pct: 1.96 },
@@ -118,8 +105,6 @@ export const RESILIENCE_DR = [
     { tier: 10, pct: 13.67},
 ];
 
-// ── Super charge speed (Intellect / Super stat) ───────────────────────────────
-// Relative reduction in super charge time compared to T0 baseline
 export const SUPER_BONUS = [
     { tier: 0,  pct: 0  },
     { tier: 1,  pct: 2  },
@@ -134,57 +119,111 @@ export const SUPER_BONUS = [
     { tier: 10, pct: 20 },
 ];
 
-/**
- * Map from Bungie stat hash → ability data.
- * classAbility differs per class so we provide all three.
- */
-export const STAT_ABILITY_DATA = {
-    // Discipline / Grenade
+// ── Secondary zone bonus definitions (101-200, linear per point) ──────────────
+// All `max` values apply at stat = 200.
+// At any stat value S > 100: bonus = (S - 100) / 100 × max
+//
+// Sources: TheGamer Armor 3.0 guide, Boosting Ground Armor 3.0 guide
+
+export const SECONDARY_ZONE = {
+    // Grenade / Discipline  (hash 1735777505)
     1735777505: {
-        label:       'Grenade Cooldown',
-        table:       GRENADE_COOLDOWNS,
-        format:      'time',
-        note:        'Varies by grenade type. PvP cooldowns are significantly longer.',
+        label: 'Grenade Damage',
+        bonuses: [
+            { label: 'Grenade DMG (PvE)',  key: 'grenadeDmgPvE',  max: 65,  unit: '%', desc: 'Scales all grenade damage in PvE activities. Does NOT apply to keyword-only grenades (e.g. Grapple Melee portion, Healing Grenade restoration).' },
+            { label: 'Grenade DMG (PvP)',  key: 'grenadeDmgPvP',  max: 20,  unit: '%', desc: 'Crucible & Trials — stacks with standard grenade damage. Notable power investment for aggressive builds.' },
+        ],
+        note: 'Linear: every point above 100 = +0.65% PvE / +0.20% PvP. Keyword-triggered effects (Cure, Restoration, Ignite) are not amplified.',
+        highlight: 150,
+        highlightNote: '+32.5% PvE grenade damage at stat 150 — common midrange target.',
     },
-    // Strength / Melee
+
+    // Melee / Strength  (hash 4244567218)
     4244567218: {
-        label:       'Melee Cooldown',
-        table:       MELEE_COOLDOWNS,
-        format:      'time',
-        note:        'Uncharged melee baseline. Charged melee & Titan Shoulder Charge have independent timers.',
+        label: 'Melee Damage',
+        bonuses: [
+            { label: 'Melee DMG (PvE)',    key: 'meleeDmgPvE',    max: 30,  unit: '%', desc: 'Applies to powered melees, uncharged melees, and Glaive melee attacks.' },
+            { label: 'Melee DMG (PvP)',    key: 'meleeDmgPvP',    max: 20,  unit: '%', desc: 'Stacks with other melee buffs. Significant for Titan Shoulder Charge / Hunter backstab builds.' },
+        ],
+        note: 'Linear: every point above 100 = +0.30% PvE / +0.20% PvP melee damage.',
+        highlight: 150,
+        highlightNote: '+15% PvE melee damage at stat 150.',
     },
-    // Intellect / Super
+
+    // Super / Intellect  (hash 144602215)
     144602215: {
-        label:       'Super Recharge',
-        table:       SUPER_BONUS,
-        format:      'pct_faster',
-        note:        'Reduces super charge requirement. Kills, orbs, and ability use also charge super.',
+        label: 'Super Damage',
+        bonuses: [
+            { label: 'Super DMG (PvE)',    key: 'superDmgPvE',    max: 45,  unit: '%', desc: 'Boosts total Super damage output. Great for boss DPS supers (e.g. Well of Radiance, Blade Barrage, Chaos Reach).' },
+            { label: 'Super DMG (PvP)',    key: 'superDmgPvP',    max: 15,  unit: '%', desc: 'Can push one-shot thresholds in Crucible.' },
+        ],
+        note: 'Linear: every point above 100 = +0.45% PvE / +0.15% PvP Super damage. Stacks multiplicatively with Super damage buffs.',
+        highlight: 160,
+        highlightNote: '+27% PvE Super damage at stat 160.',
     },
-    // Resilience / Health
+
+    // Health / Resilience  (hash 392767087)
     392767087: {
-        label:       'Damage Resistance (PvE) & Barricade Cooldown (Titans)',
-        table:       RESILIENCE_DR,
-        format:      'pct_dr',
-        barricade:   BARRICADE_COOLDOWNS,
-        note:        'T6 Resilience is the breakpoint for 10% DR — widely considered mandatory in endgame PvE.',
+        label: 'Shield Capacity & Recharge',
+        bonuses: [
+            { label: 'Shield Capacity (PvE)',      key: 'shieldCap',       max: 20,   unit: ' HP', desc: 'Additional shield HP on top of your base 70 HP shield. At 200 you have a 90 HP shield.' },
+            { label: 'Shield Regen Start',         key: 'regenStart',      max: 25,   unit: '%',  desc: 'Your shields begin recharging this much faster after damage stops.' },
+            { label: 'Full Regen Speed',           key: 'regenFull',       max: 50,   unit: '%',  desc: 'Shields recharge to full in this much less time once regen begins. At 200, full regen is twice as fast.' },
+        ],
+        note: 'Linear per point. Health 160 = shield regen speed equivalent to old T10 Recovery. T6 Health (60 pts) remains the key PvE DR breakpoint in the primary zone (~10% DR).',
+        highlight: 160,
+        highlightNote: 'At stat 160: +12HP shield, +15% regen start, +30% faster full regen — matches old max Recovery regen speed.',
     },
-    // Recovery / Class
+
+    // Class / Recovery  (hash 1943323491)
     1943323491: {
-        label:       'Class Ability Cooldown',
-        rift:        RIFT_COOLDOWNS,
-        barricade:   null,
-        dodge:       null,
-        format:      'class_ability',
-        note:        'Warlock: Rift. Also governs health & shield regeneration speed.',
+        label: 'Class Ability Overshield',
+        bonuses: [
+            { label: 'Overshield (PvE)',   key: 'overshieldPvE',  max: 40,  unit: ' HP', desc: 'Grants an overshield on top of normal HP when you use your class ability. Lasts 5s for quick abilities (Dodge), 10s for slower ones (Barricade, Rift).' },
+            { label: 'Overshield (PvP)',   key: 'overshieldPvP',  max: 20,  unit: ' HP', desc: 'Provides a temporary HP buffer in Crucible — powerful for Titans with extended Barricade.' },
+        ],
+        note: 'Linear: every point above 100 = +0.40 PvE / +0.20 PvP overshield HP. Duration is fixed (not affected by the stat).',
+        highlight: 150,
+        highlightNote: '+20HP PvE / +10HP PvP overshield at stat 150.',
     },
-    // Mobility / Weapons
+
+    // Weapons / Mobility  (hash 2996146975)
     2996146975: {
-        label:       'Class Ability Cooldown (Hunter Dodge)',
-        table:       DODGE_COOLDOWNS,
-        format:      'time',
-        note:        'Also affects sprint speed and jump height for all classes.',
+        label: 'Weapon Damage & Ammo',
+        bonuses: [
+            { label: 'Boss DMG — Primary/Special', key: 'bossDmgPS',   max: 15,  unit: '%', desc: 'Increases damage to boss-tier enemies from Kinetic, Energy, and Special weapons.' },
+            { label: 'Boss DMG — Heavy',           key: 'bossDmgH',    max: 10,  unit: '%', desc: 'Increases damage to boss-tier enemies from Power/Heavy slot weapons.' },
+            { label: 'Guardian DMG (PvP)',         key: 'pvpDmg',      max: 6,   unit: '%', desc: 'Bonus weapon damage vs. other Guardians in Crucible/Trials.' },
+            { label: 'Double Ammo Bricks',         key: 'doubleBricks', max: 100, unit: '%', desc: 'Chance for ammo pickups to contain double ammo. At 200, guaranteed double ammo from every brick.' },
+        ],
+        note: 'Linear. At 200: +15% primary/special boss DMG, +10% heavy boss DMG, +6% PvP, guaranteed double ammo bricks. Primary zone still governs sprint speed, jump height, and Hunter dodge cooldown.',
+        highlight: 200,
+        highlightNote: 'At stat 200: guaranteed double ammo bricks — maximum ammo economy.',
     },
 };
+
+/**
+ * Calculate secondary zone bonus at a given stat value.
+ * @param {number} statVal  - Current total stat value (can exceed 100)
+ * @param {number} maxBonus - The bonus at stat 200
+ * @returns {number}        - Current bonus (0 if statVal ≤ 100)
+ */
+export function calcSecondary(statVal, maxBonus) {
+    if (statVal <= 100) return 0;
+    return Math.min(1, (statVal - 100) / 100) * maxBonus;
+}
+
+/**
+ * Format a secondary bonus for display.
+ * @param {number} val   - Numeric bonus value
+ * @param {string} unit  - '%', ' HP', etc.
+ * @param {number} decimals
+ */
+export function fmtSecondary(val, unit, decimals = 1) {
+    if (val === 0) return null;
+    const prefix = val > 0 ? '+' : '';
+    return `${prefix}${val.toFixed(decimals)}${unit}`;
+}
 
 /** Format seconds as M:SS */
 export function fmtCooldown(s) {
@@ -199,9 +238,57 @@ export function getTierRow(table, tier) {
 }
 
 /**
- * Subclass socket type identifiers — used to label sockets in the UI.
- * Matched against itemTypeDisplayName (lowercase).
+ * Per-stat ability data — primary zone only.
+ * Secondary zone data lives in SECONDARY_ZONE above.
  */
+export const STAT_ABILITY_DATA = {
+    // Grenade / Discipline
+    1735777505: {
+        label:       'Grenade Cooldown (Primary Zone)',
+        table:       GRENADE_COOLDOWNS,
+        format:      'time',
+        note:        'T0–T10 cooldown reduction. PvP cooldowns are ~2–3× longer. Above T10, see secondary zone below.',
+    },
+    // Melee / Strength
+    4244567218: {
+        label:       'Melee Cooldown (Primary Zone)',
+        table:       MELEE_COOLDOWNS,
+        format:      'time',
+        note:        'Uncharged melee baseline. Charged melee & Shoulder Charge have independent internal timers.',
+    },
+    // Super / Intellect
+    144602215: {
+        label:       'Super Recharge Speed (Primary Zone)',
+        table:       SUPER_BONUS,
+        format:      'pct_faster',
+        note:        'Reduces super charge requirement. Kills, orbs, and abilities also contribute super energy.',
+    },
+    // Resilience / Health
+    392767087: {
+        label:       'Damage Resistance & Barricade Cooldown',
+        table:       RESILIENCE_DR,
+        format:      'pct_dr',
+        barricade:   BARRICADE_COOLDOWNS,
+        note:        'T6 Health (~10% DR) is the standard endgame PvE floor. Barricade times are Titan only.',
+    },
+    // Recovery / Class
+    1943323491: {
+        label:       'Class Ability Cooldown',
+        rift:        RIFT_COOLDOWNS,
+        format:      'class_ability',
+        note:        'Rift times shown (Warlocks). Also governs health & shield regeneration speed.',
+    },
+    // Mobility / Weapons
+    2996146975: {
+        label:       'Hunter Dodge Cooldown (Primary Zone)',
+        table:       DODGE_COOLDOWNS,
+        format:      'time',
+        note:        'Also affects sprint speed and jump height for all classes. Above T10, see secondary zone below.',
+    },
+};
+
+// ── Subclass socket classification ───────────────────────────────────────────
+
 export const SOCKET_TYPE_LABELS = {
     super:     ['super ability'],
     grenade:   ['grenade'],
@@ -212,7 +299,6 @@ export const SOCKET_TYPE_LABELS = {
     fragment:  ['fragment'],
 };
 
-/** Socket category → display color */
 export const SOCKET_COLORS = {
     super:     { bg: 'bg-yellow-500/20', ring: 'ring-yellow-500/50', text: 'text-yellow-300',   label: 'Super'    },
     grenade:   { bg: 'bg-red-500/10',    ring: 'ring-red-500/30',    text: 'text-red-300',      label: 'Grenade'  },
@@ -224,7 +310,6 @@ export const SOCKET_COLORS = {
     other:     { bg: 'bg-white/5',       ring: 'ring-white/10',      text: 'text-white',        label: ''         },
 };
 
-/** Classify a subclass socket by its itemTypeDisplayName */
 export function classifySubclassSocket(itemTypeDisplayName = '') {
     const lower = itemTypeDisplayName.toLowerCase();
     for (const [type, keywords] of Object.entries(SOCKET_TYPE_LABELS)) {
