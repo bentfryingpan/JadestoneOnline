@@ -106,8 +106,8 @@
     <div class="relative w-full max-w-md">
 
         <!-- Search container -->
-        <div class="relative border border-zinc-800 bg-[#0a0a0a]
-                    shadow-[0_0_40px_rgba(0,0,0,0.8)]">
+        <div class="relative border border-zinc-700/60 bg-white/[0.04] backdrop-blur-md
+                    shadow-[0_0_40px_rgba(0,0,0,0.6)]">
 
             <!-- Corner accents -->
             <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/40 pointer-events-none z-10"></span>
@@ -156,8 +156,8 @@
         <!-- Suggestions dropdown -->
         {#if suggestions.length}
             <div class="absolute top-full left-0 right-0 mt-0 z-50
-                        bg-[#0a0a0a] border border-t-0 border-zinc-800
-                        shadow-[0_8px_40px_rgba(0,0,0,0.8)] overflow-hidden">
+                        bg-[#060e0b]/90 backdrop-blur-md border border-t-0 border-zinc-700/60
+                        shadow-[0_8px_40px_rgba(0,0,0,0.7)] overflow-hidden">
                 {#each suggestions as s, i}
                     <button
                         onmousedown={() => navigate(s)}
