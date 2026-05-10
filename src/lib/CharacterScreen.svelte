@@ -154,58 +154,63 @@
     {@const isWeapon  = ['kinetic','energy','power'].includes(key)}
     {@const mw        = item?.masterwork ?? false}
     {@const isActive  = selectedSlot === key}
+    {@const tierCount = Math.max(0, (item?.tierType ?? 1) - 1)}
+    {@const tierColor =
+        item?.tierType === 6 ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.9)]' :
+        item?.tierType === 5 ? 'bg-violet-500' :
+        item?.tierType === 4 ? 'bg-blue-400' :
+        item?.tierType === 3 ? 'bg-green-400' : 'bg-zinc-400'}
     <button onclick={() => selectSlot(key)}
             class="group flex flex-col items-center gap-1.5 w-full text-left transition-all">
-        <div class="w-20 h-20 bg-[#0c0c0c] relative mx-auto overflow-hidden
-                    shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
-                    border
-                    {isActive
-                        ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
-                        : mw && !exotic
-                            ? 'border-yellow-400/60 shadow-[0_0_12px_rgba(234,179,8,0.22)] group-hover:border-yellow-300 group-hover:shadow-[0_0_18px_rgba(234,179,8,0.35)]'
-                            : exotic
-                                ? 'border-amber-500/30 group-hover:border-amber-500/60'
-                                : 'border-zinc-800 group-hover:border-zinc-500'}">
-            <!-- Top rarity / MW bar -->
-            <div class="absolute top-0 left-0 w-full h-[2px] z-10
-                        {mw && !exotic
-                            ? 'bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600'
-                            : exotic ? 'bg-amber-500 opacity-80' : 'bg-zinc-100 opacity-30'}"></div>
-            <!-- MW corner glow -->
-            {#if mw && !isActive}
-                <div class="absolute inset-0 pointer-events-none"
-                     style="background:radial-gradient(ellipse at top right,rgba(234,179,8,0.10) 0%,transparent 65%)"></div>
-                <div class="absolute top-1 right-1 w-2 h-2 rotate-45 border border-yellow-400/50
-                            bg-yellow-400/10 z-10 transition-all duration-300
-                            group-hover:border-yellow-300 group-hover:shadow-[0_0_6px_rgba(234,179,8,0.6)]"></div>
-            {/if}
-            <!-- Icon -->
-            {#if item?.icon}
-                <img src={item.icon} alt="" class="w-full h-full object-cover" />
-            {:else}
-                <div class="w-full h-full flex items-center justify-center opacity-10 group-hover:opacity-25 transition-opacity">
-                    <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
-                </div>
-            {/if}
-            <!-- Weapon tier diamonds — overlaid on bottom of icon, like DIM -->
-            {#if isWeapon && item}
-                <div class="absolute bottom-0 left-0 w-full flex items-center justify-center gap-[3px]
-                            pb-[3px] pt-2 z-20 pointer-events-none
-                            bg-gradient-to-t from-black/70 to-transparent">
-                    {#each {length: Math.max(0, (item.tierType ?? 1) - 1)} as _}
-                        {@render TierDiamond(item.tierType)}
+        <!-- Icon + vertical tier diamonds side by side -->
+        <div class="flex items-center gap-1 mx-auto">
+            <div class="w-14 h-14 bg-[#0c0c0c] relative overflow-hidden
+                        shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
+                        border
+                        {isActive
+                            ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
+                            : mw && !exotic
+                                ? 'border-yellow-400/60 shadow-[0_0_12px_rgba(234,179,8,0.22)] group-hover:border-yellow-300 group-hover:shadow-[0_0_18px_rgba(234,179,8,0.35)]'
+                                : exotic
+                                    ? 'border-amber-500/30 group-hover:border-amber-500/60'
+                                    : 'border-zinc-800 group-hover:border-zinc-500'}">
+                <!-- Top rarity / MW bar -->
+                <div class="absolute top-0 left-0 w-full h-[2px] z-10
+                            {mw && !exotic
+                                ? 'bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600'
+                                : exotic ? 'bg-amber-500 opacity-80' : 'bg-zinc-100 opacity-30'}"></div>
+                <!-- MW corner glow -->
+                {#if mw && !isActive}
+                    <div class="absolute inset-0 pointer-events-none"
+                         style="background:radial-gradient(ellipse at top right,rgba(234,179,8,0.10) 0%,transparent 65%)"></div>
+                {/if}
+                <!-- Icon -->
+                {#if item?.icon}
+                    <img src={item.icon} alt="" class="w-full h-full object-cover" />
+                {:else}
+                    <div class="w-full h-full flex items-center justify-center opacity-10 group-hover:opacity-25 transition-opacity">
+                        <div class="w-8 h-8 border border-zinc-500 rotate-45"></div>
+                    </div>
+                {/if}
+                <!-- Selected pulse -->
+                {#if isActive}
+                    <div class="absolute inset-0 border border-emerald-500/30 pointer-events-none"></div>
+                {/if}
+            </div>
+
+            <!-- Vertical tier diamonds — right of icon, game-style -->
+            {#if isWeapon && item && tierCount > 0}
+                <div class="flex flex-col gap-[3px] items-center shrink-0">
+                    {#each {length: tierCount} as _}
+                        <div class="w-[7px] h-[7px] rotate-45 shrink-0 {tierColor}"></div>
                     {/each}
                 </div>
             {/if}
-            <!-- Selected pulse -->
-            {#if isActive}
-                <div class="absolute inset-0 border border-emerald-500/30 pointer-events-none"></div>
-            {/if}
         </div>
 
-        <div class="text-center w-full">
-            <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold leading-none">{label}</p>
-            <p class="text-[9px] font-bold uppercase tracking-tight truncate w-28 mx-auto transition-colors mt-0.5
+        <div class="text-center w-full mt-0.5">
+            <p class="text-[9px] text-zinc-600 font-medium leading-none">{label}</p>
+            <p class="text-[10px] font-semibold truncate w-20 mx-auto transition-colors mt-0.5
                       {isActive ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
                 {item?.name ?? '—'}
             </p>
@@ -311,42 +316,42 @@
 
 <!-- ── Main Layout ─────────────────────────────────────────────────────────── -->
 <div class="max-w-6xl mx-auto py-10 px-4">
-    <div class="grid grid-cols-12 gap-12 items-start">
+    <div class="grid grid-cols-12 gap-6 items-start">
 
         <!-- ── COL 1: SUBCLASS + WEAPONS ──────────────────────────────────── -->
-        <div class="col-span-3 space-y-12 flex flex-col items-center">
+        <div class="col-span-2 space-y-8 flex flex-col items-center">
 
             <!-- Subclass slot -->
             <button onclick={() => selectSlot('subclass')}
                     class="flex flex-col items-center group cursor-pointer w-full text-left">
-                <div class="w-24 h-24 flex items-center justify-center mx-auto relative">
+                <div class="w-16 h-16 flex items-center justify-center mx-auto relative">
                     <!-- Ambient glow -->
                     <div class="absolute inset-0 rounded-full blur-3xl animate-pulse"
                          style="background:{subclassColor}"></div>
                     <!-- Diamond frame -->
                     {#if eq.subclass?.icon}
-                        <div class="w-20 h-20 bg-[#0a0a0a] border-2 flex items-center justify-center
+                        <div class="w-14 h-14 bg-[#0a0a0a] border-2 flex items-center justify-center
                                     rotate-45 transition-all duration-500 shadow-2xl overflow-hidden
                                     {selectedSlot === 'subclass'
                                         ? 'border-emerald-500/80 shadow-[0_0_20px_rgba(52,211,153,0.25)] rotate-90'
                                         : subclassEl.border + ' ' + subclassEl.glow + ' group-hover:rotate-90'}">
                             <img src={eq.subclass.icon} alt=""
-                                 class="w-16 h-16 object-cover scale-110 transition-all duration-500
+                                 class="w-10 h-10 object-cover scale-110 transition-all duration-500
                                         {selectedSlot === 'subclass' ? '-rotate-90' : '-rotate-45 group-hover:-rotate-90'}" />
                         </div>
                     {:else}
-                        <div class="w-20 h-20 bg-[#0a0a0a] border-2 border-zinc-800 flex items-center
+                        <div class="w-14 h-14 bg-[#0a0a0a] border-2 border-zinc-800 flex items-center
                                     justify-center rotate-45 group-hover:rotate-90 transition-all duration-700 shadow-2xl
                                     {selectedSlot === 'subclass' ? 'border-emerald-500/60' : ''}">
-                            <div class="w-10 h-10 border border-emerald-400/60 flex items-center justify-center">
-                                <div class="w-2 h-2 bg-emerald-500"></div>
+                            <div class="w-7 h-7 border border-emerald-400/60 flex items-center justify-center">
+                                <div class="w-1.5 h-1.5 bg-emerald-500"></div>
                             </div>
                         </div>
                     {/if}
                 </div>
-                <div class="mt-6 text-center w-full">
-                    <span class="text-[9px] text-zinc-600 uppercase tracking-[0.2em] font-bold block mb-1">SUBCLASS</span>
-                    <p class="text-[11px] font-bold uppercase tracking-widest transition-colors
+                <div class="mt-4 text-center w-full">
+                    <span class="text-[9px] text-zinc-600 font-medium block mb-0.5">Subclass</span>
+                    <p class="text-[10px] font-semibold truncate transition-colors
                               {selectedSlot === 'subclass' ? 'text-emerald-400' : subclassEl.text}">
                         {eq.subclass?.name ?? '—'}
                     </p>
@@ -354,7 +359,7 @@
             </button>
 
             <!-- Weapons -->
-            <div class="space-y-10 w-full flex flex-col items-center pt-8 border-t border-zinc-800/40">
+            <div class="space-y-6 w-full flex flex-col items-center pt-6 border-t border-zinc-800/40">
                 {@render GearSlot('kinetic', 'KINETIC')}
                 {@render GearSlot('energy',  'ENERGY')}
                 {@render GearSlot('power',   'POWER')}
@@ -362,11 +367,11 @@
         </div>
 
         <!-- ── COL 2: CENTER — DECORATIVE / INSPECTION ────────────────────── -->
-        <div class="col-span-6 relative flex items-center justify-center min-h-[500px]">
+        <div class="col-span-8 relative flex items-center justify-center min-h-[520px]">
 
             {#if selectedSlot && selectedItem}
                 <!-- ── INSPECTION PANEL ──────────────────────────────────── -->
-                <div class="w-full h-[500px] flex flex-col bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
+                <div class="w-full h-[580px] flex flex-col bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
                     <!-- Corner accents -->
                     <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/40 pointer-events-none z-10"></span>
                     <span class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-emerald-500/40 pointer-events-none z-10"></span>
@@ -380,70 +385,91 @@
                         </svg>
                     </button>
 
-                    <!-- Item header — masterwork: DIM purple bg + gold border -->
-                    <div class="flex items-center gap-4 p-5 shrink-0 border-b-2 transition-colors duration-300
+                    <!-- Item header -->
+                    {@const hdrTierCount = Math.max(0, (selectedItem.tierType ?? 1) - 1)}
+                    {@const hdrTierColor =
+                        selectedItem.tierType === 6 ? 'bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,1)]' :
+                        selectedItem.tierType === 5 ? 'bg-violet-500' :
+                        selectedItem.tierType === 4 ? 'bg-blue-400' :
+                        selectedItem.tierType === 3 ? 'bg-green-400' : 'bg-zinc-400'}
+                    <div class="flex items-center gap-5 px-5 py-4 shrink-0 border-b-2 transition-colors duration-300
                                 {selectedItem.masterwork && selectedType === 'weapon'
                                     ? 'border-[#e2bc15]'
-                                    : 'border-zinc-800'}"
+                                    : 'border-zinc-800/80'}"
                          style={selectedItem.masterwork && selectedType === 'weapon'
                              ? 'background:linear-gradient(135deg,rgb(81,48,101) 0%,rgb(50,28,65) 100%)'
                              : ''}>
-                        {#if selectedItem.icon}
-                            <div class="w-16 h-16 shrink-0 relative overflow-hidden border
-                                        {selectedItem.tierType === 6 ? 'border-amber-500/60' :
-                                         selectedItem.masterwork && selectedType === 'weapon' ? 'border-[#e2bc15]/60' :
-                                         'border-zinc-700'}">
-                                <div class="absolute top-0 left-0 w-full h-px
-                                            {selectedItem.tierType === 6 ? 'bg-amber-500' :
-                                             selectedItem.masterwork ? 'bg-[#e2bc15]' :
-                                             'bg-zinc-300'} opacity-70"></div>
-                                <img src={selectedItem.icon} alt="" class="w-full h-full object-cover" />
-                            </div>
-                        {/if}
+
+                        <!-- Icon block + vertical tier diamonds -->
+                        <div class="shrink-0 flex items-center gap-2">
+                            {#if selectedItem.icon}
+                                <div class="w-[72px] h-[72px] relative overflow-hidden border
+                                            {selectedItem.tierType === 6 ? 'border-amber-500/60' :
+                                             selectedItem.masterwork && selectedType === 'weapon' ? 'border-[#e2bc15]/60' :
+                                             'border-zinc-700'}">
+                                    <div class="absolute top-0 left-0 w-full h-[2px]
+                                                {selectedItem.tierType === 6 ? 'bg-amber-500' :
+                                                 selectedItem.masterwork ? 'bg-[#e2bc15]' :
+                                                 'bg-zinc-500'} opacity-80"></div>
+                                    <img src={selectedItem.icon} alt="" class="w-full h-full object-cover" />
+                                </div>
+                            {/if}
+                            <!-- Vertical tier diamonds (in-game style) -->
+                            {#if selectedType === 'weapon' && hdrTierCount > 0}
+                                <div class="flex flex-col gap-[4px] items-center">
+                                    {#each {length: hdrTierCount} as _}
+                                        <div class="w-2.5 h-2.5 rotate-45 shrink-0 {hdrTierColor}"></div>
+                                    {/each}
+                                </div>
+                            {/if}
+                        </div>
+
+                        <!-- Text info -->
                         <div class="min-w-0 flex-1">
-                            <span class="text-[8px] font-mono uppercase tracking-[0.2em]
-                                         {selectedItem.tierType === 6 ? 'text-amber-500' :
-                                          selectedItem.masterwork && selectedType === 'weapon' ? 'text-[#e2bc15]/80' :
-                                          'text-zinc-500'}">
+                            <span class="text-xs font-medium
+                                         {selectedItem.tierType === 6 ? 'text-amber-400' :
+                                          selectedItem.masterwork && selectedType === 'weapon' ? 'text-yellow-300/80' :
+                                          'text-zinc-400'}">
                                 {TIER_LABEL[selectedItem.tierType] ?? '—'}
-                                {#if selectedItem.itemTypeDisplayName}· {selectedItem.itemTypeDisplayName}{/if}
+                                {#if selectedItem.itemTypeDisplayName}
+                                    <span class="text-zinc-500"> · {selectedItem.itemTypeDisplayName}</span>
+                                {/if}
                             </span>
-                            <!-- DIM-style: bold uppercase name -->
-                            <p class="text-[1.15rem] font-bold uppercase text-white leading-tight mt-0.5 truncate tracking-[0.5px]">
+                            <!-- Weapon name -->
+                            <p class="text-2xl font-bold text-white leading-tight mt-0.5 truncate">
                                 {selectedItem.name}
                             </p>
-                            <!-- Weapon: damage type + power — DIM weapon-type style -->
+                            <!-- Damage type + power -->
                             {#if selectedType === 'weapon'}
-                                <div class="flex items-center gap-2 mt-1.5">
+                                <div class="flex items-center gap-3 mt-1.5">
                                     {#if selectedItem.damageType}
                                         <div class="flex items-center gap-1.5">
                                             {#if selectedItem.damageTypeIcon}
-                                                <img src={selectedItem.damageTypeIcon} alt=""
-                                                     class="w-4 h-4 object-contain"/>
+                                                <img src={selectedItem.damageTypeIcon} alt="" class="w-4 h-4 object-contain"/>
                                             {/if}
-                                            <span class="text-[0.85rem] leading-none
+                                            <span class="text-sm font-medium leading-none
                                                          {damageColor[selectedItem.damageType] ?? 'text-white/80'}">
                                                 {selectedItem.damageTypeName ?? damageLabel[selectedItem.damageType] ?? ''}
                                             </span>
                                         </div>
                                     {/if}
                                     {#if selectedItem.power}
-                                        <span class="text-[0.85rem] text-white/60">
-                                            {selectedItem.power} PL
+                                        <span class="text-sm font-medium text-zinc-400">
+                                            {selectedItem.power} <span class="text-zinc-600">PL</span>
                                         </span>
                                     {/if}
                                 </div>
                             {/if}
-                            <!-- Armor: element name -->
+                            <!-- Armor: flavor text -->
                             {#if selectedType === 'armor' && selectedItem.flavorText}
-                                <p class="text-[9px] font-sans text-zinc-600 mt-1 line-clamp-1 italic">
+                                <p class="text-xs text-zinc-500 mt-1 line-clamp-1 italic">
                                     {selectedItem.flavorText}
                                 </p>
                             {/if}
-                            <!-- Subclass: element -->
+                            <!-- Subclass -->
                             {#if selectedType === 'subclass'}
-                                <span class="text-[9px] font-mono uppercase tracking-[0.15em] {subclassEl.text}">
-                                    {classNames[char?.classType] ?? 'Guardian'} Subclass
+                                <span class="text-sm font-medium {subclassEl.text}">
+                                    {classNames[char?.classType] ?? 'Guardian'} · Subclass
                                 </span>
                             {/if}
                         </div>
@@ -472,31 +498,27 @@
                                 return m;
                             })()}
 
-                            <!-- ① STATS — DIM grid: 110px label · 35px number · flex bar -->
+                            <!-- ① STATS — DIM grid: label · number · bar -->
                             {#if selectedItem.weaponStats?.length}
-                                <div class="mb-4 pb-3 border-b border-zinc-800/60">
+                                <div class="mb-4 pb-4 border-b border-zinc-800/60">
                                     {#each selectedItem.weaponStats as s}
                                         {@const bonus    = perkBonus[s.hash] ?? 0}
                                         {@const baseVal  = Math.max(0, s.value - bonus)}
                                         {@const maxVal   = s.maximum || 100}
                                         {@const basePct  = Math.min((baseVal / maxVal) * 100, 100)}
                                         {@const bonusPct = Math.min(Math.max((bonus / maxVal) * 100, 0), 100 - basePct)}
-                                        <!-- DIM stat row: 110px label | 35px number | bar -->
-                                        <div class="grid items-center mb-1.5"
-                                             style="grid-template-columns:110px 35px 1fr">
-                                            <!-- Stat label -->
-                                            <span class="text-[11px] uppercase leading-none
-                                                         {bonus > 0 ? 'text-amber-400' : 'text-[#abaaaa]'}">
+                                        <div class="grid items-center mb-2"
+                                             style="grid-template-columns:130px 40px 1fr">
+                                            <span class="text-xs font-medium leading-none
+                                                         {bonus > 0 ? 'text-amber-400' : 'text-zinc-400'}">
                                                 {s.name}
                                             </span>
-                                            <!-- Stat number: right-aligned, bold -->
-                                            <span class="text-[11px] font-bold text-right pr-2 leading-none
+                                            <span class="text-xs font-bold text-right pr-2 leading-none
                                                          {bonus > 0 ? 'text-amber-400' : 'text-zinc-200'}">
                                                 {s.value}
                                             </span>
-                                            <!-- Bar: 12px tall, dark bg, white fill + amber perk bonus -->
-                                            <div class="h-3 bg-[#333] flex overflow-hidden">
-                                                <div class="h-full bg-white shrink-0 transition-all duration-500"
+                                            <div class="h-2.5 bg-zinc-800 flex overflow-hidden rounded-sm">
+                                                <div class="h-full bg-zinc-300 shrink-0 transition-all duration-500 rounded-sm"
                                                      style="width:{basePct}%"></div>
                                                 {#if bonusPct > 0}
                                                     <div class="h-full bg-amber-400 shrink-0 transition-all duration-500"
@@ -509,100 +531,119 @@
                             {/if}
 
                             {#if !perks.length}
-                                <p class="text-[10px] font-sans text-zinc-700 text-center py-6">No perk data available.</p>
+                                <p class="text-sm text-zinc-600 text-center py-6">No perk data available.</p>
                             {/if}
 
-                            <!-- ② FRAME row — icon + name inline -->
+                            <!-- ② FRAME / INTRINSIC row -->
                             {#if intrinsic}
-                                <div class="flex items-center gap-2.5 py-2 border-b border-zinc-800/50 mb-2">
+                                <div class="flex items-center gap-3 py-2.5 border-b border-zinc-800/50 mb-3">
                                     {#if intrinsic.icon}
-                                        <div class="w-8 h-8 shrink-0 border border-amber-500/30 bg-amber-500/5 overflow-hidden">
+                                        <div class="w-10 h-10 shrink-0 border border-amber-500/30 bg-amber-500/5 overflow-hidden rounded-sm">
                                             <img src={intrinsic.icon} alt="" class="w-full h-full object-cover"/>
                                         </div>
                                     {/if}
                                     <div class="min-w-0 flex-1">
-                                        <span class="text-[9px] font-mono font-bold uppercase tracking-wide text-amber-400 block leading-tight truncate">
+                                        <span class="text-sm font-semibold text-amber-400 block leading-tight truncate">
                                             {intrinsic.name}
                                         </span>
                                         {#if intrinsic.description}
-                                            <p class="text-[7px] font-sans text-zinc-600 leading-relaxed line-clamp-1 mt-px">
+                                            <p class="text-xs text-zinc-500 leading-relaxed line-clamp-1 mt-0.5">
                                                 {intrinsic.description}
                                             </p>
                                         {/if}
                                     </div>
-                                    <span class="text-[7px] font-mono uppercase tracking-[0.15em] text-amber-700/60 shrink-0">Frame</span>
+                                    <span class="text-[10px] font-medium text-amber-700/70 shrink-0 uppercase tracking-wide">Frame</span>
                                 </div>
                             {/if}
 
-                            <!-- ③ ALL SOCKETS in one icon row (barrel · mag · grip · origin · mw · mod) -->
+                            <!-- ③ SOCKETS — grouped by category, circular icons (DIM style) -->
                             {#if other.length || mwPerk}
                                 {@const allSockets = [...other, ...(mwPerk ? [mwPerk] : [])]}
-                                <div class="flex flex-wrap gap-[3px] py-2 border-b border-zinc-800/50 mb-3">
-                                    {#each allSockets as p}
-                                        <div class="group/pi relative">
-                                            <div class="w-[50px] h-[50px] bg-[#0d0d0d] border overflow-hidden transition-colors cursor-default
-                                                        {p.isMasterwork
-                                                            ? 'border-yellow-500/60 bg-yellow-500/5 hover:border-yellow-400'
-                                                            : p.isEnabled
-                                                                ? 'border-zinc-700/80 hover:border-zinc-500'
-                                                                : 'border-zinc-800/40 opacity-40'}">
-                                                <!-- Top rarity strip -->
-                                                <div class="absolute top-0 left-0 w-full h-[2px]
-                                                            {p.isMasterwork ? 'bg-yellow-400/70' : 'bg-zinc-600/40'}"></div>
-                                                {#if p.icon}
-                                                    <img src={p.icon} alt="" class="w-full h-full object-cover"/>
-                                                {:else}
-                                                    <div class="w-full h-full flex items-center justify-center opacity-15">
-                                                        <div class="w-4 h-4 border border-zinc-600 rotate-45"></div>
-                                                    </div>
-                                                {/if}
-                                                {#if !p.isEnabled}
-                                                    <div class="absolute inset-0 bg-black/50"></div>
-                                                {/if}
-                                            </div>
-                                            <!-- Hover tooltip -->
-                                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
-                                                        opacity-0 group-hover/pi:opacity-100 translate-y-1 group-hover/pi:translate-y-0
-                                                        transition-all duration-150 pointer-events-none w-44">
-                                                <div class="bg-[#141414] border border-zinc-700 px-3 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.9)]">
-                                                    <p class="text-[9px] font-mono font-bold mb-0.5
-                                                               {p.isMasterwork ? 'text-yellow-400' : 'text-zinc-200'}">
-                                                        {p.name}
-                                                    </p>
-                                                    {#if p.itemTypeDisplayName}
-                                                        <p class="text-[7px] font-mono text-zinc-600 uppercase tracking-wide mb-1">{p.itemTypeDisplayName}</p>
-                                                    {/if}
-                                                    {#if p.description}
-                                                        <p class="text-[7px] font-sans text-zinc-500 leading-relaxed">{p.description}</p>
-                                                    {/if}
-                                                    {#if p.statBonuses?.length}
-                                                        <div class="flex flex-wrap gap-1 mt-1.5">
-                                                            {#each p.statBonuses as sb}
-                                                                <span class="text-[6px] font-mono text-emerald-400 border border-emerald-500/20 px-1 py-px">
-                                                                    +{sb.value} {statHashToName[sb.statHash] ?? ''}
-                                                                </span>
-                                                            {/each}
+                                {@const grouped = (() => {
+                                    const g = {};
+                                    for (const p of allSockets) {
+                                        const cat = p.isMasterwork ? 'Masterwork' : (p.itemTypeDisplayName ?? 'Other');
+                                        if (!g[cat]) g[cat] = [];
+                                        g[cat].push(p);
+                                    }
+                                    return g;
+                                })()}
+                                <div class="py-3 border-b border-zinc-800/50 mb-3">
+                                    <div class="flex flex-wrap gap-5 items-start">
+                                        {#each Object.entries(grouped) as [cat, catPerks]}
+                                            <div class="flex flex-col items-center gap-2">
+                                                <span class="text-[10px] font-medium text-zinc-500 whitespace-nowrap">{cat}</span>
+                                                <div class="flex gap-2">
+                                                    {#each catPerks as p}
+                                                        <div class="group/pi relative flex flex-col items-center gap-1">
+                                                            <!-- Circle icon -->
+                                                            <div class="w-11 h-11 rounded-full overflow-hidden border-2 relative transition-all cursor-default shrink-0 bg-zinc-900/60
+                                                                        {p.isMasterwork
+                                                                            ? 'border-yellow-500/60 shadow-[0_0_8px_rgba(234,179,8,0.3)] hover:border-yellow-400 hover:shadow-[0_0_14px_rgba(234,179,8,0.5)]'
+                                                                            : p.isEnabled
+                                                                                ? 'border-zinc-600 hover:border-zinc-400'
+                                                                                : 'border-zinc-800/40 opacity-40'}">
+                                                                {#if p.icon}
+                                                                    <img src={p.icon} alt="" class="w-full h-full object-cover scale-110"/>
+                                                                {:else}
+                                                                    <div class="w-full h-full flex items-center justify-center opacity-20">
+                                                                        <div class="w-4 h-4 border border-zinc-600 rotate-45"></div>
+                                                                    </div>
+                                                                {/if}
+                                                                {#if p.isMasterwork}
+                                                                    <div class="absolute inset-0 pointer-events-none"
+                                                                         style="background:radial-gradient(ellipse at top left,rgba(234,179,8,0.22) 0%,transparent 65%)"></div>
+                                                                {/if}
+                                                                {#if !p.isEnabled}
+                                                                    <div class="absolute inset-0 bg-black/50 rounded-full"></div>
+                                                                {/if}
+                                                            </div>
+                                                            <!-- Perk name below icon -->
+                                                            <span class="text-[9px] font-medium text-zinc-500 text-center leading-tight max-w-[52px] line-clamp-1">{p.name}</span>
+                                                            <!-- Hover tooltip -->
+                                                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+                                                                        opacity-0 group-hover/pi:opacity-100 translate-y-1 group-hover/pi:translate-y-0
+                                                                        transition-all duration-150 pointer-events-none w-52">
+                                                                <div class="bg-[#141414] border border-zinc-700 px-3 py-2.5 shadow-[0_0_24px_rgba(0,0,0,0.95)] rounded-sm">
+                                                                    <p class="text-sm font-semibold mb-0.5
+                                                                               {p.isMasterwork ? 'text-yellow-400' : 'text-zinc-100'}">
+                                                                        {p.name}
+                                                                    </p>
+                                                                    {#if p.description}
+                                                                        <p class="text-xs text-zinc-400 leading-relaxed">{p.description}</p>
+                                                                    {/if}
+                                                                    {#if p.statBonuses?.length}
+                                                                        <div class="flex flex-wrap gap-1 mt-2">
+                                                                            {#each p.statBonuses as sb}
+                                                                                <span class="text-xs font-medium text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-sm">
+                                                                                    +{sb.value} {statHashToName[sb.statHash] ?? ''}
+                                                                                </span>
+                                                                            {/each}
+                                                                        </div>
+                                                                    {/if}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    {/if}
+                                                    {/each}
                                                 </div>
                                             </div>
-                                        </div>
-                                    {/each}
+                                        {/each}
+                                    </div>
                                 </div>
                             {/if}
 
-                            <!-- ④ TRAITS — large round icons in 2-col grid (DIM style) -->
+                            <!-- ④ TRAITS — round icons with name + description (DIM style) -->
                             {#if traits.length}
                                 <div>
-                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-zinc-700 block mb-2">Traits</span>
-                                    <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+                                    <span class="text-xs font-medium text-zinc-500 block mb-3">Traits</span>
+                                    <div class="grid grid-cols-2 gap-x-4 gap-y-3">
                                         {#each traits as p}
-                                            <div class="group/trait flex items-center gap-2.5 cursor-default relative">
-                                                <!-- Large round icon -->
-                                                <div class="w-11 h-11 shrink-0 rounded-full overflow-hidden border-2 relative transition-all
+                                            <div class="group/trait flex items-start gap-3 cursor-default relative">
+                                                <!-- Round icon -->
+                                                <div class="w-12 h-12 shrink-0 rounded-full overflow-hidden border-2 relative transition-all
                                                             {p.isEnhanced
-                                                                ? 'border-yellow-500/70 shadow-[0_0_10px_rgba(234,179,8,0.3)] group-hover/trait:shadow-[0_0_16px_rgba(234,179,8,0.5)]'
-                                                                : 'border-zinc-700 group-hover/trait:border-zinc-500'}
+                                                                ? 'border-yellow-500/70 shadow-[0_0_10px_rgba(234,179,8,0.35)] group-hover/trait:shadow-[0_0_18px_rgba(234,179,8,0.55)]'
+                                                                : 'border-zinc-600 group-hover/trait:border-zinc-400'}
                                                             {!p.isEnabled ? 'opacity-40' : ''}">
                                                     {#if p.icon}
                                                         <img src={p.icon} alt="" class="w-full h-full object-cover scale-110"/>
@@ -611,24 +652,23 @@
                                                             <div class="w-4 h-4 border border-zinc-600 rotate-45"></div>
                                                         </div>
                                                     {/if}
-                                                    <!-- Enhanced shimmer -->
                                                     {#if p.isEnhanced}
                                                         <div class="absolute inset-0 pointer-events-none"
                                                              style="background:radial-gradient(ellipse at top left,rgba(234,179,8,0.3) 0%,transparent 65%)"></div>
                                                     {/if}
                                                 </div>
                                                 <!-- Name + description -->
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="flex items-center gap-1 mb-px">
-                                                        <span class="text-[9px] font-mono font-bold uppercase leading-tight truncate
-                                                                     {p.isEnhanced ? 'text-yellow-300' : 'text-zinc-200'}">
+                                                <div class="flex-1 min-w-0 pt-0.5">
+                                                    <div class="flex items-center gap-1.5 mb-0.5">
+                                                        <span class="text-sm font-semibold leading-tight truncate
+                                                                     {p.isEnhanced ? 'text-yellow-300' : 'text-zinc-100'}">
                                                             {p.name}
                                                         </span>
                                                         {#if p.isEnhanced}
-                                                            <span class="text-[6px] font-mono font-bold text-yellow-500 border border-yellow-500/30 px-1 py-px leading-none shrink-0">ENH</span>
+                                                            <span class="text-[9px] font-bold text-yellow-500 border border-yellow-500/30 px-1 py-px leading-none rounded-sm shrink-0">ENH</span>
                                                         {/if}
                                                     </div>
-                                                    <p class="text-[7px] font-sans text-zinc-600 leading-relaxed line-clamp-2">{p.description ?? ''}</p>
+                                                    <p class="text-xs text-zinc-500 leading-relaxed line-clamp-3">{p.description ?? ''}</p>
                                                 </div>
                                             </div>
                                         {/each}
@@ -641,19 +681,18 @@
                             <!-- Per-piece stat bars -->
                             {#if selectedItem.armorStats?.length}
                                 <div class="mb-4">
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600 block mb-3">
+                                    <span class="text-xs font-medium text-zinc-500 block mb-3">
                                         Piece Stats
                                     </span>
                                     {#each selectedItem.armorStats as s}
                                         <div class="flex items-center gap-3 py-1.5">
-                                            <span class="text-[8px] font-mono uppercase tracking-[0.1em]
-                                                         text-zinc-500 w-16 shrink-0">{s.short ?? s.name}</span>
-                                            <div class="flex-1 h-px bg-zinc-900 relative">
-                                                <div class="h-full {s.color ?? 'bg-zinc-500'} transition-all duration-700"
+                                            <span class="text-xs font-medium text-zinc-400 w-20 shrink-0">{s.short ?? s.name}</span>
+                                            <div class="flex-1 h-2 bg-zinc-800 rounded-sm relative overflow-hidden">
+                                                <div class="h-full {s.color ?? 'bg-zinc-400'} rounded-sm transition-all duration-700"
                                                      style="width:{Math.min((s.value / (s.maximum || 30)) * 100, 100)}%">
                                                 </div>
                                             </div>
-                                            <span class="text-[9px] font-mono text-zinc-300 w-5 text-right shrink-0">
+                                            <span class="text-xs font-bold text-zinc-200 w-6 text-right shrink-0">
                                                 {s.value}
                                             </span>
                                         </div>
@@ -673,22 +712,19 @@
                                     <!-- Header: label + energy bar -->
                                     <div class="flex items-center justify-between mb-3">
                                         <div class="flex items-center gap-2">
-                                            <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600">
-                                                Mods
-                                            </span>
+                                            <span class="text-xs font-medium text-zinc-400">Mods</span>
                                             {#if selectedItem.masterwork}
-                                                <span class="text-[7px] font-mono uppercase tracking-[0.15em]
-                                                             text-yellow-400 border border-yellow-400/30 px-1.5 py-px">
+                                                <span class="text-[10px] font-semibold text-yellow-400 border border-yellow-400/30 px-1.5 py-0.5 rounded-sm">
                                                     Masterworked
                                                 </span>
                                             {/if}
                                         </div>
-                                        <!-- Energy pips: 10 or 11 squares mirroring D2 UI -->
+                                        <!-- Energy pips -->
                                         <div class="flex items-center gap-1">
-                                            <span class="text-[8px] font-mono text-zinc-600 mr-1">{used}/{capacity}</span>
+                                            <span class="text-xs font-medium text-zinc-500 mr-1">{used}/{capacity}</span>
                                             <div class="flex gap-px">
                                                 {#each {length: capacity} as _, i}
-                                                    <div class="w-2.5 h-1.5 transition-colors
+                                                    <div class="w-2.5 h-1.5 rounded-sm transition-colors
                                                                 {i < used
                                                                     ? selectedItem.masterwork
                                                                         ? 'bg-yellow-400/70'
@@ -744,28 +780,27 @@
                                                             translate-y-1 group-hover/mod:translate-y-0
                                                             transition-all duration-200 pointer-events-none min-w-[180px]">
                                                     <div class="bg-[#141414] border border-zinc-700
-                                                                px-3 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.9)]">
-                                                        <span class="text-[10px] font-mono font-bold uppercase tracking-wide
-                                                                     text-zinc-100 block mb-1">{mod.name}</span>
+                                                                px-3 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.9)] rounded-sm">
+                                                        <span class="text-sm font-semibold text-zinc-100 block mb-1">{mod.name}</span>
                                                         {#if mod.description}
-                                                            <p class="text-[8px] font-sans text-zinc-500 leading-relaxed mb-1.5 max-w-[200px]">
+                                                            <p class="text-xs text-zinc-400 leading-relaxed mb-1.5 max-w-[200px]">
                                                                 {mod.description}
                                                             </p>
                                                         {/if}
                                                         <div class="flex items-center gap-3 flex-wrap">
                                                             {#if mod.energyCost > 0}
-                                                                <span class="text-[7px] font-mono text-zinc-600">
-                                                                    Cost: <span class="text-emerald-400 font-bold">{mod.energyCost}</span>
+                                                                <span class="text-xs text-zinc-500">
+                                                                    Cost: <span class="text-emerald-400 font-semibold">{mod.energyCost}</span>
                                                                 </span>
                                                             {/if}
                                                             {#each (mod.statBonuses ?? []) as sb}
-                                                                <span class="text-[7px] font-mono text-emerald-400 border border-emerald-500/30 px-1.5 py-px">
+                                                                <span class="text-xs font-medium text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-sm">
                                                                     +{sb.value} {statHashToName[sb.statHash] ?? ''}
                                                                 </span>
                                                             {/each}
                                                         </div>
                                                         {#each (mod.conditionalBonuses ?? []) as sb}
-                                                            <span class="text-[7px] font-mono text-zinc-600 border border-zinc-800 px-1.5 py-px mt-1 inline-block">
+                                                            <span class="text-xs text-zinc-500 border border-zinc-800 px-1.5 py-0.5 mt-1 inline-block rounded-sm">
                                                                 +{sb.value} {statHashToName[sb.statHash] ?? ''} (conditional)
                                                             </span>
                                                         {/each}
@@ -793,11 +828,11 @@
 
                                     <!-- Remaining energy display -->
                                     {#if capacity - used > 0}
-                                        <p class="text-[7px] font-mono uppercase tracking-[0.15em] text-zinc-700 mt-2">
+                                        <p class="text-xs font-medium text-zinc-600 mt-2">
                                             {capacity - used} energy remaining
                                         </p>
                                     {:else}
-                                        <p class="text-[7px] font-mono uppercase tracking-[0.15em] text-emerald-700 mt-2">
+                                        <p class="text-xs font-medium text-emerald-600 mt-2">
                                             Full capacity
                                         </p>
                                     {/if}
@@ -809,17 +844,17 @@
                             {@const sc = eq.subclassSockets}
                             <!-- Super -->
                             {#if sc?.super}
-                                <div class="flex items-start gap-3 pb-4 border-b border-zinc-800/60 mb-4">
+                                <div class="flex items-start gap-4 pb-4 border-b border-zinc-800/60 mb-4">
                                     {#if sc.super.icon}
-                                        <div class="shrink-0 w-10 h-10 border border-zinc-800 overflow-hidden">
+                                        <div class="shrink-0 w-12 h-12 border border-zinc-700 overflow-hidden rounded-sm">
                                             <img src={sc.super.icon} alt="" class="w-full h-full object-cover" />
                                         </div>
                                     {/if}
                                     <div>
-                                        <span class="text-[7px] font-mono uppercase tracking-[0.2em] text-zinc-600 block">Super</span>
-                                        <span class="text-[11px] font-mono font-bold text-zinc-100 block">{sc.super.name}</span>
+                                        <span class="text-xs font-medium text-zinc-500 block">Super</span>
+                                        <span class="text-base font-semibold text-zinc-100 block">{sc.super.name}</span>
                                         {#if sc.super.description}
-                                            <p class="text-[9px] font-sans text-zinc-500 mt-1 leading-relaxed line-clamp-4">
+                                            <p class="text-xs text-zinc-500 mt-1 leading-relaxed line-clamp-4">
                                                 {sc.super.description}
                                             </p>
                                         {/if}
@@ -828,19 +863,17 @@
                             {/if}
                             <!-- Abilities -->
                             {#if sc?.abilities?.length}
-                                <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600 block mb-2">
-                                    Abilities
-                                </span>
+                                <span class="text-xs font-medium text-zinc-500 block mb-2">Abilities</span>
                                 {#each sc.abilities as ab}
                                     <div class="flex items-start gap-3 py-2 border-b border-zinc-800/40 last:border-0">
                                         {#if ab.icon}
-                                            <div class="shrink-0 w-8 h-8 border border-zinc-800 overflow-hidden">
+                                            <div class="shrink-0 w-9 h-9 border border-zinc-700 overflow-hidden rounded-sm">
                                                 <img src={ab.icon} alt="" class="w-full h-full object-cover" />
                                             </div>
                                         {/if}
                                         <div class="flex-1 min-w-0">
-                                            <span class="text-[9px] font-mono uppercase tracking-wide text-zinc-300 block leading-tight">{ab.name}</span>
-                                            <span class="text-[8px] font-mono text-zinc-700 uppercase">{ab.itemTypeDisplayName}</span>
+                                            <span class="text-sm font-medium text-zinc-200 block leading-tight">{ab.name}</span>
+                                            <span class="text-xs text-zinc-500">{ab.itemTypeDisplayName}</span>
                                         </div>
                                     </div>
                                 {/each}
@@ -848,20 +881,18 @@
                             <!-- Aspects -->
                             {#if sc?.aspects?.length}
                                 <div class="mt-3 pt-3 border-t border-zinc-800/60">
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600 block mb-2">
-                                        Aspects
-                                    </span>
+                                    <span class="text-xs font-medium text-zinc-500 block mb-2">Aspects</span>
                                     {#each sc.aspects as asp}
                                         <div class="flex items-start gap-3 py-2 border-b border-zinc-800/40 last:border-0">
                                             {#if asp.icon}
-                                                <div class="shrink-0 w-8 h-8 border border-zinc-800 overflow-hidden">
+                                                <div class="shrink-0 w-9 h-9 border border-zinc-700 overflow-hidden rounded-sm">
                                                     <img src={asp.icon} alt="" class="w-full h-full object-cover" />
                                                 </div>
                                             {/if}
                                             <div class="flex-1 min-w-0">
-                                                <span class="text-[9px] font-mono uppercase tracking-wide text-zinc-300 block leading-tight">{asp.name}</span>
+                                                <span class="text-sm font-medium text-zinc-200 block leading-tight">{asp.name}</span>
                                                 {#if asp.description}
-                                                    <p class="text-[9px] font-sans text-zinc-500 mt-0.5 leading-relaxed line-clamp-2">{asp.description}</p>
+                                                    <p class="text-xs text-zinc-500 mt-0.5 leading-relaxed line-clamp-2">{asp.description}</p>
                                                 {/if}
                                             </div>
                                         </div>
@@ -871,18 +902,18 @@
                             <!-- Fragments -->
                             {#if sc?.fragments?.length}
                                 <div class="mt-3 pt-3 border-t border-zinc-800/60">
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600 block mb-2">
+                                    <span class="text-xs font-medium text-zinc-500 block mb-2">
                                         Fragments ({sc.fragments.length})
                                     </span>
                                     <div class="grid grid-cols-2 gap-2">
                                         {#each sc.fragments as frag}
-                                            <div class="flex items-center gap-2 border border-zinc-800/60 p-2 group/frag hover:border-zinc-700 transition-colors">
+                                            <div class="flex items-center gap-2.5 border border-zinc-800/60 p-2 group/frag hover:border-zinc-700 transition-colors rounded-sm">
                                                 {#if frag.icon}
-                                                    <div class="shrink-0 w-6 h-6 overflow-hidden">
+                                                    <div class="shrink-0 w-7 h-7 overflow-hidden">
                                                         <img src={frag.icon} alt="" class="w-full h-full object-cover" />
                                                     </div>
                                                 {/if}
-                                                <span class="text-[8px] font-mono text-zinc-400 leading-tight truncate">
+                                                <span class="text-xs font-medium text-zinc-400 leading-tight truncate">
                                                     {frag.name}
                                                 </span>
                                             </div>
@@ -937,7 +968,7 @@
                             </p>
                         {/if}
                         <!-- Click hint -->
-                        <p class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-800 mt-4">
+                        <p class="text-xs font-medium text-zinc-700 mt-4">
                             Select a slot to inspect
                         </p>
                     </div>
@@ -949,13 +980,13 @@
         </div>
 
         <!-- ── COL 3: STATS (left) + ARMOR (right) ──────────────────────────── -->
-        <div class="col-span-3 flex gap-4 items-start">
+        <div class="col-span-2 flex gap-3 items-start">
 
             <!-- ── Vertical stats column ──────────────────────────────────── -->
             <div class="flex flex-col gap-0 shrink-0 pt-1">
                 <!-- STATS label -->
                 <div class="flex items-center gap-1.5 mb-3">
-                    <span class="text-[8px] text-emerald-500 uppercase tracking-[0.25em] font-bold">STATS</span>
+                    <span class="text-[10px] font-semibold text-emerald-500">Stats</span>
                     <div class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>
                 </div>
 
@@ -993,19 +1024,19 @@
                                         opacity-0 group-hover/stat:opacity-100
                                         -translate-x-1 group-hover/stat:translate-x-0
                                         transition-all duration-200 pointer-events-none w-[220px]">
-                                <div class="bg-[#111] border border-zinc-700 p-3 shadow-[0_0_24px_rgba(0,0,0,0.9)]">
+                                <div class="bg-[#111] border border-zinc-700 p-3 shadow-[0_0_24px_rgba(0,0,0,0.9)] rounded-sm">
                                     <div class="flex items-center justify-between mb-1.5">
-                                        <span class="text-[9px] font-mono font-bold uppercase tracking-wide text-zinc-200">{stat.name}</span>
-                                        <span class="text-[9px] font-mono font-bold {bonus > 0 ? 'text-emerald-400' : 'text-zinc-300'}">{total}</span>
+                                        <span class="text-xs font-semibold text-zinc-200">{stat.name}</span>
+                                        <span class="text-xs font-bold {bonus > 0 ? 'text-emerald-400' : 'text-zinc-300'}">{total}</span>
                                     </div>
-                                    <p class="text-[8px] font-sans text-zinc-500 leading-relaxed">{primary}</p>
+                                    <p class="text-xs text-zinc-500 leading-relaxed">{primary}</p>
                                     {#if bonus > 0 && fateBonuses.length}
                                         <div class="border-t border-emerald-500/20 pt-2 mt-2">
-                                            <span class="text-[7px] font-mono uppercase tracking-[0.15em] text-emerald-500 font-bold block mb-1.5">+{bonus} above cap</span>
+                                            <span class="text-[10px] font-semibold text-emerald-500 block mb-1.5">+{bonus} above cap</span>
                                             {#each fateBonuses as fb}
                                                 <div class="flex items-center justify-between gap-3 mb-1 last:mb-0">
-                                                    <span class="text-[8px] font-sans text-zinc-500">{fb.label}</span>
-                                                    <span class="text-[8px] font-mono font-bold text-emerald-400 shrink-0">{fb.value}</span>
+                                                    <span class="text-xs text-zinc-500">{fb.label}</span>
+                                                    <span class="text-xs font-bold text-emerald-400 shrink-0">{fb.value}</span>
                                                 </div>
                                             {/each}
                                         </div>
@@ -1018,18 +1049,18 @@
 
                 <!-- Total + tier -->
                 <div class="pt-3 mt-1 border-t border-zinc-800 text-center">
-                    <span class="text-[9px] font-mono font-bold text-zinc-300 block leading-none">{grandTotal}</span>
-                    <span class="text-[6px] font-mono text-emerald-600 uppercase tracking-[0.1em] mt-0.5 block">T{buildTier}</span>
+                    <span class="text-xs font-bold text-zinc-200 block leading-none">{grandTotal}</span>
+                    <span class="text-[9px] font-medium text-emerald-500 mt-0.5 block">T{buildTier}</span>
                 </div>
             </div>
 
             <!-- ── Armor slots ──────────────────────────────────────────────── -->
-            <div class="flex flex-col items-center gap-5 flex-1">
-                {@render GearSlot('helmet',    'HELMET')}
-                {@render GearSlot('gauntlets', 'ARMS')}
-                {@render GearSlot('chest',     'CHEST')}
-                {@render GearSlot('legs',      'LEGS')}
-                {@render GearSlot('classItem', 'CLASS')}
+            <div class="flex flex-col items-center gap-4 flex-1">
+                {@render GearSlot('helmet',    'Helmet')}
+                {@render GearSlot('gauntlets', 'Arms')}
+                {@render GearSlot('chest',     'Chest')}
+                {@render GearSlot('legs',      'Legs')}
+                {@render GearSlot('classItem', 'Class')}
             </div>
         </div>
 
