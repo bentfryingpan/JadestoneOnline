@@ -389,7 +389,7 @@
                                                  {card.accent ? 'text-emerald-400' : ''}">
                                         {card.value}
                                     </span>
-                                    <span class="text-[9px] font-mono text-zinc-600">{card.sub}</span>
+                                    <span class="text-xs font-sans text-zinc-500">{card.sub}</span>
                                 </StoneCard>
                             {/each}
                         </div>
@@ -409,7 +409,7 @@
                                     <span class="text-3xl font-mono font-bold text-emerald-400 block mb-1">
                                         {card.value}
                                     </span>
-                                    <span class="text-[9px] font-mono text-zinc-600">{card.sub}</span>
+                                    <span class="text-xs font-sans text-zinc-500">{card.sub}</span>
                                 </StoneCard>
                             {/each}
                         </div>
@@ -417,7 +417,7 @@
                         <!-- Recent matches preview -->
                         <StoneCard title="Recent Matches">
                             <div class="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60">
-                                <span class="text-[9px] font-mono text-zinc-600">Last {Math.min(5, data.recentMatches.length)} matches</span>
+                                <span class="text-xs font-sans text-zinc-500">Last {Math.min(5, data.recentMatches.length)} matches</span>
                                 <button
                                     onclick={() => tab = 'matches'}
                                     class="text-[9px] font-mono uppercase tracking-[0.2em] text-emerald-500 hover:text-emerald-400 transition-colors">
@@ -451,14 +451,14 @@
                                         </span>
                                         <!-- Motes -->
                                         {#if mb !== null}
-                                            <span class="text-[9px] font-mono shrink-0
+                                            <span class="text-xs font-sans shrink-0
                                                          {mb >= 15 ? 'text-emerald-400' : 'text-zinc-600'}">
                                                 {mb} MB
                                             </span>
                                         {/if}
                                         <!-- Invasions -->
                                         {#if inv !== null && inv > 0}
-                                            <span class="text-[9px] font-mono text-violet-400 shrink-0 hidden sm:block">{inv} INV</span>
+                                            <span class="text-xs font-sans text-violet-400 shrink-0 hidden sm:block">{inv} INV</span>
                                         {/if}
                                         <!-- Arrow -->
                                         <svg class="w-3 h-3 text-zinc-700 group-hover:text-emerald-500 transition-colors shrink-0 ml-1"
@@ -487,16 +487,16 @@
                         <div class="w-6 h-6 border border-zinc-700 rotate-45 mb-2"></div>
                         <span class="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">No seasonal data</span>
                         {#if seasonal}
-                            <span class="text-[9px] font-mono text-zinc-700">No Gambit matches found in recent history.</span>
+                            <span class="text-xs font-sans text-zinc-600">No Gambit matches found in recent history.</span>
                         {:else}
-                            <span class="text-[9px] font-mono text-zinc-700">Select the Seasons tab to load per-season stats.</span>
+                            <span class="text-xs font-sans text-zinc-600">Select the Seasons tab to load per-season stats.</span>
                         {/if}
                     </div>
                 {:else}
                     <div class="p-6 space-y-3">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-500">Season Breakdown</span>
-                            <span class="text-[9px] font-mono text-zinc-700">
+                            <span class="text-xs font-sans text-zinc-600">
                                 {seasonal.totalActivities?.toLocaleString()} matches · {seasonal.charsScanned} character{seasonal.charsScanned !== 1 ? 's' : ''}
                             </span>
                         </div>
@@ -551,8 +551,8 @@
                                             <span class="text-[9px] font-mono uppercase tracking-[0.15em] text-zinc-600">
                                                 Mote efficiency
                                             </span>
-                                            <span class="text-[9px] font-mono font-bold text-emerald-400">{bankedPct}% banked</span>
-                                            <span class="text-[9px] font-mono text-red-400 ml-auto">{lostPct}% lost</span>
+                                            <span class="text-xs font-sans font-semibold text-emerald-400">{bankedPct}% banked</span>
+                                            <span class="text-xs font-sans text-red-400 ml-auto">{lostPct}% lost</span>
                                         </div>
                                         <div class="h-px flex gap-px bg-zinc-900">
                                             <div class="h-full bg-emerald-500 shadow-[0_0_4px_rgba(52,211,153,0.4)]"
@@ -571,7 +571,7 @@
                 <div class="p-6">
                     <div class="flex items-center justify-between mb-4">
                         <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-500">Match History</span>
-                        <span class="text-[9px] font-mono text-zinc-700">{data.recentMatches.length} recent matches</span>
+                        <span class="text-xs font-sans text-zinc-600">{data.recentMatches.length} recent matches</span>
                     </div>
 
                     {#if !data.recentMatches.length}
@@ -613,24 +613,24 @@
                                             <span class="text-zinc-400">{d}</span>
                                             <span class="text-zinc-700">/</span>
                                             <span class="text-zinc-500">{a}</span>
-                                            <span class="text-[8px] text-zinc-700 ml-1">K/D/A</span>
+                                            <span class="text-[8px] font-sans text-zinc-600 ml-1">K/D/A</span>
                                         </div>
                                         <!-- Motes -->
                                         {#if mb !== null}
-                                            <span class="text-[9px] font-mono shrink-0 hidden sm:block
+                                            <span class="text-xs font-sans shrink-0 hidden sm:block
                                                          {mb >= 15 ? 'text-emerald-400' : 'text-zinc-600'}">
                                                 {mb} MB
                                             </span>
                                         {/if}
                                         <!-- Invasions -->
                                         {#if inv !== null && inv > 0}
-                                            <span class="text-[9px] font-mono text-violet-400 shrink-0 hidden sm:block">
+                                            <span class="text-xs font-sans text-violet-400 shrink-0 hidden sm:block">
                                                 {inv} INV
                                             </span>
                                         {/if}
                                         <!-- Duration -->
                                         {#if dur}
-                                            <span class="text-[9px] font-mono text-zinc-700 hidden lg:block shrink-0">
+                                            <span class="text-xs font-sans text-zinc-600 hidden lg:block shrink-0">
                                                 {Math.floor(dur/60)}m {dur%60}s
                                             </span>
                                         {/if}
