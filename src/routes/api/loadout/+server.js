@@ -162,6 +162,7 @@ export async function GET({ url, setHeaders }) {
             isIntrinsic:          typeName.includes('intrinsic'),
             isMasterwork:         typeName.includes('masterwork'),
             isMod:                typeName.includes('weapon mod') || typeName.includes('armor mod'),
+            energyCost:           def.plug?.energyCost?.energyCost ?? 0,
             itemTypeDisplayName:  def.itemTypeDisplayName ?? '',
             description:          def.displayProperties?.description ?? '',
             flavorText:           def.flavorText ?? '',
@@ -200,24 +201,51 @@ export async function GET({ url, setHeaders }) {
             itemData.perks = sockets
                 .map(s => s.plugHash && s.isVisible ? classifySocket(s, defMap.get(s.plugHash)) : null)
                 .filter(Boolean);
+            // Masterwork: any enabled socket whose type mentions 'masterwork'
+            itemData.masterwork = sockets.some(s => {
+                if (!s.plugHash || !s.isEnabled) return false;
+                const sdef = defMap.get(s.plugHash);
+                return (sdef?.itemTypeDisplayName ?? '').toLowerCase().includes('masterwork');
+            });
         }
 
-        // Armor (itemType 2): stats + mods
+        // Armor (itemType 2): stats + mods + energy + masterwork
         if (def?.itemType === 2 && item.itemInstanceId) {
+            // Energy capacity indicates masterwork (cap=10 means fully masterworked)
+            const energy = instance?.energy ?? {};
+            itemData.masterwork      = (energy.energyCapacity ?? 0) >= 10;
+            itemData.energyCapacity  = energy.energyCapacity ?? 10;
+            itemData.energyUsed      = energy.energyUsed     ?? 0;
+
             // Stats from API — include max so the UI can scale bars correctly
             if (statsData[item.itemInstanceId]) {
                 const raw = statsData[item.itemInstanceId].stats ?? {};
                 itemData.armorStats = ARMOR_STATS.map(({ hash, name, short, color, text }) => ({
                     name, short, color, text,
                     value:   raw[hash]?.value   ?? 0,
-                    maximum: raw[hash]?.maximum ?? 30, // per-piece cap (usually 30, higher on new armors)
+                    maximum: raw[hash]?.maximum ?? 30,
                 }));
             }
-            // Mods socketed into this armor piece
+
+            // Sockets: count true mod slots (filled OR empty), return filled mods only
             const sockets = socketsData[item.itemInstanceId]?.sockets ?? [];
-            itemData.mods = sockets
-                .map(s => s.plugHash ? classifySocket(s, defMap.get(s.plugHash)) : null)
-                .filter(p => p && p.isMod);
+            let modSlotCount = 0;
+            const filledMods = [];
+            for (const s of sockets) {
+                if (!s.plugHash) continue;
+                const sdef     = defMap.get(s.plugHash);
+                const sName    = sdef?.displayProperties?.name ?? '';
+                const sType    = (sdef?.itemTypeDisplayName   ?? '').toLowerCase();
+                // Empty armor mod slot
+                if (sName === 'Empty Mod Socket') { modSlotCount++; continue; }
+                // Skip everything that isn't an armor mod
+                if (!sType.includes('armor mod')) continue;
+                modSlotCount++;
+                const classified = classifySocket(s, sdef);
+                if (classified && classified.isMod) filledMods.push(classified);
+            }
+            itemData.modSlotCount = modSlotCount || 4; // fallback 4
+            itemData.mods = filledMods;
         }
 
         grouped[slot] = itemData;

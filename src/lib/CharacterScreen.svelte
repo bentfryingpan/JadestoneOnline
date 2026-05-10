@@ -38,6 +38,55 @@
     const grandTotal = $derived(Object.values(totalStats).reduce((a, b) => a + b, 0));
     const buildTier  = $derived((grandTotal / 10).toFixed(1));
 
+    // ── Stat name → hash lookup (for mod stat bonus labels) ───────────────────
+    const statHashToName = $derived(
+        Object.fromEntries((armorStatMeta ?? []).map(s => [s.hash, s.name]))
+    );
+
+    // ── FATE zone tooltip data (Edge of Fate Season 26) ───────────────────────
+    // Secondary zone unlocks at 101+; benefits scale linearly to 200.
+    // Primary-zone caps shown for reference. FATE max values are at stat=200.
+    const FATE_INFO = {
+        // Edge of Fate renamed stats
+        'Weapons':    { primary: 'T10 (100): Fastest weapon swap, max jump height & walk speed',
+                        fate: 'Ammo restoration from Orbs of Power; improved boss & Guardian damage. At 200: +100% chance for double ammo pickup.',
+                        fateShort: 'Damage & ammo' },
+        'Health':     { primary: 'T10 (100): 40% damage reduction in PvE; enhanced shield regen',
+                        fate: 'Shield capacity +20 in PvE; 25% faster shield recharge; 50% faster full shield recharge at 200.',
+                        fateShort: 'Shields & DR' },
+        'Class':      { primary: 'T10 (100): Fastest class ability cooldown',
+                        fate: 'Class ability use grants an overshield in PvE (up to 40 HP at 200).',
+                        fateShort: 'Overshield' },
+        'Grenade':    { primary: 'T10 (100): ~32s grenade ability cooldown',
+                        fate: 'Increased grenade damage: up to +65% in PvE / +20% in PvP at 200.',
+                        fateShort: 'Grenade damage' },
+        'Super':      { primary: 'T10 (100): Fastest passive Super regen',
+                        fate: 'Increased Super damage: up to +45% in PvE / +15% in PvP at 200.',
+                        fateShort: 'Super damage' },
+        'Melee':      { primary: 'T10 (100): ~32s melee ability cooldown',
+                        fate: 'Increased melee damage: up to +30% in PvE / +20% in PvP at 200.',
+                        fateShort: 'Melee damage' },
+        // Legacy names (pre-Edge of Fate)
+        'Mobility':   { primary: 'T10 (100): Fastest weapon swap, max jump & walk speed',
+                        fate: 'Ammo restoration from Orbs; improved damage scaling at higher values.',
+                        fateShort: 'Damage & ammo' },
+        'Resilience': { primary: 'T10 (100): 40% damage reduction in PvE',
+                        fate: 'Shield capacity increase; faster shield recharge above 100.',
+                        fateShort: 'Shields & DR' },
+        'Recovery':   { primary: 'T10 (100): Fastest class ability cooldown',
+                        fate: 'Overshield on class ability use in PvE.',
+                        fateShort: 'Overshield' },
+        'Discipline': { primary: 'T10 (100): ~32s grenade cooldown',
+                        fate: 'Grenade damage bonus scaling above 100.',
+                        fateShort: 'Grenade damage' },
+        'Intellect':  { primary: 'T10 (100): Fastest passive Super regen',
+                        fate: 'Super damage bonus scaling above 100.',
+                        fateShort: 'Super damage' },
+        'Strength':   { primary: 'T10 (100): ~32s melee cooldown',
+                        fate: 'Melee damage bonus scaling above 100.',
+                        fateShort: 'Melee damage' },
+    };
+
     // ── Subclass theming ───────────────────────────────────────────────────────
     const subclassColor = $derived((() => {
         const n = (eq.subclass?.name ?? '').toLowerCase();
@@ -68,6 +117,7 @@
 {#snippet GearSlot(key, label)}
     {@const item      = eq[key]}
     {@const exotic    = item?.tierType === 6}
+    {@const mw        = item?.masterwork ?? false}
     {@const isActive  = selectedSlot === key}
     <button onclick={() => selectSlot(key)}
             class="group flex flex-col items-center gap-2 w-full text-left transition-all">
@@ -76,12 +126,25 @@
                     border
                     {isActive
                         ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
-                        : exotic
-                            ? 'border-amber-500/20 group-hover:border-amber-500/50'
-                            : 'border-zinc-800 group-hover:border-zinc-500'}">
-            <!-- Rarity bar -->
-            <div class="absolute top-0 left-0 w-full h-px opacity-70
-                        {exotic ? 'bg-amber-500' : 'bg-zinc-100'}"></div>
+                        : mw && !exotic
+                            ? 'border-yellow-400/60 shadow-[0_0_12px_rgba(234,179,8,0.22)] group-hover:border-yellow-300 group-hover:shadow-[0_0_18px_rgba(234,179,8,0.35)]'
+                            : exotic
+                                ? 'border-amber-500/30 group-hover:border-amber-500/60'
+                                : 'border-zinc-800 group-hover:border-zinc-500'}">
+            <!-- Top rarity / masterwork bar -->
+            <div class="absolute top-0 left-0 w-full h-[2px] z-10
+                        {mw && !exotic
+                            ? 'bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600'
+                            : exotic ? 'bg-amber-500 opacity-80' : 'bg-zinc-100 opacity-40'}"></div>
+            <!-- Masterwork corner glow -->
+            {#if mw && !isActive}
+                <div class="absolute inset-0 pointer-events-none"
+                     style="background:radial-gradient(ellipse at top right, rgba(234,179,8,0.12) 0%, transparent 65%)"></div>
+                <!-- MW star ornament top-right -->
+                <div class="absolute top-1 right-1 w-2 h-2 rotate-45 border border-yellow-400/50
+                            bg-yellow-400/10 z-10 transition-all duration-300
+                            group-hover:border-yellow-300 group-hover:shadow-[0_0_6px_rgba(234,179,8,0.6)]"></div>
+            {/if}
             <!-- Icon -->
             {#if item?.icon}
                 <img src={item.icon} alt="" class="w-full h-full object-cover" />
@@ -91,10 +154,11 @@
                     <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
                 </div>
             {/if}
-            <!-- Tier badge -->
-            <div class="absolute bottom-0 right-0 px-1.5 bg-black/70
-                        text-[7px] text-zinc-500 uppercase font-bold tracking-tight">
-                {TIER_LABEL[item?.tierType] ?? '—'}
+            <!-- Tier / MW badge -->
+            <div class="absolute bottom-0 right-0 px-1.5 bg-black/70 z-10
+                        text-[7px] uppercase font-bold tracking-tight
+                        {mw ? 'text-yellow-400' : 'text-zinc-500'}">
+                {mw ? 'MW' : (TIER_LABEL[item?.tierType] ?? '—')}
             </div>
             <!-- Selected pulse -->
             {#if isActive}
@@ -330,41 +394,147 @@
                                     {/each}
                                 </div>
                             {/if}
-                            <!-- Mods -->
-                            {#if selectedItem.mods?.length}
+
+                            <!-- ── IN-GAME-STYLE MOD SLOTS ──────────────────── -->
+                            {#if true}
+                                {@const capacity = selectedItem.energyCapacity ?? 10}
+                                {@const used     = selectedItem.energyUsed     ?? 0}
+                                {@const mods     = selectedItem.mods            ?? []}
+                                {@const slots    = selectedItem.modSlotCount    ?? 4}
+                                {@const empty    = Math.max(0, slots - mods.length)}
                                 <div class="border-t border-zinc-800/60 pt-4">
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600 block mb-3">
-                                        Mods
-                                    </span>
-                                    {#each selectedItem.mods as mod}
-                                        <div class="flex items-start gap-3 py-2.5
-                                                    border-b border-zinc-800/50 last:border-0 group/mod">
-                                            <div class="shrink-0 w-9 h-9 border border-zinc-800
-                                                        group-hover/mod:border-zinc-600 transition-colors overflow-hidden">
-                                                {#if mod.icon}
-                                                    <img src={mod.icon} alt="" class="w-full h-full object-cover" />
-                                                {/if}
+
+                                    <!-- Header: label + energy bar -->
+                                    <div class="flex items-center justify-between mb-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600">
+                                                Mods
+                                            </span>
+                                            {#if selectedItem.masterwork}
+                                                <span class="text-[7px] font-mono uppercase tracking-[0.15em]
+                                                             text-yellow-400 border border-yellow-400/30 px-1.5 py-px">
+                                                    Masterworked
+                                                </span>
+                                            {/if}
+                                        </div>
+                                        <!-- Energy pips: 10 or 11 squares mirroring D2 UI -->
+                                        <div class="flex items-center gap-1">
+                                            <span class="text-[8px] font-mono text-zinc-600 mr-1">{used}/{capacity}</span>
+                                            <div class="flex gap-px">
+                                                {#each {length: capacity} as _, i}
+                                                    <div class="w-2.5 h-1.5 transition-colors
+                                                                {i < used
+                                                                    ? selectedItem.masterwork
+                                                                        ? 'bg-yellow-400/70'
+                                                                        : 'bg-emerald-500/70'
+                                                                    : 'bg-zinc-800'}">
+                                                    </div>
+                                                {/each}
                                             </div>
-                                            <div class="flex-1 min-w-0">
-                                                <span class="text-[10px] font-mono font-bold uppercase
-                                                             tracking-wide text-zinc-200 block">{mod.name}</span>
-                                                {#if mod.description}
-                                                    <p class="text-[9px] font-sans text-zinc-500 leading-relaxed mt-0.5 line-clamp-3">
-                                                        {mod.description}
-                                                    </p>
-                                                {/if}
-                                                {#if mod.statBonuses?.length}
-                                                    <div class="flex flex-wrap gap-1.5 mt-1">
-                                                        {#each mod.statBonuses as sb}
-                                                            <span class="text-[7px] font-mono text-emerald-500 border border-emerald-500/20 px-1">
-                                                                +{sb.value}
+                                        </div>
+                                    </div>
+
+                                    <!-- Mod slot row (D2-style: square icons in a row) -->
+                                    <div class="flex gap-2 flex-wrap">
+                                        <!-- Filled mod slots -->
+                                        {#each mods as mod}
+                                            <div class="group/mod relative cursor-default shrink-0">
+                                                <!-- Slot square -->
+                                                <div class="w-[52px] h-[52px] relative overflow-hidden
+                                                            border transition-all duration-200
+                                                            {mod.statBonuses?.length
+                                                                ? 'border-emerald-500/40 bg-emerald-500/5 group-hover/mod:border-emerald-400/70'
+                                                                : 'border-zinc-700 bg-[#0c0c0c] group-hover/mod:border-zinc-500'}">
+                                                    {#if mod.icon}
+                                                        <img src={mod.icon} alt="" class="w-full h-full object-cover" />
+                                                    {:else}
+                                                        <div class="w-full h-full flex items-center justify-center opacity-20">
+                                                            <div class="w-5 h-5 border border-zinc-600 rotate-45"></div>
+                                                        </div>
+                                                    {/if}
+                                                    <!-- Energy cost — bottom-right overlay (matches D2 UI) -->
+                                                    {#if mod.energyCost > 0}
+                                                        <div class="absolute bottom-0 right-0 w-5 h-5
+                                                                    bg-black/80 flex items-center justify-center
+                                                                    border-t border-l border-zinc-700/60">
+                                                            <span class="text-[9px] font-mono font-bold text-emerald-400 leading-none">
+                                                                {mod.energyCost}
+                                                            </span>
+                                                        </div>
+                                                    {/if}
+                                                    <!-- Stat bonus — top-left tag -->
+                                                    {#if mod.statBonuses?.length}
+                                                        <div class="absolute top-0 left-0 px-1 py-px
+                                                                    bg-emerald-500/20 border-r border-b border-emerald-500/30">
+                                                            <span class="text-[7px] font-mono font-bold text-emerald-300 leading-none">
+                                                                +{mod.statBonuses[0].value}
+                                                            </span>
+                                                        </div>
+                                                    {/if}
+                                                </div>
+                                                <!-- Hover tooltip -->
+                                                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+                                                            opacity-0 group-hover/mod:opacity-100
+                                                            translate-y-1 group-hover/mod:translate-y-0
+                                                            transition-all duration-200 pointer-events-none min-w-[180px]">
+                                                    <div class="bg-[#141414] border border-zinc-700
+                                                                px-3 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.9)]">
+                                                        <span class="text-[10px] font-mono font-bold uppercase tracking-wide
+                                                                     text-zinc-100 block mb-1">{mod.name}</span>
+                                                        {#if mod.description}
+                                                            <p class="text-[8px] font-sans text-zinc-500 leading-relaxed mb-1.5 max-w-[200px]">
+                                                                {mod.description}
+                                                            </p>
+                                                        {/if}
+                                                        <div class="flex items-center gap-3 flex-wrap">
+                                                            {#if mod.energyCost > 0}
+                                                                <span class="text-[7px] font-mono text-zinc-600">
+                                                                    Cost: <span class="text-emerald-400 font-bold">{mod.energyCost}</span>
+                                                                </span>
+                                                            {/if}
+                                                            {#each (mod.statBonuses ?? []) as sb}
+                                                                <span class="text-[7px] font-mono text-emerald-400 border border-emerald-500/30 px-1.5 py-px">
+                                                                    +{sb.value} {statHashToName[sb.statHash] ?? ''}
+                                                                </span>
+                                                            {/each}
+                                                        </div>
+                                                        {#each (mod.conditionalBonuses ?? []) as sb}
+                                                            <span class="text-[7px] font-mono text-zinc-600 border border-zinc-800 px-1.5 py-px mt-1 inline-block">
+                                                                +{sb.value} {statHashToName[sb.statHash] ?? ''} (conditional)
                                                             </span>
                                                         {/each}
                                                     </div>
-                                                {/if}
+                                                </div>
                                             </div>
-                                        </div>
-                                    {/each}
+                                        {/each}
+
+                                        <!-- Empty mod slots -->
+                                        {#each {length: empty} as _}
+                                            <div class="w-[52px] h-[52px] border border-zinc-800/60 bg-[#090909]
+                                                        flex items-center justify-center shrink-0">
+                                                <!-- D2-style empty slot indicator: two crossing lines -->
+                                                <div class="relative w-5 h-5 opacity-20">
+                                                    <div class="absolute inset-0 flex items-center justify-center">
+                                                        <div class="w-full h-px bg-zinc-500"></div>
+                                                    </div>
+                                                    <div class="absolute inset-0 flex items-center justify-center">
+                                                        <div class="w-px h-full bg-zinc-500"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {/each}
+                                    </div>
+
+                                    <!-- Remaining energy display -->
+                                    {#if capacity - used > 0}
+                                        <p class="text-[7px] font-mono uppercase tracking-[0.15em] text-zinc-700 mt-2">
+                                            {capacity - used} energy remaining
+                                        </p>
+                                    {:else}
+                                        <p class="text-[7px] font-mono uppercase tracking-[0.15em] text-emerald-700 mt-2">
+                                            Full capacity
+                                        </p>
+                                    {/if}
                                 </div>
                             {/if}
 
@@ -535,7 +705,8 @@
                     {@const total      = totalStats[stat.name] ?? 0}
                     {@const bonus      = Math.max(0, total - 100)}
                     {@const percentage = Math.min((total / 200) * 100, 100)}
-                    <div class="flex items-center gap-3 w-full py-1.5">
+                    {@const fateInfo   = FATE_INFO[stat.name]}
+                    <div class="flex items-center gap-3 w-full py-1.5 group/stat relative">
                         <div class="w-3 h-3 bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
                             <div class="w-1.5 h-1.5 transition-colors duration-300
                                         {bonus > 0 ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}">
@@ -552,11 +723,52 @@
                                 </div>
                             </div>
                             <div class="h-px bg-zinc-900 w-full relative">
-                                <div class="h-full transition-all duration-1000 ease-out
-                                            {bonus > 0 ? 'bg-emerald-500' : 'bg-zinc-500'}"
-                                     style="width:{percentage}%"></div>
+                                <!-- 0–100 fill -->
+                                <div class="absolute left-0 top-0 h-full transition-all duration-1000 ease-out
+                                            {bonus > 0 ? 'bg-zinc-500' : 'bg-zinc-500'}"
+                                     style="width:{Math.min((Math.min(total,100)/200)*100,50)}%"></div>
+                                <!-- 101–200 FATE fill (emerald) -->
+                                {#if bonus > 0}
+                                    <div class="absolute top-0 h-full bg-emerald-500 transition-all duration-1000 ease-out"
+                                         style="left:50%;width:{Math.min((bonus/100)*50,50)}%"></div>
+                                    <!-- divider at 100 -->
+                                    <div class="absolute top-[-2px] bottom-[-2px] w-px bg-emerald-500/60"
+                                         style="left:50%"></div>
+                                {/if}
                             </div>
                         </div>
+
+                        <!-- FATE tooltip: shown on hover when stat info available -->
+                        {#if fateInfo}
+                            <div class="absolute right-0 bottom-full mb-2 z-50
+                                        opacity-0 group-hover/stat:opacity-100
+                                        translate-y-1 group-hover/stat:translate-y-0
+                                        transition-all duration-200 pointer-events-none w-[220px]">
+                                <div class="bg-[#111] border border-zinc-700 p-3
+                                            shadow-[0_0_24px_rgba(0,0,0,0.9)]">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-[9px] font-mono font-bold uppercase tracking-wide text-zinc-200">
+                                            {stat.name}
+                                        </span>
+                                        <span class="text-[8px] font-mono text-zinc-200 font-bold">{total}</span>
+                                    </div>
+                                    <p class="text-[8px] font-sans text-zinc-500 leading-relaxed mb-2">
+                                        {fateInfo.primary}
+                                    </p>
+                                    {#if bonus > 0}
+                                        <div class="border-t border-emerald-500/20 pt-2 mt-1">
+                                            <span class="text-[7px] font-mono uppercase tracking-[0.15em]
+                                                         text-emerald-500 font-bold block mb-1">
+                                                FATE BONUS (+{bonus})
+                                            </span>
+                                            <p class="text-[8px] font-sans text-zinc-400 leading-relaxed">
+                                                {fateInfo.fate}
+                                            </p>
+                                        </div>
+                                    {/if}
+                                </div>
+                            </div>
+                        {/if}
                     </div>
                 {/each}
 

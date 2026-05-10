@@ -1,5 +1,8 @@
 node_modules
 
+# Claude Code
+.claude/
+
 # Output
 .output
 .vercel
