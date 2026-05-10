@@ -92,7 +92,15 @@ export async function load({ params, parent, url, setHeaders }) {
     const characters   = profile?.characters?.data ?? {};
     const progressions = profile?.characterProgressions?.data ?? {};
     const clan         = clanData?.Response?.results?.[0]?.group ?? null;
-    const lifetimeStats= acctStats?.Response?.gambit?.allTime ?? null;
+    // Bungie GetHistoricalStatsForAccount nests mode stats under
+    // mergedAllCharacters.results.{mode}.allTime (not at Response.{mode} directly).
+    // Also try pvecomp_gambit as a fallback key name Bungie has used historically.
+    const _statsResults = acctStats?.Response?.mergedAllCharacters?.results ?? {};
+    const lifetimeStats =
+        _statsResults?.gambit?.allTime ??
+        _statsResults?.pvecomp_gambit?.allTime ??
+        acctStats?.Response?.gambit?.allTime ??          // legacy fallback
+        null;
 
     const sortedCharIds = [...charIds].sort((a, b) =>
         new Date(characters[b]?.dateLastPlayed ?? 0) - new Date(characters[a]?.dateLastPlayed ?? 0)
