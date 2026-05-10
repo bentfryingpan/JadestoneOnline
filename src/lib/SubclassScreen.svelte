@@ -3,6 +3,23 @@
 
     const classNames = { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' };
 
+    // Destiny 2 stat hash → display name (standard + Edge of Fate names)
+    const STAT_NAMES = {
+        2996146975: 'Mobility',
+        392767087:  'Resilience',
+        1943323491: 'Recovery',
+        1735777505: 'Discipline',
+        144602215:  'Intellect',
+        4244567218: 'Strength',
+        // Edge of Fate renames
+        3897515592: 'Weapons',
+        2223994109: 'Health',
+        3596744046: 'Class',
+        3022375125: 'Grenade',
+        2285636663: 'Super',
+        2961038739: 'Melee',
+    };
+
     // Selected ability/aspect/fragment for center inspection
     let selectedAbility = $state(null);
 
@@ -42,12 +59,12 @@
     }
 </script>
 
-<!-- ── Subclass Layout (matches CharacterScreen 3-column Gemini grid) ──────── -->
+<!-- ── Subclass Layout ────────────────────────────────────────────────────── -->
 <div class="max-w-6xl mx-auto py-10 px-4">
-    <div class="grid grid-cols-12 gap-12 items-start">
+    <div class="grid grid-cols-12 gap-8 items-start">
 
         <!-- ── COL 1: SUPER + SUBCLASS ICON ─────────────────────────────── -->
-        <div class="col-span-3 flex flex-col items-center space-y-10">
+        <div class="col-span-3 flex flex-col items-center space-y-8">
 
             <!-- Subclass diamond -->
             <div class="flex flex-col items-center w-full">
@@ -69,30 +86,29 @@
                         </div>
                     {/if}
                 </div>
-                <div class="mt-6 text-center w-full">
-                    <span class="text-[9px] text-zinc-600 uppercase tracking-[0.2em] font-bold block mb-1">Subclass</span>
-                    <p class="text-[11px] font-bold uppercase tracking-widest {subclassEl.text}">
+                <div class="mt-5 text-center w-full">
+                    <span class="text-[10px] font-medium text-zinc-600 uppercase tracking-wider block mb-1">Subclass</span>
+                    <p class="text-sm font-semibold {subclassEl.text}">
                         {eq.subclass?.name ?? '—'}
                     </p>
-                    <p class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-700 mt-0.5">
+                    <p class="text-xs text-zinc-600 mt-0.5">
                         {classNames[char?.classType] ?? 'Guardian'}
                     </p>
                 </div>
             </div>
 
             <!-- Super ability slot -->
-            <div class="w-full pt-8 border-t border-zinc-800/40">
-                <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-4">Super</span>
+            <div class="w-full pt-6 border-t border-zinc-800/40">
+                <span class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider block mb-4">Super</span>
                 {#if sockets?.super}
                     <button onclick={() => selectAbility(sockets.super)}
                             class="group flex flex-col items-center gap-3 w-full text-left
                                    transition-all duration-200">
-                        <div class="w-20 h-20 bg-[#0c0c0c] border mx-auto overflow-hidden
+                        <div class="w-20 h-20 bg-[#0c0c0c] border mx-auto overflow-hidden relative
                                     shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
                                     {selectedAbility?.name === sockets.super.name
                                         ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
                                         : subclassEl.border.replace('/50','/30') + ' group-hover:' + subclassEl.border}">
-                            <!-- Rarity bar -->
                             <div class="absolute top-0 left-0 w-full h-px {subclassEl.bar} opacity-70 pointer-events-none"></div>
                             {#if sockets.super.icon}
                                 <img src={sockets.super.icon} alt="" class="w-full h-full object-cover" />
@@ -103,9 +119,9 @@
                             {/if}
                         </div>
                         <div class="text-center w-full">
-                            <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">Super</p>
-                            <p class="text-[10px] font-bold uppercase tracking-tight truncate w-28 mx-auto
-                                      transition-colors {selectedAbility?.name === sockets.super.name
+                            <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Super</p>
+                            <p class="text-sm font-semibold leading-tight mt-0.5 transition-colors
+                                      {selectedAbility?.name === sockets.super.name
                                           ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
                                 {sockets.super.name}
                             </p>
@@ -125,7 +141,7 @@
 
             <!-- Abilities row -->
             <div class="w-full">
-                <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-4">Abilities</span>
+                <span class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider block mb-4">Abilities</span>
                 <div class="grid grid-cols-4 gap-4">
                     {#each sockets?.abilities ?? [] as ability}
                         {@const isActive = selectedAbility?.name === ability.name}
@@ -149,12 +165,12 @@
                                 {/if}
                             </div>
                             <div class="text-center">
-                                <p class="text-[8px] font-mono uppercase tracking-widest font-bold
+                                <p class="text-[10px] font-medium uppercase tracking-wider
                                           {isActive ? 'text-emerald-400' : subclassEl.text}">
                                     {abilityTypeLabel(ability.itemTypeDisplayName)}
                                 </p>
-                                <p class="text-[9px] font-bold uppercase tracking-tight truncate w-20 mx-auto
-                                          transition-colors {isActive ? 'text-emerald-300' : 'text-zinc-300 group-hover:text-white'}">
+                                <p class="text-xs font-semibold leading-tight mt-0.5 transition-colors
+                                          {isActive ? 'text-emerald-300' : 'text-zinc-300 group-hover:text-white'}">
                                     {ability.name}
                                 </p>
                             </div>
@@ -166,7 +182,7 @@
                             <div class="w-16 h-16 border border-zinc-800 border-dashed opacity-20 flex items-center justify-center">
                                 <div class="w-8 h-8 border border-zinc-700 rotate-45 opacity-50"></div>
                             </div>
-                            <p class="text-[8px] font-mono text-zinc-800 uppercase">Empty</p>
+                            <p class="text-xs text-zinc-800">Empty</p>
                         </div>
                     {/each}
                 </div>
@@ -175,7 +191,7 @@
             <!-- Inspection panel / Decorative center -->
             <div class="w-full flex-1 relative">
                 {#if selectedAbility}
-                    <!-- Ability inspection -->
+                    <!-- Ability / Fragment / Aspect inspection -->
                     <div class="w-full bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
                         <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/40 pointer-events-none z-10"></span>
                         <span class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-emerald-500/40 pointer-events-none z-10"></span>
@@ -192,14 +208,14 @@
                         <!-- Header -->
                         <div class="flex items-center gap-4 p-5 border-b border-zinc-800">
                             {#if selectedAbility.icon}
-                                <div class="w-14 h-14 shrink-0 border {subclassEl.border} overflow-hidden relative">
+                                <div class="w-16 h-16 shrink-0 border {subclassEl.border} overflow-hidden relative">
                                     <div class="absolute top-0 left-0 w-full h-px {subclassEl.bar} opacity-60"></div>
                                     <img src={selectedAbility.icon} alt="" class="w-full h-full object-cover" />
                                 </div>
                             {/if}
-                            <div>
-                                <span class="text-[8px] font-mono uppercase tracking-[0.2em] {subclassEl.text} block">
-                                    {selectedAbility.itemTypeDisplayName}
+                            <div class="min-w-0 flex-1">
+                                <span class="text-[10px] font-medium uppercase tracking-wider {subclassEl.text} block mb-1">
+                                    {selectedAbility.itemTypeDisplayName ?? 'Ability'}
                                 </span>
                                 <p class="font-serif text-xl font-light italic text-white leading-tight">
                                     {selectedAbility.name}
@@ -207,24 +223,35 @@
                             </div>
                         </div>
 
-                        <!-- Description -->
-                        <div class="p-5">
+                        <!-- Description + stat bonuses -->
+                        <div class="p-5 space-y-4">
                             {#if selectedAbility.description}
-                                <p class="text-sm font-sans text-zinc-400 leading-relaxed">
+                                <p class="text-sm text-zinc-400 leading-relaxed">
                                     {selectedAbility.description}
                                 </p>
                             {/if}
-                            <!-- Stat bonuses (fragments) -->
+
+                            <!-- Stat bonuses — show name + value -->
                             {#if selectedAbility.statBonuses?.length}
-                                <div class="flex flex-wrap gap-2 mt-4">
-                                    {#each selectedAbility.statBonuses as sb}
-                                        <span class="text-[9px] font-mono border px-2 py-0.5
-                                                     {sb.value > 0
-                                                         ? 'text-emerald-400 border-emerald-500/30'
-                                                         : 'text-red-400 border-red-500/30'}">
-                                            {sb.value > 0 ? '+' : ''}{sb.value}
-                                        </span>
-                                    {/each}
+                                <div class="pt-4 border-t border-zinc-800/60">
+                                    <span class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider block mb-3">
+                                        Stat Changes
+                                    </span>
+                                    <div class="flex flex-wrap gap-2">
+                                        {#each selectedAbility.statBonuses as sb}
+                                            {@const statName = STAT_NAMES[sb.statHash] ?? ('Stat ' + sb.statHash)}
+                                            <div class="flex items-center gap-1.5 border px-2.5 py-1.5
+                                                         {sb.value > 0
+                                                             ? 'border-emerald-500/30 bg-emerald-500/5'
+                                                             : 'border-red-500/30 bg-red-500/5'}">
+                                                <span class="text-sm font-bold
+                                                             {sb.value > 0 ? 'text-emerald-400' : 'text-red-400'}">
+                                                    {sb.value > 0 ? '+' : ''}{sb.value}
+                                                </span>
+                                                <span class="text-xs font-medium text-zinc-400">{statName}</span>
+                                            </div>
+                                        {/each}
+                                    </div>
                                 </div>
                             {/if}
                         </div>
@@ -234,7 +261,7 @@
                     <div class="w-full h-48 flex items-center justify-center relative border border-zinc-800/40">
                         <div class="absolute inset-0 opacity-30 blur-3xl pointer-events-none"
                              style="background:linear-gradient(to top,{subclassColor},transparent)"></div>
-                        <p class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-800 relative">
+                        <p class="text-xs font-medium text-zinc-700 uppercase tracking-widest relative">
                             Select a slot to inspect
                         </p>
                         <div class="absolute top-0 left-0 w-6 h-6 border-t border-l border-zinc-800"></div>
@@ -250,13 +277,13 @@
 
             <!-- Aspects -->
             <div class="w-full">
-                <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-4">Aspects</span>
-                <div class="flex flex-col items-center gap-6">
+                <span class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider block mb-4">Aspects</span>
+                <div class="flex flex-col items-center gap-5">
                     {#each sockets?.aspects ?? [] as aspect}
                         {@const isActive = selectedAbility?.name === aspect.name}
                         <button onclick={() => selectAbility(aspect)}
                                 class="group flex flex-col items-center gap-2 w-full text-left transition-all">
-                            <div class="w-20 h-20 bg-[#0c0c0c] border mx-auto overflow-hidden
+                            <div class="w-20 h-20 bg-[#0c0c0c] border mx-auto overflow-hidden relative
                                         shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
                                         {isActive
                                             ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
@@ -271,9 +298,9 @@
                                 {/if}
                             </div>
                             <div class="text-center w-full">
-                                <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">Aspect</p>
-                                <p class="text-[10px] font-bold uppercase tracking-tight truncate w-28 mx-auto
-                                          transition-colors {isActive ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
+                                <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Aspect</p>
+                                <p class="text-xs font-semibold leading-tight mt-0.5 transition-colors
+                                          {isActive ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
                                     {aspect.name}
                                 </p>
                             </div>
@@ -285,21 +312,22 @@
                             <div class="w-20 h-20 border border-dashed border-zinc-700 flex items-center justify-center">
                                 <div class="w-8 h-8 border border-zinc-600 rotate-45"></div>
                             </div>
-                            <p class="text-[8px] font-mono text-zinc-700 uppercase">Empty</p>
+                            <p class="text-xs text-zinc-700">Empty</p>
                         </div>
                     {/each}
                 </div>
             </div>
 
             <!-- Fragments -->
-            <div class="w-full pt-8 border-t border-zinc-800/40">
+            <div class="w-full pt-6 border-t border-zinc-800/40">
                 <div class="flex items-center justify-between mb-4">
-                    <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600">Fragments</span>
-                    <span class="text-[8px] font-mono text-zinc-700">
+                    <span class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Fragments</span>
+                    <span class="text-[10px] text-zinc-600">
                         {sockets?.fragments?.length ?? 0} equipped
                     </span>
                 </div>
-                <div class="grid grid-cols-3 gap-2">
+                <!-- 2-column grid so full names can display without truncation -->
+                <div class="grid grid-cols-2 gap-2">
                     {#each sockets?.fragments ?? [] as frag}
                         {@const isActive = selectedAbility?.name === frag.name}
                         <button onclick={() => selectAbility(frag)}
@@ -318,8 +346,9 @@
                                     </div>
                                 {/if}
                             </div>
-                            <p class="text-[7px] font-mono uppercase tracking-tight text-center leading-tight px-0.5
-                                      transition-colors w-14 truncate
+                            <!-- Full name — wraps to 2 lines, no truncation -->
+                            <p class="text-[9px] font-medium text-center leading-tight w-full px-0.5 line-clamp-2
+                                      transition-colors
                                       {isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300'}">
                                 {frag.name}
                             </p>
@@ -331,7 +360,7 @@
                             <div class="w-14 h-14 border border-dashed border-zinc-700 flex items-center justify-center">
                                 <div class="w-5 h-5 border border-zinc-600 rotate-45"></div>
                             </div>
-                            <p class="text-[7px] font-mono text-zinc-800">—</p>
+                            <p class="text-[9px] text-zinc-800">—</p>
                         </div>
                     {/each}
                 </div>

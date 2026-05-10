@@ -193,9 +193,15 @@
             {#if item && tierCount > 0}
                 <div class="absolute right-0 top-0 bottom-0 flex flex-col items-center justify-center gap-[3px] px-[3px] z-10
                             bg-gradient-to-l from-black/70 to-transparent">
-                    {#each {length: Math.min(tierCount, 6)} as _}
-                        <div class="w-[5px] h-[5px] rotate-45 shrink-0 {tierColor}"></div>
-                    {/each}
+                    {#if item.tierType === 6}
+                        <!-- Exotic: single large glowing amber diamond -->
+                        <div class="w-[7px] h-[7px] rotate-45 shrink-0 bg-amber-400
+                                    shadow-[0_0_6px_rgba(251,191,36,0.9)]"></div>
+                    {:else}
+                        {#each {length: Math.min(tierCount, 5)} as _}
+                            <div class="w-[5px] h-[5px] rotate-45 shrink-0 {tierColor}"></div>
+                        {/each}
+                    {/if}
                 </div>
             {/if}
             <!-- Selected outline -->
@@ -365,9 +371,11 @@
         <div class="col-span-8 relative flex items-center justify-center min-h-[520px]">
 
             {#if selectedSlot && selectedItem}
-                {@const hdrTierCount = Math.max(0, (selectedItem.tierType ?? 1) - 1)}
+                {@const hdrTierCount = selectedItem.tierType === 6
+                    ? 1
+                    : Math.max(0, (selectedItem.tierType ?? 1) - 1)}
                 {@const hdrTierColor =
-                    selectedItem.tierType === 6 ? 'bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,1)]' :
+                    selectedItem.tierType === 6 ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]' :
                     selectedItem.tierType === 5 ? 'bg-violet-500' :
                     selectedItem.tierType === 4 ? 'bg-blue-400' :
                     selectedItem.tierType === 3 ? 'bg-green-400' : 'bg-zinc-400'}
@@ -428,9 +436,14 @@
                                 <!-- Vertical tier diamonds — in-game style -->
                                 {#if hdrTierCount > 0}
                                     <div class="flex flex-col gap-[4px] items-center">
-                                        {#each {length: hdrTierCount} as _}
-                                            <div class="w-2.5 h-2.5 rotate-45 shrink-0 {hdrTierColor}"></div>
-                                        {/each}
+                                        {#if selectedItem.tierType === 6}
+                                            <!-- Exotic: single prominent diamond -->
+                                            <div class="w-3.5 h-3.5 rotate-45 shrink-0 {hdrTierColor}"></div>
+                                        {:else}
+                                            {#each {length: hdrTierCount} as _}
+                                                <div class="w-2.5 h-2.5 rotate-45 shrink-0 {hdrTierColor}"></div>
+                                            {/each}
+                                        {/if}
                                     </div>
                                 {/if}
                             </div>
