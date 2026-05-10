@@ -149,68 +149,58 @@
 {/snippet}
 
 {#snippet GearSlot(key, label)}
-    {@const item      = eq[key]}
-    {@const exotic    = item?.tierType === 6}
-    {@const isWeapon  = ['kinetic','energy','power'].includes(key)}
-    {@const mw        = item?.masterwork ?? false}
-    {@const isActive  = selectedSlot === key}
-    {@const tierCount = Math.max(0, (item?.tierType ?? 1) - 1)}
+    {@const item     = eq[key]}
+    {@const exotic   = item?.tierType === 6}
+    {@const mw       = item?.masterwork ?? false}
+    {@const isActive = selectedSlot === key}
+    {@const tierCount = item?.tierType ?? 0}
     {@const tierColor =
-        item?.tierType === 6 ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.9)]' :
-        item?.tierType === 5 ? 'bg-violet-500' :
+        item?.tierType === 6 ? 'bg-amber-400' :
+        item?.tierType === 5 ? 'bg-violet-400' :
         item?.tierType === 4 ? 'bg-blue-400' :
         item?.tierType === 3 ? 'bg-green-400' : 'bg-zinc-400'}
     <button onclick={() => selectSlot(key)}
-            class="group flex flex-col items-center gap-1.5 w-full text-left transition-all">
-        <!-- Icon + vertical tier diamonds side by side -->
-        <div class="flex items-center gap-1 mx-auto">
-            <div class="w-14 h-14 bg-[#0c0c0c] relative overflow-hidden
-                        shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
-                        border
-                        {isActive
-                            ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
-                            : mw && !exotic
-                                ? 'border-yellow-400/60 shadow-[0_0_12px_rgba(234,179,8,0.22)] group-hover:border-yellow-300 group-hover:shadow-[0_0_18px_rgba(234,179,8,0.35)]'
-                                : exotic
-                                    ? 'border-amber-500/30 group-hover:border-amber-500/60'
-                                    : 'border-zinc-800 group-hover:border-zinc-500'}">
-                <!-- Top rarity / MW bar -->
-                <div class="absolute top-0 left-0 w-full h-[2px] z-10
-                            {mw && !exotic
-                                ? 'bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600'
-                                : exotic ? 'bg-amber-500 opacity-80' : 'bg-zinc-100 opacity-30'}"></div>
-                <!-- MW corner glow -->
-                {#if mw && !isActive}
-                    <div class="absolute inset-0 pointer-events-none"
-                         style="background:radial-gradient(ellipse at top right,rgba(234,179,8,0.10) 0%,transparent 65%)"></div>
-                {/if}
-                <!-- Icon -->
-                {#if item?.icon}
-                    <img src={item.icon} alt="" class="w-full h-full object-cover" />
-                {:else}
-                    <div class="w-full h-full flex items-center justify-center opacity-10 group-hover:opacity-25 transition-opacity">
-                        <div class="w-8 h-8 border border-zinc-500 rotate-45"></div>
-                    </div>
-                {/if}
-                <!-- Selected pulse -->
-                {#if isActive}
-                    <div class="absolute inset-0 border border-emerald-500/30 pointer-events-none"></div>
-                {/if}
-            </div>
-
-            <!-- Vertical tier diamonds — right of icon, game-style -->
-            {#if isWeapon && item && tierCount > 0}
-                <div class="flex flex-col gap-[3px] items-center shrink-0">
-                    {#each {length: tierCount} as _}
-                        <div class="w-[7px] h-[7px] rotate-45 shrink-0 {tierColor}"></div>
+            class="group flex flex-col items-center gap-1 w-full text-left transition-all">
+        <div class="w-14 h-14 bg-[#0c0c0c] relative mx-auto overflow-hidden
+                    shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
+                    border
+                    {isActive
+                        ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
+                        : mw && !exotic
+                            ? 'border-yellow-400/60 shadow-[0_0_12px_rgba(234,179,8,0.22)] group-hover:border-yellow-300'
+                            : exotic
+                                ? 'border-amber-500/40 group-hover:border-amber-500/70'
+                                : 'border-zinc-800 group-hover:border-zinc-600'}">
+            <!-- Top rarity bar -->
+            <div class="absolute top-0 left-0 w-full h-[2px] z-10
+                        {mw && !exotic
+                            ? 'bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600'
+                            : exotic ? 'bg-amber-400' : 'bg-zinc-100 opacity-20'}"></div>
+            <!-- Item icon -->
+            {#if item?.icon}
+                <img src={item.icon} alt="" class="w-full h-full object-cover" />
+            {:else}
+                <div class="w-full h-full flex items-center justify-center opacity-10">
+                    <div class="w-6 h-6 border border-zinc-500 rotate-45"></div>
+                </div>
+            {/if}
+            <!-- Tier diamonds — vertical strip overlaid on right edge -->
+            {#if item && tierCount > 0}
+                <div class="absolute right-0 top-0 bottom-0 flex flex-col items-center justify-center gap-[3px] px-[3px] z-10
+                            bg-gradient-to-l from-black/70 to-transparent">
+                    {#each {length: Math.min(tierCount, 6)} as _}
+                        <div class="w-[5px] h-[5px] rotate-45 shrink-0 {tierColor}"></div>
                     {/each}
                 </div>
             {/if}
+            <!-- Selected outline -->
+            {#if isActive}
+                <div class="absolute inset-0 border border-emerald-500/30 pointer-events-none"></div>
+            {/if}
         </div>
-
-        <div class="text-center w-full mt-0.5">
-            <p class="text-[9px] text-zinc-600 font-medium leading-none">{label}</p>
-            <p class="text-[10px] font-semibold truncate w-20 mx-auto transition-colors mt-0.5
+        <div class="text-center w-full mt-1">
+            <p class="text-[9px] text-zinc-600 font-medium leading-none uppercase tracking-wider">{label}</p>
+            <p class="text-[10px] font-semibold truncate px-1 transition-colors mt-0.5
                       {isActive ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
                 {item?.name ?? '—'}
             </p>
@@ -556,105 +546,71 @@
                                 </div>
                             {/if}
 
-                            <!-- ③ SOCKETS — grouped by category, circular icons (DIM style) -->
+                            <!-- ③ SOCKETS — clean row of square icons (barrels, mag, grip, origin, MW) -->
                             {#if other.length || mwPerk}
                                 {@const allSockets = [...other, ...(mwPerk ? [mwPerk] : [])]}
-                                {@const grouped = (() => {
-                                    const g = {};
-                                    for (const p of allSockets) {
-                                        const cat = p.isMasterwork ? 'Masterwork' : (p.itemTypeDisplayName ?? 'Other');
-                                        if (!g[cat]) g[cat] = [];
-                                        g[cat].push(p);
-                                    }
-                                    return g;
-                                })()}
-                                <div class="py-3 border-b border-zinc-800/50 mb-3">
-                                    <div class="flex flex-wrap gap-5 items-start">
-                                        {#each Object.entries(grouped) as [cat, catPerks]}
-                                            <div class="flex flex-col items-center gap-2">
-                                                <span class="text-[10px] font-medium text-zinc-500 whitespace-nowrap">{cat}</span>
-                                                <div class="flex gap-2">
-                                                    {#each catPerks as p}
-                                                        <div class="group/pi relative flex flex-col items-center gap-1">
-                                                            <!-- Circle icon -->
-                                                            <div class="w-11 h-11 rounded-full overflow-hidden border-2 relative transition-all cursor-default shrink-0 bg-zinc-900/60
-                                                                        {p.isMasterwork
-                                                                            ? 'border-yellow-500/60 shadow-[0_0_8px_rgba(234,179,8,0.3)] hover:border-yellow-400 hover:shadow-[0_0_14px_rgba(234,179,8,0.5)]'
-                                                                            : p.isEnabled
-                                                                                ? 'border-zinc-600 hover:border-zinc-400'
-                                                                                : 'border-zinc-800/40 opacity-40'}">
-                                                                {#if p.icon}
-                                                                    <img src={p.icon} alt="" class="w-full h-full object-cover scale-110"/>
-                                                                {:else}
-                                                                    <div class="w-full h-full flex items-center justify-center opacity-20">
-                                                                        <div class="w-4 h-4 border border-zinc-600 rotate-45"></div>
-                                                                    </div>
-                                                                {/if}
-                                                                {#if p.isMasterwork}
-                                                                    <div class="absolute inset-0 pointer-events-none"
-                                                                         style="background:radial-gradient(ellipse at top left,rgba(234,179,8,0.22) 0%,transparent 65%)"></div>
-                                                                {/if}
-                                                                {#if !p.isEnabled}
-                                                                    <div class="absolute inset-0 bg-black/50 rounded-full"></div>
-                                                                {/if}
-                                                            </div>
-                                                            <!-- Perk name below icon -->
-                                                            <span class="text-[9px] font-medium text-zinc-500 text-center leading-tight max-w-[52px] line-clamp-1">{p.name}</span>
-                                                            <!-- Hover tooltip -->
-                                                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
-                                                                        opacity-0 group-hover/pi:opacity-100 translate-y-1 group-hover/pi:translate-y-0
-                                                                        transition-all duration-150 pointer-events-none w-52">
-                                                                <div class="bg-[#141414] border border-zinc-700 px-3 py-2.5 shadow-[0_0_24px_rgba(0,0,0,0.95)] rounded-sm">
-                                                                    <p class="text-sm font-semibold mb-0.5
-                                                                               {p.isMasterwork ? 'text-yellow-400' : 'text-zinc-100'}">
-                                                                        {p.name}
-                                                                    </p>
-                                                                    {#if p.description}
-                                                                        <p class="text-xs text-zinc-400 leading-relaxed">{p.description}</p>
-                                                                    {/if}
-                                                                    {#if p.statBonuses?.length}
-                                                                        <div class="flex flex-wrap gap-1 mt-2">
-                                                                            {#each p.statBonuses as sb}
-                                                                                <span class="text-xs font-medium text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-sm">
-                                                                                    +{sb.value} {statHashToName[sb.statHash] ?? ''}
-                                                                                </span>
-                                                                            {/each}
-                                                                        </div>
-                                                                    {/if}
-                                                                </div>
-                                                            </div>
+                                <div class="flex flex-wrap gap-2 py-3 border-b border-zinc-800/50 mb-3">
+                                    {#each allSockets as p}
+                                        <div class="group/pi relative flex flex-col items-center gap-1">
+                                            <div class="w-10 h-10 border relative overflow-hidden cursor-default transition-colors
+                                                        {p.isMasterwork
+                                                            ? 'border-yellow-500/50 bg-yellow-500/5 hover:border-yellow-400'
+                                                            : p.isEnabled
+                                                                ? 'border-zinc-700 hover:border-zinc-500 bg-zinc-900/40'
+                                                                : 'border-zinc-800/40 opacity-40'}">
+                                                <div class="absolute top-0 left-0 w-full h-[2px]
+                                                            {p.isMasterwork ? 'bg-yellow-400/70' : 'bg-zinc-600/30'}"></div>
+                                                {#if p.icon}
+                                                    <img src={p.icon} alt="" class="w-full h-full object-cover"/>
+                                                {/if}
+                                                {#if !p.isEnabled}
+                                                    <div class="absolute inset-0 bg-black/50"></div>
+                                                {/if}
+                                            </div>
+                                            <span class="text-[9px] font-medium text-zinc-600 text-center leading-tight w-10 truncate">{p.name}</span>
+                                            <!-- Tooltip -->
+                                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
+                                                        opacity-0 group-hover/pi:opacity-100 translate-y-1 group-hover/pi:translate-y-0
+                                                        transition-all duration-150 pointer-events-none w-52">
+                                                <div class="bg-[#141414] border border-zinc-700 px-3 py-2.5 shadow-[0_0_24px_rgba(0,0,0,0.95)]">
+                                                    <p class="text-sm font-semibold mb-0.5 {p.isMasterwork ? 'text-yellow-400' : 'text-zinc-100'}">{p.name}</p>
+                                                    {#if p.itemTypeDisplayName}
+                                                        <p class="text-[10px] font-medium text-zinc-500 mb-1">{p.itemTypeDisplayName}</p>
+                                                    {/if}
+                                                    {#if p.description}
+                                                        <p class="text-xs text-zinc-400 leading-relaxed">{p.description}</p>
+                                                    {/if}
+                                                    {#if p.statBonuses?.length}
+                                                        <div class="flex flex-wrap gap-1 mt-2">
+                                                            {#each p.statBonuses as sb}
+                                                                <span class="text-xs font-medium text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5">
+                                                                    +{sb.value} {statHashToName[sb.statHash] ?? ''}
+                                                                </span>
+                                                            {/each}
                                                         </div>
-                                                    {/each}
+                                                    {/if}
                                                 </div>
                                             </div>
-                                        {/each}
-                                    </div>
+                                        </div>
+                                    {/each}
                                 </div>
                             {/if}
 
-                            <!-- ④ TRAITS — round icons with name + description (DIM style) -->
+                            <!-- ④ TRAITS — square icons with name + description -->
                             {#if traits.length}
                                 <div>
-                                    <span class="text-xs font-medium text-zinc-500 block mb-3">Traits</span>
+                                    <span class="text-xs font-medium text-zinc-500 block mb-2">Traits</span>
                                     <div class="grid grid-cols-2 gap-x-4 gap-y-3">
                                         {#each traits as p}
-                                            <div class="group/trait flex items-start gap-3 cursor-default relative">
-                                                <!-- Round icon -->
-                                                <div class="w-12 h-12 shrink-0 rounded-full overflow-hidden border-2 relative transition-all
-                                                            {p.isEnhanced
-                                                                ? 'border-yellow-500/70 shadow-[0_0_10px_rgba(234,179,8,0.35)] group-hover/trait:shadow-[0_0_18px_rgba(234,179,8,0.55)]'
-                                                                : 'border-zinc-600 group-hover/trait:border-zinc-400'}
-                                                            {!p.isEnabled ? 'opacity-40' : ''}">
-                                                    {#if p.icon}
-                                                        <img src={p.icon} alt="" class="w-full h-full object-cover scale-110"/>
-                                                    {:else}
-                                                        <div class="w-full h-full bg-zinc-900 flex items-center justify-center opacity-20">
-                                                            <div class="w-4 h-4 border border-zinc-600 rotate-45"></div>
-                                                        </div>
-                                                    {/if}
+                                            <div class="flex items-start gap-3 {!p.isEnabled ? 'opacity-50' : ''}">
+                                                <!-- Square icon -->
+                                                <div class="w-11 h-11 shrink-0 border relative overflow-hidden
+                                                            {p.isEnhanced ? 'border-yellow-500/60 bg-yellow-500/5' : 'border-zinc-700 bg-zinc-900/40'}">
                                                     {#if p.isEnhanced}
-                                                        <div class="absolute inset-0 pointer-events-none"
-                                                             style="background:radial-gradient(ellipse at top left,rgba(234,179,8,0.3) 0%,transparent 65%)"></div>
+                                                        <div class="absolute top-0 left-0 w-full h-[2px] bg-yellow-400/70"></div>
+                                                    {/if}
+                                                    {#if p.icon}
+                                                        <img src={p.icon} alt="" class="w-full h-full object-cover"/>
                                                     {/if}
                                                 </div>
                                                 <!-- Name + description -->
@@ -665,7 +621,7 @@
                                                             {p.name}
                                                         </span>
                                                         {#if p.isEnhanced}
-                                                            <span class="text-[9px] font-bold text-yellow-500 border border-yellow-500/30 px-1 py-px leading-none rounded-sm shrink-0">ENH</span>
+                                                            <span class="text-[9px] font-bold text-yellow-500 border border-yellow-500/30 px-1 py-px leading-none shrink-0">ENH</span>
                                                         {/if}
                                                     </div>
                                                     <p class="text-xs text-zinc-500 leading-relaxed line-clamp-3">{p.description ?? ''}</p>
