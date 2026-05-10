@@ -370,6 +370,12 @@
         <div class="col-span-8 relative flex items-center justify-center min-h-[520px]">
 
             {#if selectedSlot && selectedItem}
+                {@const hdrTierCount = Math.max(0, (selectedItem.tierType ?? 1) - 1)}
+                {@const hdrTierColor =
+                    selectedItem.tierType === 6 ? 'bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,1)]' :
+                    selectedItem.tierType === 5 ? 'bg-violet-500' :
+                    selectedItem.tierType === 4 ? 'bg-blue-400' :
+                    selectedItem.tierType === 3 ? 'bg-green-400' : 'bg-zinc-400'}
                 <!-- ── INSPECTION PANEL ──────────────────────────────────── -->
                 <div class="w-full h-[580px] flex flex-col bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
                     <!-- Corner accents -->
@@ -386,12 +392,6 @@
                     </button>
 
                     <!-- Item header -->
-                    {@const hdrTierCount = Math.max(0, (selectedItem.tierType ?? 1) - 1)}
-                    {@const hdrTierColor =
-                        selectedItem.tierType === 6 ? 'bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,1)]' :
-                        selectedItem.tierType === 5 ? 'bg-violet-500' :
-                        selectedItem.tierType === 4 ? 'bg-blue-400' :
-                        selectedItem.tierType === 3 ? 'bg-green-400' : 'bg-zinc-400'}
                     <div class="flex items-center gap-5 px-5 py-4 shrink-0 border-b-2 transition-colors duration-300
                                 {selectedItem.masterwork && selectedType === 'weapon'
                                     ? 'border-[#e2bc15]'
