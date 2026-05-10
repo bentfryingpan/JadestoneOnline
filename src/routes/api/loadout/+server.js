@@ -101,6 +101,24 @@ async function fetchDef(hash) {
     }
 }
 
+async function fetchPerkDef(hash) {
+    const cacheKey = `manifest:perk:${hash}`;
+    const cached   = cacheGet(cacheKey);
+    if (cached !== undefined) return [hash, cached];
+    try {
+        const r = await fetch(
+            `${BUNGIE_ROOT}/Platform/Destiny2/Manifest/DestinySandboxPerkDefinition/${hash}/`,
+            { headers: { 'X-API-Key': BUNGIE_API_KEY } }
+        );
+        const d   = await r.json();
+        const def = d.Response ?? null;
+        cacheSet(cacheKey, def, MANIFEST_TTL);
+        return [hash, def];
+    } catch {
+        return [hash, null];
+    }
+}
+
 export async function GET({ url, setHeaders }) {
     const membershipType = url.searchParams.get('membershipType');
     const membershipId   = url.searchParams.get('membershipId');
@@ -190,6 +208,11 @@ export async function GET({ url, setHeaders }) {
             .filter(st => st.value !== 0 && st.isConditionallyActive)
             .map(st => ({ statHash: st.statTypeHash, value: st.value }));
 
+        // Collect displayable perk hashes for sandbox perk fallback lookup
+        const perkHashes = (def.perks ?? [])
+            .filter(p => p.isDisplayable && p.perkHash)
+            .map(p => p.perkHash);
+
         return {
             hash:                 s.plugHash,
             name,
@@ -203,6 +226,7 @@ export async function GET({ url, setHeaders }) {
             itemTypeDisplayName:  def.itemTypeDisplayName ?? '',
             description:          def.displayProperties?.description ?? '',
             flavorText:           def.flavorText ?? '',
+            perkHashes,
             statBonuses,
             conditionalBonuses,
         };
@@ -336,6 +360,23 @@ export async function GET({ url, setHeaders }) {
         const resolved = sockets
             .map(s => s.plugHash && s.isVisible ? classifySocket(s, defMap.get(s.plugHash)) : null)
             .filter(Boolean);
+
+        // Batch-fetch DestinySandboxPerkDefinition for any socket that has an empty description
+        // (Bungie leaves displayProperties.description blank for many aspects/fragments)
+        const needsPerkLookup = resolved.filter(s => !s.description && s.perkHashes?.length > 0);
+        if (needsPerkLookup.length > 0) {
+            const allPerkHashes = [...new Set(needsPerkLookup.flatMap(s => s.perkHashes))];
+            const perkEntries   = await Promise.all(allPerkHashes.map(fetchPerkDef));
+            const perkMap       = new Map(perkEntries);
+            for (const s of needsPerkLookup) {
+                // Use the first perk with a non-empty description
+                for (const ph of s.perkHashes) {
+                    const pd = perkMap.get(ph);
+                    const desc = pd?.displayProperties?.description ?? '';
+                    if (desc) { s.perkDescription = desc; break; }
+                }
+            }
+        }
 
         grouped.subclassSockets = {
             super:     resolved.find(s => s.itemTypeDisplayName?.toLowerCase().includes('super')),

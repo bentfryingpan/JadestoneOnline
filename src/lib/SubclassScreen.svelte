@@ -225,10 +225,13 @@
 
                         <!-- Description + stat bonuses -->
                         <div class="p-5 space-y-4">
-                            {#if selectedAbility.description}
+                            {@const displayDesc = selectedAbility.description || selectedAbility.perkDescription || selectedAbility.flavorText || ''}
+                            {#if displayDesc}
                                 <p class="text-sm text-zinc-400 leading-relaxed">
-                                    {selectedAbility.description}
+                                    {displayDesc}
                                 </p>
+                            {:else}
+                                <p class="text-sm text-zinc-600 italic">No description available.</p>
                             {/if}
 
                             <!-- Stat bonuses — show name + value -->
