@@ -63,16 +63,10 @@
 <main class="flex flex-col items-center justify-center min-h-[calc(100vh-56px)] px-6 py-20 relative overflow-hidden">
 
     <!-- Background grid pattern -->
-    <div class="absolute inset-0 opacity-[0.03]"
+    <div class="absolute inset-0 opacity-[0.025]"
          style="background-image: linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px),
                                   linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px);
                 background-size: 64px 64px;">
-    </div>
-
-    <!-- Ambient emerald glow -->
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                w-96 h-96 opacity-[0.04]"
-         style="background: radial-gradient(circle, rgba(16,185,129,1) 0%, transparent 70%)">
     </div>
 
     <!-- Corner diamond accents -->
@@ -86,7 +80,7 @@
         <!-- Eyebrow label -->
         <div class="flex items-center justify-center gap-3 mb-5">
             <div class="h-px w-12 bg-gradient-to-r from-transparent to-emerald-500/40"></div>
-            <span class="text-[9px] font-mono uppercase tracking-[0.4em] text-emerald-500/70">
+            <span class="text-xs font-medium text-emerald-500/80 tracking-wide">
                 Gambit Analytics
             </span>
             <div class="h-px w-12 bg-gradient-to-l from-transparent to-emerald-500/40"></div>
@@ -97,7 +91,7 @@
             Jadestone
         </h1>
         <div class="h-px w-24 bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent mx-auto mb-6"></div>
-        <p class="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-500 max-w-xs mx-auto leading-relaxed">
+        <p class="text-base text-zinc-400 max-w-sm mx-auto leading-relaxed font-light">
             Career statistics, match history &amp; performance data for Destiny 2 Gambit
         </p>
     </div>
@@ -116,7 +110,7 @@
             <div class="flex items-center">
                 <!-- Search icon -->
                 <div class="pl-4 pr-2 text-zinc-600 shrink-0">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
                     </svg>
@@ -129,19 +123,19 @@
                     onkeydown={onKeydown}
                     onblur={onBlur}
                     placeholder="Search Guardian — name#0000"
-                    class="flex-1 bg-transparent px-2 py-4 text-[11px] font-mono uppercase tracking-widest
-                           text-zinc-200 placeholder-zinc-700 outline-none min-w-0"
+                    class="flex-1 bg-transparent px-2 py-4 text-sm font-sans
+                           text-zinc-200 placeholder-zinc-600 outline-none min-w-0"
                 />
 
                 <!-- Spinner -->
                 {#if loading}
-                    <div class="mr-3 w-3 h-3 border border-zinc-700 border-t-emerald-400 animate-spin shrink-0"></div>
+                    <div class="mr-3 w-3.5 h-3.5 border border-zinc-700 border-t-emerald-400 animate-spin shrink-0"></div>
                 {/if}
 
                 <!-- Search button -->
                 <button onclick={search}
-                        class="h-full px-5 py-4 bg-emerald-500/10 border-l border-zinc-800
-                               text-[9px] font-mono uppercase tracking-[0.25em] text-emerald-400
+                        class="h-full px-5 py-4 bg-emerald-500/10 border-l border-zinc-700/60
+                               text-sm font-medium text-emerald-400
                                hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors shrink-0">
                     Search
                 </button>
@@ -150,7 +144,7 @@
 
         <!-- Error -->
         {#if error}
-            <p class="text-[9px] font-mono uppercase tracking-[0.15em] text-red-400 mt-2 ml-1">{error}</p>
+            <p class="text-xs text-red-400 mt-2 ml-1">{error}</p>
         {/if}
 
         <!-- Suggestions dropdown -->
@@ -162,19 +156,19 @@
                     <button
                         onmousedown={() => navigate(s)}
                         class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
-                               {i === selIdx ? 'bg-zinc-800/60' : 'hover:bg-zinc-900/60'}
+                               {i === selIdx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'}
                                {i > 0 ? 'border-t border-zinc-800/60' : ''}">
                         {#if s.iconPath}
                             <img src="https://www.bungie.net{s.iconPath}" alt=""
-                                 class="w-8 h-8 shrink-0 object-cover" />
+                                 class="w-8 h-8 shrink-0 object-cover rounded" />
                         {:else}
                             <div class="w-8 h-8 bg-zinc-800 border border-zinc-700 shrink-0
                                         flex items-center justify-center rotate-45">
-                                <span class="-rotate-45 text-[8px] font-mono text-zinc-500">?</span>
+                                <span class="-rotate-45 text-xs font-sans text-zinc-500">?</span>
                             </div>
                         {/if}
-                        <span class="text-[11px] font-mono text-zinc-200 uppercase tracking-widest flex-1 text-left">
-                            {s.name}<span class="text-zinc-600">#{s.code}</span>
+                        <span class="text-sm font-sans text-zinc-200 flex-1 text-left">
+                            {s.name}<span class="text-zinc-500">#{s.code}</span>
                         </span>
                         <svg class="w-3 h-3 text-zinc-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -186,15 +180,16 @@
     </div>
 
     <!-- Hint -->
-    <p class="relative text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-700 mt-4">
+    <p class="relative text-xs text-zinc-600 mt-4 font-light">
         Type to search · Enter full name#code to navigate directly
     </p>
 
     <!-- Feature pills -->
     <div class="relative flex items-center gap-3 mt-16 flex-wrap justify-center">
         {#each ['Match History', 'Season Breakdown', 'Loadout Analysis', 'K/D Tracking', 'Invasion Stats'] as feat}
-            <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-700
-                         border border-zinc-800 px-3 py-1.5">
+            <span class="text-xs text-zinc-500 font-medium
+                         border border-zinc-800 px-4 py-1.5 rounded-full
+                         bg-white/[0.02]">
                 {feat}
             </span>
         {/each}

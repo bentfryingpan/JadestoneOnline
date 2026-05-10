@@ -68,7 +68,7 @@
 </svelte:head>
 
 <!-- ── Page background with map art ──────────────────────────────────────── -->
-<div class="min-h-screen bg-[#090b14] text-white">
+<div class="min-h-screen text-white">
 
     <!-- Hero banner -->
     <div class="relative overflow-hidden border-b border-white/[0.06]">
@@ -88,7 +88,7 @@
                          class="w-16 h-16 rounded-xl border border-white/10 object-cover shrink-0" />
                 {/if}
                 <div>
-                    <p class="text-[11px] text-emerald-400 uppercase tracking-widest font-bold mb-1">
+                    <p class="text-sm text-emerald-400 font-semibold mb-1">
                         Gambit Match
                     </p>
                     <h1 class="text-3xl font-bold tracking-tight">{data.mapName}</h1>
@@ -114,7 +114,7 @@
                 <p class="text-2xl font-black {data.teamAWon ? 'text-emerald-400' : 'text-red-400'}">
                     {data.teamAWon ? 'VICTORY' : 'DEFEAT'}
                 </p>
-                <p class="text-xs text-slate-600 uppercase tracking-widest mt-1">Team Alpha</p>
+                <p class="text-xs text-slate-600 font-medium tracking-wide mt-1">Team Alpha</p>
                 <div class="mt-2 flex justify-center gap-3 text-sm text-slate-400">
                     <span>{teamTotal(data.teamA, 'motesDeposited')} motes</span>
                     <span class="text-slate-600">·</span>
@@ -125,7 +125,7 @@
             <!-- VS divider -->
             <div class="flex flex-col items-center gap-2">
                 <div class="w-px h-8 bg-white/10"></div>
-                <span class="text-xs text-slate-600 font-bold uppercase tracking-widest">vs</span>
+                <span class="text-xs text-slate-600 font-bold font-medium tracking-wide">vs</span>
                 <div class="w-px h-8 bg-white/10"></div>
             </div>
 
@@ -134,7 +134,7 @@
                 <p class="text-2xl font-black {data.teamBWon ? 'text-emerald-400' : 'text-red-400'}">
                     {data.teamBWon ? 'VICTORY' : 'DEFEAT'}
                 </p>
-                <p class="text-xs text-slate-600 uppercase tracking-widest mt-1">Team Bravo</p>
+                <p class="text-xs text-slate-600 font-medium tracking-wide mt-1">Team Bravo</p>
                 <div class="mt-2 flex justify-center gap-3 text-sm text-slate-400">
                     <span>{teamTotal(data.teamB, 'motesDeposited')} motes</span>
                     <span class="text-slate-600">·</span>
@@ -165,7 +165,7 @@
                     <!-- Team label -->
                     <div class="flex items-center gap-3 mb-3">
                         <div class="h-px flex-1 {team.won ? 'bg-emerald-500/30' : 'bg-red-500/20'}"></div>
-                        <span class="text-[10px] font-bold uppercase tracking-widest
+                        <span class="text-[10px] font-bold font-medium tracking-wide
                                      {team.won ? 'text-emerald-400' : 'text-red-400'}">
                             Team {team.label} — {team.won ? 'Victory' : 'Defeat'}
                         </span>
@@ -287,7 +287,7 @@
 
         <!-- ── Team comparison bar chart ─────────────────────────────────── -->
         <div class="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6">
-            <h2 class="text-xs text-slate-500 uppercase tracking-widest font-semibold mb-5">
+            <h2 class="text-xs text-slate-500 font-medium tracking-wide font-semibold mb-5">
                 Team Comparison
             </h2>
             <div class="space-y-3">
