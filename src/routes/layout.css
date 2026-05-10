@@ -1,1 +1,38 @@
 @import 'tailwindcss';
+
+/* ── Basalt & Silver custom fonts ───────────────────────────────────────────── */
+@theme {
+  --font-family-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-family-mono:  'JetBrains Mono', ui-monospace, 'Courier New', monospace;
+  --font-family-serif: 'Playfair Display', ui-serif, Georgia, serif;
+}
+
+/* ── Scrollbar suppression ──────────────────────────────────────────────────── */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.no-scrollbar::-webkit-scrollbar  { display: none; }
+
+/* ── Stone card sheen animation ─────────────────────────────────────────────── */
+@keyframes stone-sheen {
+  from { left: -100%; }
+  to   { left: 200%;  }
+}
+.stone-sheen { position: relative; overflow: hidden; }
+.stone-sheen::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+  transform: skewX(-30deg);
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+}
+.stone-sheen:hover::after {
+  opacity: 1;
+  animation: stone-sheen 1.2s forwards;
+}
+
+/* ── Custom selection colour ────────────────────────────────────────────────── */
+::selection { background: rgba(16,185,129,0.15); }

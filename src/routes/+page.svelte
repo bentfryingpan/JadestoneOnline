@@ -56,81 +56,128 @@
         }
     }
 
-    function onBlur() {
-        setTimeout(() => { suggestions = []; }, 180);
-    }
+    function onBlur() { setTimeout(() => { suggestions = []; }, 180); }
 </script>
 
-<main class="flex flex-col items-center justify-center px-6 pt-28 pb-20">
+<!-- ── Hero ────────────────────────────────────────────────────────────────── -->
+<main class="flex flex-col items-center justify-center min-h-[calc(100vh-56px)] px-6 py-20 relative overflow-hidden">
 
-    <div class="mb-10 text-center">
-        <p class="text-emerald-400 text-sm font-semibold tracking-widest uppercase mb-3">◆ Jadestone</p>
-        <h1 class="text-4xl sm:text-5xl font-bold text-white tracking-tight mb-3">
-            Gambit Stats & Performance
+    <!-- Background grid pattern -->
+    <div class="absolute inset-0 opacity-[0.03]"
+         style="background-image: linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px),
+                                  linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px);
+                background-size: 64px 64px;">
+    </div>
+
+    <!-- Ambient emerald glow -->
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+                w-96 h-96 opacity-[0.04]"
+         style="background: radial-gradient(circle, rgba(16,185,129,1) 0%, transparent 70%)">
+    </div>
+
+    <!-- Corner diamond accents -->
+    <div class="absolute top-12 left-12 w-4 h-4 border border-emerald-500/20 rotate-45"></div>
+    <div class="absolute top-12 right-12 w-4 h-4 border border-emerald-500/20 rotate-45"></div>
+    <div class="absolute bottom-12 left-12 w-2 h-2 border border-zinc-700 rotate-45"></div>
+    <div class="absolute bottom-12 right-12 w-2 h-2 border border-zinc-700 rotate-45"></div>
+
+    <!-- Hero content -->
+    <div class="relative text-center mb-12">
+        <!-- Eyebrow label -->
+        <div class="flex items-center justify-center gap-3 mb-5">
+            <div class="h-px w-12 bg-gradient-to-r from-transparent to-emerald-500/40"></div>
+            <span class="text-[9px] font-mono uppercase tracking-[0.4em] text-emerald-500/70">
+                Gambit Analytics
+            </span>
+            <div class="h-px w-12 bg-gradient-to-l from-transparent to-emerald-500/40"></div>
+        </div>
+
+        <!-- Main headline -->
+        <h1 class="font-serif text-6xl sm:text-7xl font-light italic tracking-tight text-white leading-none mb-4">
+            Jadestone
         </h1>
-        <p class="text-slate-400 text-base max-w-md mx-auto">
-            Career statistics, match history, and performance ratings
-            for every Guardian who's stepped into the Drifter's game.
+        <div class="h-px w-24 bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent mx-auto mb-6"></div>
+        <p class="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-500 max-w-xs mx-auto leading-relaxed">
+            Career statistics, match history &amp; performance data for Destiny 2 Gambit
         </p>
     </div>
 
-    <!-- Search box -->
-    <div class="w-full max-w-md relative">
-        <div class="flex gap-2">
-            <div class="relative flex-1">
+    <!-- Search block -->
+    <div class="relative w-full max-w-md">
+
+        <!-- Search container -->
+        <div class="relative border border-zinc-800 bg-[#0a0a0a]
+                    shadow-[0_0_40px_rgba(0,0,0,0.8)]">
+
+            <!-- Corner accents -->
+            <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/40 pointer-events-none z-10"></span>
+            <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/40 pointer-events-none z-10"></span>
+
+            <div class="flex items-center">
+                <!-- Search icon -->
+                <div class="pl-4 pr-2 text-zinc-600 shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                    </svg>
+                </div>
+
+                <!-- Input -->
                 <input
                     bind:value={name}
                     oninput={onInput}
                     onkeydown={onKeydown}
                     onblur={onBlur}
-                    placeholder="Search a Guardian — e.g. bent#9599"
-                    class="w-full bg-white/[0.05] border border-white/10 rounded-lg px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none
-                           focus:border-emerald-500/60 focus:bg-white/[0.07] transition-all text-sm"
+                    placeholder="Search Guardian — name#0000"
+                    class="flex-1 bg-transparent px-2 py-4 text-[11px] font-mono uppercase tracking-widest
+                           text-zinc-200 placeholder-zinc-700 outline-none min-w-0"
                 />
+
+                <!-- Spinner -->
                 {#if loading}
-                    <div class="absolute right-3 top-1/2 -translate-y-1/2
-                                w-4 h-4 border-2 border-slate-600 border-t-emerald-400
-                                rounded-full animate-spin"></div>
+                    <div class="mr-3 w-3 h-3 border border-zinc-700 border-t-emerald-400 animate-spin shrink-0"></div>
                 {/if}
+
+                <!-- Search button -->
+                <button onclick={search}
+                        class="h-full px-5 py-4 bg-emerald-500/10 border-l border-zinc-800
+                               text-[9px] font-mono uppercase tracking-[0.25em] text-emerald-400
+                               hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors shrink-0">
+                    Search
+                </button>
             </div>
-            <button onclick={search}
-                    class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold
-                           px-5 py-3 rounded-lg transition-colors text-sm shrink-0">
-                Search
-            </button>
         </div>
 
+        <!-- Error -->
         {#if error}
-            <p class="text-red-400 text-xs mt-2 ml-1">{error}</p>
+            <p class="text-[9px] font-mono uppercase tracking-[0.15em] text-red-400 mt-2 ml-1">{error}</p>
         {/if}
 
         <!-- Suggestions dropdown -->
         {#if suggestions.length}
-            <div class="absolute top-full left-0 right-0 mt-1.5 z-50
-                        bg-[#0d0f1a] border border-white/[0.08] rounded-xl
-                        shadow-2xl overflow-hidden">
+            <div class="absolute top-full left-0 right-0 mt-0 z-50
+                        bg-[#0a0a0a] border border-t-0 border-zinc-800
+                        shadow-[0_8px_40px_rgba(0,0,0,0.8)] overflow-hidden">
                 {#each suggestions as s, i}
                     <button
                         onmousedown={() => navigate(s)}
-                        class="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors
-                               {i === selIdx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'}
-                               {i > 0 ? 'border-t border-white/[0.04]' : ''}">
+                        class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+                               {i === selIdx ? 'bg-zinc-800/60' : 'hover:bg-zinc-900/60'}
+                               {i > 0 ? 'border-t border-zinc-800/60' : ''}">
                         {#if s.iconPath}
                             <img src="https://www.bungie.net{s.iconPath}" alt=""
-                                 class="w-9 h-9 rounded shrink-0 object-cover ring-1 ring-white/10" />
+                                 class="w-8 h-8 shrink-0 object-cover" />
                         {:else}
-                            <div class="w-9 h-9 rounded bg-white/10 shrink-0"></div>
+                            <div class="w-8 h-8 bg-zinc-800 border border-zinc-700 shrink-0
+                                        flex items-center justify-center rotate-45">
+                                <span class="-rotate-45 text-[8px] font-mono text-zinc-500">?</span>
+                            </div>
                         {/if}
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm text-white">
-                                {s.name}<span class="text-slate-500">#{s.code}</span>
-                            </p>
-                        </div>
-                        <svg class="w-4 h-4 text-slate-600 shrink-0" fill="none"
-                             stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M9 5l7 7-7 7"/>
+                        <span class="text-[11px] font-mono text-zinc-200 uppercase tracking-widest flex-1 text-left">
+                            {s.name}<span class="text-zinc-600">#{s.code}</span>
+                        </span>
+                        <svg class="w-3 h-3 text-zinc-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                         </svg>
                     </button>
                 {/each}
@@ -138,5 +185,18 @@
         {/if}
     </div>
 
-    <p class="text-slate-600 text-xs mt-6">Type a name to see live suggestions</p>
+    <!-- Hint -->
+    <p class="relative text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-700 mt-4">
+        Type to search · Enter full name#code to navigate directly
+    </p>
+
+    <!-- Feature pills -->
+    <div class="relative flex items-center gap-3 mt-16 flex-wrap justify-center">
+        {#each ['Match History', 'Season Breakdown', 'Loadout Analysis', 'K/D Tracking', 'Invasion Stats'] as feat}
+            <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-700
+                         border border-zinc-800 px-3 py-1.5">
+                {feat}
+            </span>
+        {/each}
+    </div>
 </main>

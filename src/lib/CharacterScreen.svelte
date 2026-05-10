@@ -225,9 +225,11 @@
             </div>
 
             {#each armorStatMeta as stat}
-                {@const val  = totalStats[stat.name] ?? 0}
-                {@const tier = statTier(val)}
-                {@const abilityData = STAT_ABILITY_DATA[stat.hash]}
+                {@const val          = totalStats[stat.name] ?? 0}
+                {@const tier         = statTier(val)}
+                {@const abilityData  = STAT_ABILITY_DATA[stat.hash]}
+                {@const secondaryDef = SECONDARY_ZONE[stat.hash]}
+                {@const primaryTier  = Math.min(10, tier)}
                 <div class="group relative">
                     <div class="flex items-center justify-between mb-1">
                         <span class="text-[11px] font-bold {stat.text}" title={stat.description}>{stat.short}</span>
@@ -259,8 +261,6 @@
                     </div>
 
                     <!-- Rich stat tooltip -->
-                    {@const secondaryDef = SECONDARY_ZONE[stat.hash]}
-                    {@const primaryTier  = Math.min(10, tier)}
                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 hidden group-hover:block
                                 w-72 bg-[#0d0f1a] border border-white/10 rounded-xl shadow-2xl pointer-events-none overflow-hidden">
 

@@ -8,7 +8,7 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 
-<div class="min-h-screen bg-[#09090f] text-slate-100">
+<div class="min-h-screen bg-[#080808] text-zinc-200 font-sans">
     <Nav user={data.user} />
     {@render children()}
 </div>
