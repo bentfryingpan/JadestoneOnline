@@ -135,6 +135,46 @@
     const dAvgMotes = $derived(dEntered > 0 ? dMotes  / dEntered        : 0);
     const dAvgInv   = $derived(dEntered > 0 ? dInvasions / dEntered     : 0);
 
+    // ── Season name map (Destiny 2 season numbers → display labels) ──────────
+    const SEASON_NAMES = {
+        19: '19: SERAPH',
+        20: '20: DEFIANCE',
+        21: '21: DEEP',
+        22: '22: WITCH',
+        23: '23: WISH',
+        24: 'EP: ECHOES',
+        25: 'EP: REVENANT',
+        26: 'EP: HERESY',
+        27: 'EDGE OF FATE',
+    };
+
+    // ── Percentile rank badges ──────────────────────────────────────────────
+    function winRateRank(wr) {
+        if (wr == null) return null;
+        if (wr >= 70)   return { label: 'Top 1%',  color: 'text-amber-400'   };
+        if (wr >= 60)   return { label: 'Top 5%',  color: 'text-emerald-400' };
+        if (wr >= 52)   return { label: 'Top 15%', color: 'text-emerald-400' };
+        return null;
+    }
+    function kdRank(kd) {
+        if (kd == null) return null;
+        if (kd >= 2.5)  return { label: 'Top 1%',  color: 'text-amber-400'   };
+        if (kd >= 1.5)  return { label: 'Top 5%',  color: 'text-emerald-400' };
+        if (kd >= 1.0)  return { label: 'Top 25%', color: 'text-zinc-400'    };
+        return null;
+    }
+    function motesRank(avg) {
+        if (avg >= 40)  return { label: 'Top 1%',  color: 'text-emerald-400' };
+        if (avg >= 25)  return { label: 'Top 10%', color: 'text-emerald-400' };
+        if (avg >= 15)  return { label: 'Top 25%', color: 'text-zinc-400'    };
+        return null;
+    }
+    function invRank(avg) {
+        if (avg >= 2.0) return { label: 'Top 1%',  color: 'text-violet-400'  };
+        if (avg >= 1.0) return { label: 'Top 10%', color: 'text-emerald-400' };
+        return null;
+    }
+
     // ── Tier labels ────────────────────────────────────────────────────────────
     function kdTier(kd) {
         if (kd == null)  return { label: 'UNRANKED',  color: 'text-zinc-600' };
@@ -554,6 +594,21 @@
         {#key tab}
         <div in:fly={{ y: 16, duration: 320, opacity: 0 }}>
 
+            <!-- ── DetailRow snippet (label | value | rank badge) ───────────── -->
+            {#snippet DetailRow(label, value, rank)}
+                <div class="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/40 last:border-0">
+                    <span class="text-[8px] font-mono uppercase tracking-[0.15em] text-zinc-600 shrink-0">{label}</span>
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-[13px] font-mono font-bold leading-none
+                                     {rank ? rank.color : 'text-zinc-200'}">{value}</span>
+                        {#if rank}
+                            <span class="text-[7px] font-mono font-bold uppercase tracking-wide shrink-0
+                                         {rank.color} border border-current/30 px-1.5 py-px">{rank.label}</span>
+                        {/if}
+                    </div>
+                </div>
+            {/snippet}
+
             <!-- ══ OVERVIEW ═════════════════════════════════════════════════════ -->
             {#if tab === 'overview'}
                 {#if !data.lifetimeStats}
@@ -563,234 +618,165 @@
                         </p>
                     </div>
                 {:else}
-                    <div class="p-6 space-y-6">
+                    <div class="p-6 space-y-5">
 
-                        <!-- Section header -->
-                        <div class="flex items-center gap-4 anim-in">
-                            <div class="w-1 h-4 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
-                            <span class="text-[9px] font-mono uppercase tracking-[0.35em] text-zinc-400">
-                                Seasonal History
-                            </span>
-                            {#if seasonalLoading}
-                                <div class="w-3 h-3 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
-                            {/if}
+                        <!-- ── SEASONAL HISTORY header + scrollable season pills ── -->
+                        <div class="relative border-b border-zinc-800/50 pb-3 anim-in">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="text-[8px] font-mono uppercase tracking-[0.35em] text-zinc-600">Seasonal History</span>
+                                {#if seasonalLoading}
+                                    <div class="w-3 h-3 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
+                                {/if}
+                            </div>
+                            <!-- Mouse-wheel-scrollable season tabs -->
+                            <div class="flex overflow-x-auto gap-1 no-scrollbar scroll-smooth cursor-grab active:cursor-grabbing"
+                                 onwheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }}>
+                                <button onclick={() => seasonFilter = 'all'}
+                                        class="flex-shrink-0 px-4 py-1.5 text-[9px] font-mono uppercase tracking-[0.2em]
+                                               transition-all border relative overflow-hidden
+                                               {seasonFilter === 'all'
+                                                   ? 'text-emerald-400 bg-zinc-900/60 border-zinc-700 font-bold'
+                                                   : 'text-zinc-600 border-zinc-800/50 hover:text-zinc-400 hover:border-zinc-700'}">
+                                    All-Time
+                                    {#if seasonFilter === 'all'}
+                                        <div class="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]"></div>
+                                    {/if}
+                                </button>
+                                {#if seasonal?.seasons?.length}
+                                    {#each [...seasonal.seasons].sort((a,b) => b.seasonNumber - a.seasonNumber) as s}
+                                        {@const sLabel = SEASON_NAMES[s.seasonNumber] ?? `S${s.seasonNumber}`}
+                                        <button onclick={() => seasonFilter = s.season}
+                                                class="flex-shrink-0 px-4 py-1.5 text-[9px] font-mono uppercase tracking-[0.2em]
+                                                       transition-all border relative overflow-hidden
+                                                       {seasonFilter === s.season
+                                                           ? 'text-emerald-400 bg-zinc-900/60 border-zinc-700 font-bold'
+                                                           : 'text-zinc-600 border-zinc-800/50 hover:text-zinc-400 hover:border-zinc-700'}">
+                                            {sLabel}
+                                            {#if seasonFilter === s.season}
+                                                <div class="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]"></div>
+                                            {/if}
+                                        </button>
+                                    {/each}
+                                {/if}
+                            </div>
                         </div>
 
-                        <!-- Season filter buttons -->
-                        <div class="flex items-center gap-1 flex-wrap anim-in anim-in-d1">
-                            <button
-                                onclick={() => seasonFilter = 'all'}
-                                class="px-3 py-1.5 text-[9px] font-mono uppercase tracking-[0.2em] transition-colors border
-                                       {seasonFilter === 'all'
-                                           ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/5'
-                                           : 'border-zinc-800 text-zinc-600 hover:text-zinc-300 hover:border-zinc-600'}">
-                                All-Time
-                            </button>
-                            {#if seasonal?.seasons?.length}
-                                {#each [...seasonal.seasons].sort((a,b) => b.seasonNumber - a.seasonNumber) as s}
-                                    <button
-                                        onclick={() => seasonFilter = s.season}
-                                        class="px-3 py-1.5 text-[9px] font-mono uppercase tracking-[0.2em] transition-colors border
-                                               {seasonFilter === s.season
-                                                   ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/5'
-                                                   : 'border-zinc-800 text-zinc-600 hover:text-zinc-300 hover:border-zinc-600'}">
-                                        S{s.seasonNumber}
-                                    </button>
-                                {/each}
-                            {/if}
-                        </div>
+                        <!-- ── 4 primary metric cards ───────────────────────── -->
+                        {@const motR = motesRank(dAvgMotes)}
+                        <div class="grid grid-cols-4 gap-3">
 
-                        <!-- 4 primary stat cards -->
-                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            {#each [
-                                {
-                                    label: 'Win Rate',
-                                    value: dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—',
-                                    sub: `${fmt(dWon)}W · ${fmt(dEntered - dWon)}L`,
-                                    highlight: dWinRate != null && dWinRate >= 55,
-                                    accent: true,
-                                },
-                                {
-                                    label: 'K / D Ratio',
-                                    value: dKD != null ? fmtF(dKD, 2) : '—',
-                                    sub: `${fmt(dKills)} kills · ${fmt(dDeaths)} deaths`,
-                                    highlight: dKD != null && dKD >= 1.5,
-                                    accent: false,
-                                },
-                                {
-                                    label: 'Avg Motes / Game',
-                                    value: dEntered > 0 ? fmtF(dAvgMotes, 1) : '—',
-                                    sub: `${fmt(dMotes)} total deposited`,
-                                    highlight: dAvgMotes >= 15,
-                                    accent: false,
-                                },
-                                {
-                                    label: 'Avg Invasions / Game',
-                                    value: dEntered > 0 ? fmtF(dAvgInv, 2) : '—',
-                                    sub: `${fmt(dInvasions)} total invasions`,
-                                    highlight: dAvgInv >= 1,
-                                    accent: false,
-                                },
-                            ] as card, ci}
-                                <div class="relative bg-[#111111] border stone-sheen anim-in anim-in-d{ci + 1}
-                                            transition-all duration-300
-                                            hover:shadow-[0_0_24px_rgba(16,185,129,0.08)]
-                                            {card.accent
-                                                ? 'border-l-2 border-l-emerald-500 border-zinc-800 hover:border-emerald-500/40'
-                                                : 'border-zinc-800 hover:border-zinc-600'}
-                                            p-5 overflow-hidden">
-                                    <!-- Corner accents -->
-                                    <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/30"></span>
-                                    <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/30"></span>
-                                    <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-3">
-                                        {card.label}
+                            <!-- Win Ratio -->
+                            <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in transition-all hover:border-zinc-600">
+                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
+                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
+                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">Win Ratio</span>
+                                <div class="flex items-baseline justify-between gap-1">
+                                    <span class="text-[28px] font-mono font-bold leading-none text-zinc-100">
+                                        {dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'}
                                     </span>
-                                    <span class="text-3xl font-mono font-bold block mb-1 leading-none
-                                                 {card.highlight ? 'text-emerald-400' : 'text-zinc-100'}">
-                                        {card.value}
+                                    <span class="text-[9px] font-mono text-zinc-600 text-right shrink-0 leading-tight">
+                                        {fmt(dWon)}<br/>wins
                                     </span>
-                                    <span class="text-[10px] font-sans text-zinc-600">{card.sub}</span>
                                 </div>
-                            {/each}
+                            </div>
+
+                            <!-- K/D/A -->
+                            <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all hover:border-zinc-600">
+                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
+                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
+                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">K/D/A</span>
+                                <div class="flex items-baseline justify-between gap-1">
+                                    <span class="text-[28px] font-mono font-bold leading-none text-zinc-100">
+                                        {dKD != null ? fmtF(dKD, 2) : '—'}
+                                    </span>
+                                    <span class="text-[9px] font-mono text-zinc-600 text-right shrink-0 leading-tight">
+                                        {fmt(dKills)}<br/>kills
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Motes Avg -->
+                            <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all hover:border-zinc-600">
+                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
+                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
+                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">Motes Avg</span>
+                                <div class="flex items-baseline justify-between gap-1">
+                                    <span class="text-[28px] font-mono font-bold leading-none
+                                                 {motR ? 'text-emerald-400' : 'text-zinc-100'}">
+                                        {dEntered > 0 ? fmtF(dAvgMotes, 1) : '—'}
+                                    </span>
+                                    {#if motR}
+                                        <span class="text-[9px] font-mono font-bold {motR.color} text-right shrink-0">{motR.label}</span>
+                                    {:else}
+                                        <span class="text-[9px] font-mono text-zinc-600 text-right shrink-0 leading-tight">
+                                            {fmt(dMotes)}<br/>total
+                                        </span>
+                                    {/if}
+                                </div>
+                            </div>
+
+                            <!-- Avg Invasions — amber italic + bar (like Primeval DPS) -->
+                            <div class="relative bg-gradient-to-br from-[#111111] to-[#0a0a0a] border border-zinc-800 p-4 overflow-hidden anim-in anim-in-d3 transition-all hover:border-zinc-700">
+                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500/20"></span>
+                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-amber-500/20"></span>
+                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">Avg Invasions</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[28px] font-mono font-bold leading-none text-amber-500 italic">
+                                        {dEntered > 0 ? fmtF(dAvgInv, 2) : '—'}
+                                    </span>
+                                    <div class="flex-1 h-px bg-zinc-800 relative top-1 overflow-hidden">
+                                        <div class="h-full bg-amber-600/80 transition-all duration-700"
+                                             style="width:{Math.min((dAvgInv / 3) * 100, 100)}%"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- 3 sub-cards: COMBAT / OBJECTIVES / INVASION -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <!-- ── 3 detail cards: Combat / Objectives / Invasion ── -->
+                        <div class="grid grid-cols-3 gap-4">
 
                             <!-- COMBAT -->
-                            {#if true}
-                                {@const tier = kdTier(dKD)}
-                                <div class="group/card relative bg-[#111111] border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all duration-300 hover:border-zinc-600 hover:shadow-[0_0_20px_rgba(16,185,129,0.07)]">
-                                    <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/30"></span>
-                                    <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/30"></span>
-                                    <!-- Header -->
-                                    <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60">
-                                        <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Combat</span>
-                                        <span class="text-[8px] font-mono uppercase tracking-[0.2em] {tier.color} border border-current/30 px-2 py-0.5
-                                                     transition-all duration-300 group-hover/card:shadow-[0_0_8px_currentColor] group-hover/card:border-current/60">
-                                            {tier.label}
-                                        </span>
-                                    </div>
-                                    <!-- Stats -->
-                                    <div class="p-5 space-y-3">
-                                        <!-- K/D highlight -->
-                                        <div class="flex items-baseline justify-between">
-                                            <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">K/D Ratio</span>
-                                            <span class="text-2xl font-mono font-bold {tier.color}">
-                                                {dKD != null ? fmtF(dKD, 2) : '—'}
-                                            </span>
-                                        </div>
-                                        <div class="h-px bg-zinc-800/60"></div>
-                                        <div class="grid grid-cols-3 gap-2">
-                                            {#each [
-                                                { label: 'Kills',   value: fmt(dKills)  },
-                                                { label: 'Deaths',  value: fmt(dDeaths) },
-                                                { label: 'Assists', value: seasonFilter === 'all' ? fmt(ltAssists) : '—' },
-                                            ] as s}
-                                                <div class="text-center">
-                                                    <span class="text-[13px] font-mono font-bold text-zinc-200 block">{s.value}</span>
-                                                    <span class="text-[7px] font-mono uppercase tracking-[0.1em] text-zinc-700">{s.label}</span>
-                                                </div>
-                                            {/each}
-                                        </div>
-                                    </div>
+                            <div class="bg-[#111111] border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all duration-300 hover:border-zinc-700">
+                                <div class="px-4 py-3 border-b border-zinc-800/60">
+                                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Combat</span>
                                 </div>
-                            {/if}
+                                <div class="px-4 py-3">
+                                    {@render DetailRow('Total Kills', fmt(dKills),   kdRank(dKD))}
+                                    {@render DetailRow('Precision',
+                                        dKills + dDeaths > 0
+                                            ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%'
+                                            : '—',
+                                        null)}
+                                    {@render DetailRow('Deaths',  fmt(dDeaths),  null)}
+                                    {@render DetailRow('Assists', seasonFilter === 'all' ? fmt(ltAssists) : '—', null)}
+                                </div>
+                            </div>
 
                             <!-- OBJECTIVES -->
-                            {#if true}
-                                {@const tier = winTier(dWinRate)}
-                                <div class="group/card relative bg-[#111111] border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all duration-300 hover:border-zinc-600 hover:shadow-[0_0_20px_rgba(16,185,129,0.07)]">
-                                    <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/30"></span>
-                                    <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/30"></span>
-                                    <!-- Header -->
-                                    <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60">
-                                        <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Objectives</span>
-                                        <span class="text-[8px] font-mono uppercase tracking-[0.2em] {tier.color} border border-current/30 px-2 py-0.5
-                                                     transition-all duration-300 group-hover/card:shadow-[0_0_8px_currentColor] group-hover/card:border-current/60">
-                                            {tier.label}
-                                        </span>
-                                    </div>
-                                    <!-- Stats -->
-                                    <div class="p-5 space-y-3">
-                                        <!-- Win rate highlight -->
-                                        <div class="flex items-baseline justify-between">
-                                            <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">Win Rate</span>
-                                            <span class="text-2xl font-mono font-bold {tier.color}">
-                                                {dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'}
-                                            </span>
-                                        </div>
-                                        <div class="h-px bg-zinc-800/60"></div>
-                                        <div class="grid grid-cols-3 gap-2">
-                                            {#each [
-                                                { label: 'Matches', value: fmt(dEntered)  },
-                                                { label: 'Wins',    value: fmt(dWon)      },
-                                                { label: 'Motes',   value: fmt(dMotes)    },
-                                            ] as s}
-                                                <div class="text-center">
-                                                    <span class="text-[13px] font-mono font-bold text-zinc-200 block">{s.value}</span>
-                                                    <span class="text-[7px] font-mono uppercase tracking-[0.1em] text-zinc-700">{s.label}</span>
-                                                </div>
-                                            {/each}
-                                        </div>
-                                        <!-- Mote efficiency bar -->
-                                        {#if dMotes + dMotesLost > 0}
-                                            {@const total = dMotes + dMotesLost}
-                                            {@const eff = Math.round((dMotes / total) * 100)}
-                                            <div>
-                                                <div class="flex justify-between mb-1">
-                                                    <span class="text-[7px] font-mono uppercase tracking-[0.1em] text-zinc-700">Mote Efficiency</span>
-                                                    <span class="text-[7px] font-mono text-emerald-500">{eff}%</span>
-                                                </div>
-                                                <div class="h-px bg-zinc-900 flex gap-px">
-                                                    <div class="h-full bg-emerald-500/60" style="width:{eff}%"></div>
-                                                    <div class="h-full bg-red-500/30" style="width:{100-eff}%"></div>
-                                                </div>
-                                            </div>
-                                        {/if}
-                                    </div>
+                            <div class="bg-[#111111] border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all duration-300 hover:border-zinc-700">
+                                <div class="px-4 py-3 border-b border-zinc-800/60">
+                                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Objectives</span>
                                 </div>
-                            {/if}
+                                <div class="px-4 py-3">
+                                    {@render DetailRow('Deposited', fmt(dMotes),     winRateRank(dWinRate))}
+                                    {@render DetailRow('Lost',      fmt(dMotesLost), null)}
+                                    {@render DetailRow('Matches',   fmt(dEntered),   null)}
+                                    {@render DetailRow('Wins',      fmt(dWon),       null)}
+                                </div>
+                            </div>
 
                             <!-- INVASION -->
-                            {#if true}
-                                {@const tier = invTier(dAvgInv)}
-                                <div class="group/card relative bg-[#111111] border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d3 transition-all duration-300 hover:border-zinc-600 hover:shadow-[0_0_20px_rgba(16,185,129,0.07)]">
-                                    <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/30"></span>
-                                    <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/30"></span>
-                                    <!-- Header -->
-                                    <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60">
-                                        <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Invasion</span>
-                                        <span class="text-[8px] font-mono uppercase tracking-[0.2em] {tier.color} border border-current/30 px-2 py-0.5
-                                                     transition-all duration-300 group-hover/card:shadow-[0_0_8px_currentColor] group-hover/card:border-current/60">
-                                            {tier.label}
-                                        </span>
-                                    </div>
-                                    <!-- Stats -->
-                                    <div class="p-5 space-y-3">
-                                        <!-- Avg invasions highlight -->
-                                        <div class="flex items-baseline justify-between">
-                                            <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">Avg / Game</span>
-                                            <span class="text-2xl font-mono font-bold {tier.color}">
-                                                {dEntered > 0 ? fmtF(dAvgInv, 2) : '—'}
-                                            </span>
-                                        </div>
-                                        <div class="h-px bg-zinc-800/60"></div>
-                                        <div class="grid grid-cols-3 gap-2">
-                                            {#each [
-                                                { label: 'Total',    value: fmt(dInvasions)  },
-                                                { label: 'Kills',    value: fmt(dInvKills)   },
-                                                { label: 'Stopped',  value: fmt(dInvDef)     },
-                                            ] as s}
-                                                <div class="text-center">
-                                                    <span class="text-[13px] font-mono font-bold text-zinc-200 block">{s.value}</span>
-                                                    <span class="text-[7px] font-mono uppercase tracking-[0.1em] text-zinc-700">{s.label}</span>
-                                                </div>
-                                            {/each}
-                                        </div>
-                                    </div>
+                            <div class="bg-[#111111] border border-zinc-800/80 overflow-hidden stone-sheen anim-in anim-in-d3 transition-all duration-300 hover:border-zinc-700">
+                                <div class="px-4 py-3 border-b border-zinc-800/60">
+                                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Invasion</span>
                                 </div>
-                            {/if}
+                                <div class="px-4 py-3">
+                                    {@render DetailRow('Guardians',  fmt(dInvKills),  invRank(dAvgInv))}
+                                    {@render DetailRow('Army of One', fmt(dInvasions), null)}
+                                    {@render DetailRow('Stopped',    fmt(dInvDef),    null)}
+                                    {@render DetailRow('Per Game',   dEntered > 0 ? fmtF(dAvgInv, 2) : '—', null)}
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Recent matches preview -->
