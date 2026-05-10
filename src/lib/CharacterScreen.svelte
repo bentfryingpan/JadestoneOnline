@@ -1,827 +1,325 @@
 <script>
-    import {
-        STAT_ABILITY_DATA, SECONDARY_ZONE, SOCKET_COLORS, classifySubclassSocket,
-        fmtCooldown, getTierRow, calcSecondary, fmtSecondary
-    } from '$lib/d2data.js';
-
     let { char, eq, armorStatMeta = [], artifact = null } = $props();
 
-    const classNames  = { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' };
-    const damageLabel = { 1:'Kinetic', 2:'Arc', 3:'Solar', 4:'Void', 6:'Stasis', 7:'Strand' };
-    const damageColor = {
-        1:'#C4C4C4', 2:'#79C7E3', 3:'#F0631D', 4:'#B185DF', 6:'#4D88FF', 7:'#4EEBA6'
-    };
-    const TIER_COLOR  = { 6:'#CEAE33', 5:'#522F65', 4:'#5076A3', 3:'#366F42', 2:'#555' };
-    const TIER_LABEL  = { 6:'Exotic', 5:'Legendary', 4:'Rare', 3:'Uncommon', 2:'Common' };
+    const TIER_LABEL = { 6: 'Exotic', 5: 'Legendary', 4: 'Rare', 3: 'Uncommon', 2: 'Common' };
+    const classNames = { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' };
 
-    const WEAPON_SLOTS = ['kinetic','energy','power'];
-    const ARMOR_SLOTS  = ['helmet','gauntlets','chest','legs','classItem'];
-
-    // Subclass element accent
-    const accent = $derived((() => {
-        const n = (eq.subclass?.name ?? '').toLowerCase();
-        if (n.includes('void'))   return { grad:'from-violet-900/40 to-transparent', ring:'#7C3AED', label:'text-violet-400' };
-        if (n.includes('solar'))  return { grad:'from-orange-900/40 to-transparent', ring:'#EA580C', label:'text-orange-400' };
-        if (n.includes('arc'))    return { grad:'from-cyan-900/40 to-transparent',   ring:'#0891B2', label:'text-cyan-400'   };
-        if (n.includes('stasis')) return { grad:'from-blue-900/40 to-transparent',   ring:'#1D4ED8', label:'text-blue-400'   };
-        if (n.includes('strand')) return { grad:'from-emerald-900/40 to-transparent',ring:'#059669', label:'text-emerald-400'};
-        if (n.includes('prism'))  return { grad:'from-pink-900/40 to-transparent',   ring:'#DB2777', label:'text-pink-400'   };
-        return { grad:'from-slate-800/40 to-transparent', ring:'#374151', label:'text-slate-400' };
-    })());
-
-    // Total armor stats summed across all 5 slots
+    // ── Armor stat totals ──────────────────────────────────────────────────────
     const totalStats = $derived((() => {
+        if (!armorStatMeta.length) return {};
+        const slots  = ['helmet','gauntlets','chest','legs','classItem'];
         const totals = {};
         for (const m of armorStatMeta) totals[m.name] = 0;
-        for (const slot of ARMOR_SLOTS) {
-            for (const s of eq[slot]?.armorStats ?? []) {
-                totals[s.name] = (totals[s.name] ?? 0) + s.value;
-            }
+        for (const slot of slots) {
+            const item = eq[slot];
+            if (item?.armorStats) for (const s of item.armorStats) totals[s.name] += s.value;
         }
         return totals;
     })());
 
-    // Resolve stat meta by hash (for labelling mod stat bonuses)
-    const statByHash = $derived(
-        Object.fromEntries(armorStatMeta.map(m => [m.hash, m]))
-    );
+    const grandTotal = $derived(Object.values(totalStats).reduce((a, b) => a + b, 0));
+    const buildTier  = $derived((grandTotal / 10).toFixed(1));
 
-    // ── Stat system constants (Edge of Fate 2025) ──────────────────────────────
-    const STAT_CAP         = 200;
-    const STAT_PIPS        = 20;
-    const STAT_PTS_PER_PIP = 10;
-    const STAT_TIER_CAP    = 10;
-
-    function statTier(val) { return Math.min(STAT_PIPS, Math.floor(val / STAT_PTS_PER_PIP)); }
-
-    // Weapon perks
-    function weaponPerks(item) {
-        if (!item?.perks) return { intrinsic: null, main: [], mod: null, mw: null };
-        return {
-            intrinsic: item.perks.find(p => p.isIntrinsic)  ?? null,
-            mw:        item.perks.find(p => p.isMasterwork) ?? null,
-            mod:       item.perks.find(p => p.isMod)        ?? null,
-            main:      item.perks.filter(p => !p.isIntrinsic && !p.isMasterwork && !p.isMod)
-        };
-    }
-
-    // Format investmentStat bonus for display (e.g. "+10 Health")
-    function formatBonus(bonus) {
-        const meta = statByHash[bonus.statHash];
-        if (!meta) return null;
-        const sign = bonus.value > 0 ? '+' : '';
-        return { label: meta.short, fullName: meta.name, value: `${sign}${bonus.value}`, color: meta.text };
-    }
-
-    // ── Subclass socket classification ────────────────────────────────────────
-    const subclassSockets = $derived(eq.subclassSockets ?? null);
-
-    // Classify each socket in the subclass sockets object for display
-    function socketTypeColor(socket) {
-        const type = classifySubclassSocket(socket?.itemTypeDisplayName ?? '');
-        return SOCKET_COLORS[type] ?? SOCKET_COLORS.other;
-    }
-
-    // Build ordered ability list: super, movement, class, melee, grenade
-    const abilityList = $derived((() => {
-        if (!subclassSockets) return [];
-        const s = subclassSockets;
-        return [
-            s.super        ? { ...s.super,   _type: 'super'    } : null,
-            ...(s.abilities ?? []).map(a => {
-                const t = classifySubclassSocket(a.itemTypeDisplayName ?? '');
-                return { ...a, _type: t };
-            }),
-        ].filter(Boolean);
+    // Subclass element color for the center glow
+    const subclassColor = $derived((() => {
+        const n = (eq.subclass?.name ?? '').toLowerCase();
+        if (n.includes('void'))   return 'rgba(109,40,217,0.15)';
+        if (n.includes('solar'))  return 'rgba(234,88,12,0.15)';
+        if (n.includes('arc'))    return 'rgba(8,145,178,0.15)';
+        if (n.includes('stasis')) return 'rgba(29,78,216,0.15)';
+        if (n.includes('strand')) return 'rgba(5,150,105,0.15)';
+        if (n.includes('prismatic')) return 'rgba(219,39,119,0.15)';
+        return 'rgba(16,185,129,0.07)';
     })());
 
-    // Fragment stat bonuses (investment stats — usually negative)
-    function fragmentBonuses(fragment) {
-        return (fragment.statBonuses ?? [])
-            .filter(b => b.value !== 0)
-            .map(b => formatBonus(b))
-            .filter(Boolean);
-    }
+    const subclassElement = $derived((() => {
+        const n = (eq.subclass?.name ?? '').toLowerCase();
+        if (n.includes('void'))    return { border: 'border-violet-500/50', glow: 'shadow-[0_0_20px_rgba(139,92,246,0.3)]', text: 'text-violet-400' };
+        if (n.includes('solar'))   return { border: 'border-orange-500/50', glow: 'shadow-[0_0_20px_rgba(249,115,22,0.3)]', text: 'text-orange-400' };
+        if (n.includes('arc'))     return { border: 'border-cyan-400/50',   glow: 'shadow-[0_0_20px_rgba(34,211,238,0.3)]', text: 'text-cyan-400'   };
+        if (n.includes('stasis'))  return { border: 'border-blue-500/50',   glow: 'shadow-[0_0_20px_rgba(59,130,246,0.3)]', text: 'text-blue-400'   };
+        if (n.includes('strand'))  return { border: 'border-emerald-500/50',glow: 'shadow-[0_0_20px_rgba(16,185,129,0.3)]', text: 'text-emerald-400'};
+        return { border: 'border-zinc-600/50', glow: '', text: 'text-zinc-400' };
+    })());
 </script>
 
-<!-- ── Wrapper ──────────────────────────────────────────────────────────────── -->
-<div class="bg-[#0c0e1a] border border-white/[0.07] rounded-2xl overflow-hidden">
+<!-- ── Loadout Layout ──────────────────────────────────────────────────────── -->
+<div class="max-w-6xl mx-auto py-10 px-4">
+    <div class="grid grid-cols-12 gap-12 items-start">
 
-    <!-- ── Power + class header ───────────────────────────────────────────── -->
-    <div class="bg-gradient-to-r {accent.grad} px-6 py-4 flex items-center justify-between border-b border-white/[0.06]">
-        <div class="flex items-center gap-4">
-            {#if eq.subclass?.icon}
-                <img src={eq.subclass.icon} alt={eq.subclass.name}
-                     class="w-10 h-10 rounded object-cover"
-                     style="outline: 2px solid {accent.ring}; outline-offset: 2px;" />
-            {/if}
-            <div>
-                <p class="text-white font-bold text-lg leading-none">{classNames[char?.classType] ?? 'Guardian'}</p>
-                {#if eq.subclass}
-                    <p class="text-sm {accent.label} mt-0.5">{eq.subclass.name}</p>
-                {/if}
-            </div>
-        </div>
-        <div class="text-right">
-            <p class="text-xs text-slate-500 uppercase tracking-wider">Power</p>
-            <p class="text-3xl font-black text-yellow-400 leading-none">{char?.light ?? '—'}</p>
-        </div>
-    </div>
+        <!-- ── COLUMN 1: SUBCLASS & WEAPONS (3/12) ────────────────────────── -->
+        <div class="col-span-3 space-y-12 flex flex-col items-center">
 
-    <!-- ── Main 3-col grid ────────────────────────────────────────────────── -->
-    <div class="grid grid-cols-[1fr_minmax(160px,220px)_1fr] gap-0 divide-x divide-white/[0.05]">
+            <!-- Subclass -->
+            <div class="flex flex-col items-center group cursor-pointer w-full">
+                <div class="w-24 h-24 flex items-center justify-center mx-auto relative">
+                    <!-- Ambient glow -->
+                    <div class="absolute inset-0 rounded-full blur-3xl animate-pulse"
+                         style="background: {subclassColor}"></div>
 
-        <!-- ═══ LEFT: Weapons ═══════════════════════════════════════════════ -->
-        <div class="p-4 space-y-2">
-            <p class="text-[10px] text-slate-600 uppercase tracking-widest mb-3 font-semibold">Weapons</p>
-
-            {#each WEAPON_SLOTS as slot}
-                {@const item = eq[slot]}
-                {#if item}
-                    {@const perks = weaponPerks(item)}
-                    <div class="flex gap-3 items-start">
-                        <!-- Icon -->
-                        <div class="relative shrink-0 w-14 h-14 rounded"
-                             style="outline: 2px solid {TIER_COLOR[item.tierType] ?? '#555'}; outline-offset: -1px;">
-                            {#if item.icon}
-                                <img src={item.icon} alt={item.name} class="w-full h-full object-cover rounded" />
-                            {:else}
-                                <div class="w-full h-full bg-white/5 rounded"></div>
-                            {/if}
-                            {#if item.power}
-                                <span class="absolute bottom-0.5 right-0.5 text-[9px] font-bold
-                                             text-yellow-300 bg-black/70 px-0.5 rounded leading-none py-0.5">
-                                    {item.power}
-                                </span>
-                            {/if}
+                    {#if eq.subclass?.iconPath}
+                        <!-- Real subclass icon inside rotated diamond frame -->
+                        <div class="w-20 h-20 bg-[#0a0a0a] border-2 {subclassElement.border}
+                                    flex items-center justify-center rotate-45
+                                    group-hover:rotate-90 transition-all duration-700 shadow-2xl
+                                    {subclassElement.glow} overflow-hidden">
+                            <img src="https://www.bungie.net{eq.subclass.iconPath}" alt=""
+                                 class="w-16 h-16 object-cover -rotate-45 group-hover:-rotate-90
+                                        transition-all duration-700 scale-110" />
                         </div>
-
-                        <!-- Info -->
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-semibold text-white truncate leading-tight">{item.name}</p>
-                            <p class="text-[11px] text-slate-500 mt-0.5">
-                                {item.itemTypeDisplayName}
-                                {#if item.damageType && item.damageType !== 1}
-                                    · <span style="color:{damageColor[item.damageType]}">{damageLabel[item.damageType]}</span>
-                                {/if}
-                            </p>
-
-                            <!-- Perk icons row -->
-                            {#if perks.intrinsic || perks.main.length}
-                                <div class="flex gap-1 mt-1.5 flex-wrap items-center">
-                                    {#if perks.intrinsic}
-                                        {@render PerkIcon(perks.intrinsic, 'ring-yellow-600/60', 'text-yellow-300')}
-                                    {/if}
-                                    {#each perks.main.slice(0, 4) as perk}
-                                        {@render PerkIcon(perk)}
-                                    {/each}
-                                    {#if perks.mw}
-                                        {@render PerkIcon(perks.mw, 'ring-amber-400/60', 'text-amber-300', 'MW: ')}
-                                    {/if}
-                                    {#if perks.mod}
-                                        {@render PerkIcon(perks.mod, 'ring-blue-400/40', 'text-blue-300')}
-                                    {/if}
-                                </div>
-                            {/if}
-                        </div>
-                    </div>
-                {:else}
-                    <div class="flex gap-3 items-center opacity-20">
-                        <div class="w-14 h-14 rounded border border-white/10 border-dashed"></div>
-                        <p class="text-xs text-slate-500 capitalize">{slot}</p>
-                    </div>
-                {/if}
-            {/each}
-
-            <!-- Accessories -->
-            <div class="pt-3 mt-1 border-t border-white/[0.05]">
-                <p class="text-[10px] text-slate-600 uppercase tracking-widest mb-2 font-semibold">Accessories</p>
-                <div class="flex gap-2">
-                    {#each ['ghost','vehicle'] as slot}
-                        {@const item = eq[slot]}
-                        {#if item?.icon}
-                            <div class="group relative">
-                                <img src={item.icon} alt={item.name}
-                                     class="w-10 h-10 rounded object-cover ring-1 ring-white/10" />
-                                <div class="absolute bottom-full left-0 mb-1.5 z-50 hidden group-hover:block
-                                            whitespace-nowrap bg-[#0d0f1a] border border-white/10
-                                            rounded px-2 py-1 text-[10px] text-white shadow-xl pointer-events-none">
-                                    {item.name}
-                                </div>
-                            </div>
-                        {:else}
-                            <div class="w-10 h-10 rounded border border-white/10 border-dashed opacity-20"></div>
-                        {/if}
-                    {/each}
-                </div>
-            </div>
-        </div>
-
-        <!-- ═══ CENTER: Armor Stats ══════════════════════════════════════════ -->
-        <div class="p-4 flex flex-col gap-3">
-            <div class="flex items-baseline justify-between">
-                <p class="text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Armor Stats</p>
-                <p class="text-[9px] text-slate-700">/ 200</p>
-            </div>
-
-            {#each armorStatMeta as stat}
-                {@const val          = totalStats[stat.name] ?? 0}
-                {@const tier         = statTier(val)}
-                {@const abilityData  = STAT_ABILITY_DATA[stat.hash]}
-                {@const secondaryDef = SECONDARY_ZONE[stat.hash]}
-                {@const primaryTier  = Math.min(10, tier)}
-                <div class="group relative">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-[11px] font-bold {stat.text}" title={stat.description}>{stat.short}</span>
-                        <div class="flex items-center gap-1.5">
-                            {#if val > 100}
-                                <span class="text-[9px] text-amber-400 font-bold">T{Math.min(20, tier)}</span>
-                            {:else}
-                                <span class="text-[9px] text-slate-600">T{tier}</span>
-                            {/if}
-                            <span class="text-[11px] font-mono {val >= 100 ? 'text-amber-300' : 'text-slate-300'}">{val}</span>
-                        </div>
-                    </div>
-
-                    <!-- 20-pip bar (each pip = 10 pts, total = 200) -->
-                    <div class="flex gap-[2px]">
-                        {#each Array(STAT_PIPS) as _, i}
-                            <div class="h-1.5 flex-1 rounded-sm transition-colors
-                                        {i < tier
-                                            ? (i < STAT_TIER_CAP ? stat.color : 'bg-amber-400')
-                                            : 'bg-white/10'}">
-                            </div>
-                        {/each}
-                    </div>
-
-                    <!-- T10 boundary marker -->
-                    <div class="relative h-0">
-                        <div class="absolute top-0 w-px h-2 bg-white/20 -translate-y-2"
-                             style="left: calc(50% - 0.5px)"></div>
-                    </div>
-
-                    <!-- Rich stat tooltip -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 hidden group-hover:block
-                                w-72 bg-[#0d0f1a] border border-white/10 rounded-xl shadow-2xl pointer-events-none overflow-hidden">
-
-                        <!-- Header -->
-                        <div class="px-3 pt-3 pb-2 flex items-center justify-between
-                                    {val > 100 ? 'bg-amber-950/30' : ''}">
-                            <p class="text-xs font-bold {stat.text}">{stat.name}</p>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
-                                             {val > 100
-                                                ? 'bg-amber-500/20 text-amber-300'
-                                                : 'bg-white/5 text-slate-400'}">
-                                    T{Math.min(20, tier)} · {val}
-                                </span>
-                                {#if val > 100}
-                                    <span class="text-[9px] text-amber-400 font-bold">✦ SECONDARY</span>
-                                {/if}
+                    {:else}
+                        <!-- Decorative diamond placeholder -->
+                        <div class="w-20 h-20 bg-[#0a0a0a] border-2 border-zinc-800
+                                    flex items-center justify-center rotate-45
+                                    group-hover:border-emerald-500/50 group-hover:rotate-90
+                                    transition-all duration-700 shadow-2xl">
+                            <div class="w-10 h-10 border border-emerald-400/60 rotate-0
+                                        flex items-center justify-center">
+                                <div class="w-2 h-2 bg-emerald-500"></div>
                             </div>
                         </div>
-
-                        {#if stat.description}
-                            <p class="text-[10px] text-slate-400 leading-snug px-3 pb-2">{stat.description}</p>
-                        {/if}
-
-                        <!-- ── PRIMARY ZONE ──────────────────────────────── -->
-                        {#if abilityData}
-                            <div class="border-t border-white/[0.06] px-3 py-2 space-y-1.5">
-                                <p class="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">
-                                    Primary Zone (0–100) · {abilityData.label}
-                                </p>
-
-                                {#if abilityData.format === 'time' && abilityData.table}
-                                    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                                        {#each abilityData.table as row}
-                                            <span class="text-[9px] font-bold tabular-nums
-                                                         {row.tier === primaryTier ? stat.text : 'text-slate-700'}">
-                                                T{row.tier}{row.tier === primaryTier ? ' ◀' : ''}
-                                            </span>
-                                            <span class="text-[9px]
-                                                         {row.tier === primaryTier ? 'text-white font-bold' : 'text-slate-700'}">
-                                                {fmtCooldown(row.seconds)}
-                                            </span>
-                                        {/each}
-                                    </div>
-
-                                {:else if abilityData.format === 'pct_dr'}
-                                    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                                        {#each abilityData.table as row}
-                                            <span class="text-[9px] font-bold tabular-nums
-                                                         {row.tier === primaryTier ? stat.text : 'text-slate-700'}">
-                                                T{row.tier}{row.tier === primaryTier ? ' ◀' : ''}
-                                            </span>
-                                            <span class="text-[9px]
-                                                         {row.tier === primaryTier ? 'text-white font-bold' : 'text-slate-700'}">
-                                                {row.tier === 0 ? 'No DR' : `+${row.pct.toFixed(2)}% DR`}
-                                            </span>
-                                        {/each}
-                                    </div>
-                                    {#if abilityData.barricade}
-                                        <p class="text-[8px] text-slate-600 pt-1 border-t border-white/[0.04]">
-                                            Titan Barricade T{primaryTier}: {fmtCooldown(getTierRow(abilityData.barricade, primaryTier).seconds)}
-                                        </p>
-                                    {/if}
-
-                                {:else if abilityData.format === 'pct_faster'}
-                                    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                                        {#each abilityData.table as row}
-                                            <span class="text-[9px] font-bold tabular-nums
-                                                         {row.tier === primaryTier ? stat.text : 'text-slate-700'}">
-                                                T{row.tier}{row.tier === primaryTier ? ' ◀' : ''}
-                                            </span>
-                                            <span class="text-[9px]
-                                                         {row.tier === primaryTier ? 'text-white font-bold' : 'text-slate-700'}">
-                                                {row.pct === 0 ? 'No bonus' : `${row.pct}% faster charge`}
-                                            </span>
-                                        {/each}
-                                    </div>
-
-                                {:else if abilityData.format === 'class_ability' && abilityData.rift}
-                                    <p class="text-[9px] text-slate-400">
-                                        Warlock Rift at T{primaryTier}:
-                                        <span class="text-white font-bold">{fmtCooldown(getTierRow(abilityData.rift, primaryTier).seconds)}</span>
-                                    </p>
-                                    <p class="text-[8px] text-slate-600">Dodge / Barricade times on Weapons / Health stat respectively.</p>
-                                {/if}
-
-                                {#if abilityData.note}
-                                    <p class="text-[8px] text-slate-600 italic leading-snug">{abilityData.note}</p>
-                                {/if}
-                            </div>
-                        {/if}
-
-                        <!-- ── SECONDARY ZONE (101-200) ──────────────────── -->
-                        {#if secondaryDef}
-                            <div class="border-t-2 {val > 100 ? 'border-amber-500/40' : 'border-white/[0.06]'}
-                                        px-3 py-2 {val > 100 ? 'bg-amber-950/20' : ''}">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-[9px] font-semibold uppercase tracking-wider
-                                               {val > 100 ? 'text-amber-400' : 'text-slate-600'}">
-                                        Secondary Zone (101–200) · {secondaryDef.label}
-                                    </p>
-                                    {#if val <= 100}
-                                        <span class="text-[8px] text-slate-700">locked</span>
-                                    {/if}
-                                </div>
-
-                                <!-- Per-bonus rows -->
-                                <div class="space-y-2">
-                                    {#each secondaryDef.bonuses as bonus}
-                                        {@const current = calcSecondary(val, bonus.max)}
-                                        {@const pct     = Math.min(100, ((val - 100) / 100) * 100)}
-                                        <div class="group/sb relative">
-                                            <div class="flex items-center justify-between mb-0.5">
-                                                <span class="text-[9px] {val > 100 ? 'text-slate-300' : 'text-slate-600'}">
-                                                    {bonus.label}
-                                                </span>
-                                                <span class="text-[9px] font-bold tabular-nums
-                                                             {val > 100 ? 'text-amber-300' : 'text-slate-600'}">
-                                                    {val > 100 ? fmtSecondary(current, bonus.unit) ?? '0' : '—'}
-                                                    <span class="text-slate-600 font-normal"> / {fmtSecondary(bonus.max, bonus.unit)}</span>
-                                                </span>
-                                            </div>
-                                            <!-- Progress bar: 0% at stat 100, 100% at stat 200 -->
-                                            <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-                                                <div class="h-full rounded-full transition-all
-                                                            {val > 100 ? 'bg-amber-400' : 'bg-white/10'}"
-                                                     style="width:{val > 100 ? pct.toFixed(1) : 0}%">
-                                                </div>
-                                            </div>
-                                            <!-- Bonus description tooltip-on-tooltip -->
-                                            {#if bonus.desc}
-                                                <div class="absolute right-0 bottom-full mb-1.5 z-[60] hidden group-hover/sb:block
-                                                            w-60 bg-[#0a0c18] border border-amber-500/20 rounded-lg p-2
-                                                            shadow-2xl pointer-events-none">
-                                                    <p class="text-[10px] text-slate-300 leading-snug">{bonus.desc}</p>
-                                                </div>
-                                            {/if}
-                                        </div>
-                                    {/each}
-                                </div>
-
-                                <!-- Highlight breakpoint note -->
-                                {#if secondaryDef.highlight && val >= secondaryDef.highlight}
-                                    <div class="mt-2 px-2 py-1.5 bg-amber-500/10 rounded border border-amber-500/20">
-                                        <p class="text-[9px] text-amber-300 leading-snug">
-                                            ✦ {secondaryDef.highlightNote}
-                                        </p>
-                                    </div>
-                                {:else if secondaryDef.highlight && val < secondaryDef.highlight && val > 100}
-                                    <p class="text-[8px] text-slate-600 mt-1.5 leading-snug italic">
-                                        Notable breakpoint: {secondaryDef.highlightNote}
-                                    </p>
-                                {/if}
-
-                                {#if secondaryDef.note}
-                                    <p class="text-[8px] text-slate-600 italic mt-1.5 leading-snug">{secondaryDef.note}</p>
-                                {/if}
-                            </div>
-                        {/if}
-
-                        <!-- Footer -->
-                        <div class="px-3 py-1.5 border-t border-white/[0.04] bg-white/[0.01]">
-                            <p class="text-[8px] text-slate-700">
-                                0–100: primary tiers (T0–T10) · 101–200: secondary zone, linear per point
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            {/each}
-
-            <!-- Artifact -->
-            {#if artifact}
-                <div class="mt-2 pt-3 border-t border-white/[0.05]">
-                    <p class="text-[10px] text-slate-600 uppercase tracking-widest mb-2 font-semibold">Artifact</p>
-                    <div class="flex items-center gap-2">
-                        {#if artifact.icon}
-                            <img src={artifact.icon} alt={artifact.name}
-                                 class="w-9 h-9 object-cover rounded ring-1 ring-white/10" />
-                        {/if}
-                        <div>
-                            <p class="text-xs text-white font-medium leading-tight">{artifact.name}</p>
-                            <p class="text-[10px] text-yellow-400 mt-0.5">+{artifact.powerBonus} Power</p>
-                        </div>
-                    </div>
-                </div>
-            {/if}
-
-            <!-- Ship -->
-            {#if eq.ship}
-                <div class="mt-auto pt-3 border-t border-white/[0.05]">
-                    <div class="flex items-center gap-2">
-                        {#if eq.ship.icon}
-                            <img src={eq.ship.icon} alt={eq.ship.name}
-                                 class="w-8 h-8 object-cover rounded ring-1 ring-white/10 opacity-60" />
-                        {/if}
-                        <p class="text-[10px] text-slate-600 truncate">{eq.ship.name}</p>
-                    </div>
-                </div>
-            {/if}
-        </div>
-
-        <!-- ═══ RIGHT: Armor ═════════════════════════════════════════════════ -->
-        <div class="p-4 space-y-2">
-            <p class="text-[10px] text-slate-600 uppercase tracking-widest mb-3 font-semibold">Armor</p>
-
-            {#each ARMOR_SLOTS as slot}
-                {@const item = eq[slot]}
-                {#if item}
-                    <div class="flex gap-3 items-start">
-                        <!-- Icon -->
-                        <div class="relative shrink-0 w-14 h-14 rounded"
-                             style="outline: 2px solid {TIER_COLOR[item.tierType] ?? '#555'}; outline-offset: -1px;">
-                            {#if item.icon}
-                                <img src={item.icon} alt={item.name} class="w-full h-full object-cover rounded" />
-                            {:else}
-                                <div class="w-full h-full bg-white/5 rounded"></div>
-                            {/if}
-                            {#if item.power}
-                                <span class="absolute bottom-0.5 right-0.5 text-[9px] font-bold
-                                             text-yellow-300 bg-black/70 px-0.5 rounded leading-none py-0.5">
-                                    {item.power}
-                                </span>
-                            {/if}
-                        </div>
-
-                        <!-- Info -->
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-semibold text-white truncate leading-tight">{item.name}</p>
-                            <p class="text-[11px] text-slate-500 mt-0.5">
-                                {TIER_LABEL[item.tierType] ?? ''} · {item.itemTypeDisplayName}
-                            </p>
-
-                            <!-- Per-piece stat mini-bars -->
-                            {#if item.armorStats}
-                                <div class="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-0.5">
-                                    {#each item.armorStats as s}
-                                        {@const pct = Math.min(100, (s.value / Math.max(s.maximum, 30)) * 100)}
-                                        <div class="flex items-center gap-1" title="{s.name}: {s.value} / {s.maximum}">
-                                            <span class="text-[8px] font-bold {s.text} w-5 shrink-0">{s.short.split('/')[0]}</span>
-                                            <div class="flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden">
-                                                <div class="{s.color} h-full rounded-full"
-                                                     style="width:{pct.toFixed(0)}%"></div>
-                                            </div>
-                                            <span class="text-[8px] text-slate-400 w-4 text-right tabular-nums">{s.value}</span>
-                                        </div>
-                                    {/each}
-                                </div>
-                            {/if}
-
-                            <!-- Armor mods with rich tooltips -->
-                            {#if item.mods?.length}
-                                <div class="mt-1.5 flex gap-1 flex-wrap">
-                                    {#each item.mods as mod}
-                                        <div class="group/m relative">
-                                            {#if mod.icon}
-                                                <img src={mod.icon} alt={mod.name}
-                                                     class="w-5 h-5 object-cover rounded-sm ring-1
-                                                            {mod.isEnabled ? 'ring-blue-400/50 opacity-90' : 'ring-white/10 opacity-40'}" />
-                                            {/if}
-                                            <!-- Mod tooltip -->
-                                            <div class="absolute bottom-full left-0 mb-1.5 z-50 hidden group-hover/m:block
-                                                        w-60 bg-[#0d0f1a] border border-white/10 rounded-xl p-3
-                                                        shadow-2xl pointer-events-none">
-                                                <p class="text-xs font-bold text-white mb-0.5">{mod.name}</p>
-                                                <p class="text-[9px] text-blue-400 mb-1.5">{mod.itemTypeDisplayName}</p>
-                                                {#if mod.description}
-                                                    <p class="text-[10px] text-slate-300 leading-snug mb-2">{mod.description}</p>
-                                                {/if}
-                                                <!-- Stat bonuses -->
-                                                {#if mod.statBonuses?.length}
-                                                    <div class="flex flex-wrap gap-1 pt-2 border-t border-white/[0.06]">
-                                                        <span class="text-[8px] text-slate-600 w-full uppercase tracking-wider mb-0.5">Stat Bonuses</span>
-                                                        {#each mod.statBonuses as bonus}
-                                                            {@const fmt = formatBonus(bonus)}
-                                                            {#if fmt}
-                                                                <span class="text-[9px] font-bold {fmt.color} bg-white/[0.05] rounded px-1.5 py-0.5">
-                                                                    {fmt.value} {fmt.fullName}
-                                                                </span>
-                                                            {/if}
-                                                        {/each}
-                                                    </div>
-                                                {/if}
-                                                {#if mod.conditionalBonuses?.length}
-                                                    <div class="flex flex-wrap gap-1 pt-1.5 mt-1 border-t border-white/[0.04]">
-                                                        <span class="text-[8px] text-slate-600 w-full uppercase tracking-wider mb-0.5">Conditional</span>
-                                                        {#each mod.conditionalBonuses as bonus}
-                                                            {@const fmt = formatBonus(bonus)}
-                                                            {#if fmt}
-                                                                <span class="text-[9px] {fmt.color} opacity-60 italic">
-                                                                    {fmt.value} {fmt.fullName}
-                                                                </span>
-                                                            {/if}
-                                                        {/each}
-                                                    </div>
-                                                {/if}
-                                                {#if !mod.isEnabled}
-                                                    <p class="text-[9px] text-red-400 mt-1.5 pt-1.5 border-t border-white/[0.06]">
-                                                        ⚠ Not active (requirements unmet)
-                                                    </p>
-                                                {/if}
-                                            </div>
-                                        </div>
-                                    {/each}
-                                </div>
-                            {/if}
-                        </div>
-                    </div>
-                {:else}
-                    <div class="flex gap-3 items-center opacity-20">
-                        <div class="w-14 h-14 rounded border border-white/10 border-dashed"></div>
-                        <p class="text-xs text-slate-500 capitalize">{slot}</p>
-                    </div>
-                {/if}
-            {/each}
-        </div>
-    </div>
-
-    <!-- ═══ SUBCLASS ABILITIES, ASPECTS & FRAGMENTS ═══════════════════════════ -->
-    {#if subclassSockets && (abilityList.length || subclassSockets.aspects?.length || subclassSockets.fragments?.length)}
-        <div class="border-t border-white/[0.06] p-4">
-            <p class="text-[10px] text-slate-600 uppercase tracking-widest mb-4 font-semibold">
-                Subclass Build
-            </p>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                <!-- Abilities column -->
-                {#if abilityList.length}
-                    <div>
-                        <p class="text-[9px] text-slate-700 uppercase tracking-widest mb-2">Abilities</p>
-                        <div class="space-y-1.5">
-                            {#each abilityList as ability}
-                                {@const colors = socketTypeColor(ability)}
-                                <div class="group/a relative flex items-start gap-2
-                                            {colors.bg} rounded-lg px-2.5 py-2 ring-1 {colors.ring}">
-                                    {#if ability.icon}
-                                        <img src={ability.icon} alt={ability.name}
-                                             class="w-8 h-8 rounded shrink-0 object-cover mt-0.5" />
-                                    {/if}
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-1.5">
-                                            <p class="text-[11px] font-semibold {colors.text} truncate leading-tight">
-                                                {ability.name}
-                                            </p>
-                                        </div>
-                                        <p class="text-[9px] text-slate-600 capitalize">{ability._type}</p>
-                                        {#if ability.description}
-                                            <p class="text-[9px] text-slate-400 mt-0.5 leading-snug line-clamp-2">
-                                                {ability.description}
-                                            </p>
-                                        {/if}
-                                    </div>
-                                    <!-- Full description tooltip -->
-                                    {#if ability.description}
-                                        <div class="absolute bottom-full left-0 mb-2 z-50 hidden group-hover/a:block
-                                                    w-72 bg-[#0d0f1a] border border-white/10 rounded-xl p-3
-                                                    shadow-2xl pointer-events-none">
-                                            <div class="flex items-center gap-2 mb-2">
-                                                {#if ability.icon}
-                                                    <img src={ability.icon} alt="" class="w-8 h-8 rounded object-cover" />
-                                                {/if}
-                                                <div>
-                                                    <p class="text-xs font-bold {colors.text}">{ability.name}</p>
-                                                    <p class="text-[9px] text-slate-600 capitalize">{ability.itemTypeDisplayName}</p>
-                                                </div>
-                                            </div>
-                                            <p class="text-[10px] text-slate-300 leading-snug">{ability.description}</p>
-                                            {#if ability.flavorText}
-                                                <p class="text-[9px] text-slate-600 italic mt-2 leading-snug">{ability.flavorText}</p>
-                                            {/if}
-                                        </div>
-                                    {/if}
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-
-                <!-- Aspects column -->
-                {#if subclassSockets.aspects?.length}
-                    <div>
-                        <p class="text-[9px] text-slate-700 uppercase tracking-widest mb-2">Aspects</p>
-                        <div class="space-y-2">
-                            {#each subclassSockets.aspects as aspect}
-                                {@const colors = SOCKET_COLORS.aspect}
-                                <div class="group/asp relative {colors.bg} rounded-lg px-2.5 py-2.5 ring-1 {colors.ring}">
-                                    <div class="flex items-start gap-2">
-                                        {#if aspect.icon}
-                                            <img src={aspect.icon} alt={aspect.name}
-                                                 class="w-8 h-8 rounded shrink-0 object-cover mt-0.5" />
-                                        {/if}
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-[11px] font-semibold {colors.text} leading-tight">{aspect.name}</p>
-                                            <p class="text-[9px] text-slate-500 mt-0.5 leading-snug line-clamp-3">
-                                                {aspect.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <!-- Full tooltip -->
-                                    <div class="absolute bottom-full left-0 mb-2 z-50 hidden group-hover/asp:block
-                                                w-80 bg-[#0d0f1a] border border-white/10 rounded-xl p-3
-                                                shadow-2xl pointer-events-none">
-                                        <div class="flex items-center gap-2 mb-2">
-                                            {#if aspect.icon}
-                                                <img src={aspect.icon} alt="" class="w-9 h-9 rounded object-cover" />
-                                            {/if}
-                                            <div>
-                                                <p class="text-xs font-bold {colors.text}">{aspect.name}</p>
-                                                <p class="text-[9px] text-slate-500">Aspect · {aspect.itemTypeDisplayName}</p>
-                                            </div>
-                                        </div>
-                                        <p class="text-[10px] text-slate-300 leading-relaxed">{aspect.description}</p>
-                                        {#if aspect.flavorText}
-                                            <p class="text-[9px] text-slate-600 italic mt-2 leading-snug">{aspect.flavorText}</p>
-                                        {/if}
-                                        {#if aspect.statBonuses?.length}
-                                            <div class="mt-2 pt-2 border-t border-white/[0.06] flex flex-wrap gap-1">
-                                                {#each aspect.statBonuses as bonus}
-                                                    {@const fmt = formatBonus(bonus)}
-                                                    {#if fmt}
-                                                        <span class="text-[9px] font-bold {fmt.color} bg-white/[0.05] rounded px-1.5 py-0.5">
-                                                            {fmt.value} {fmt.fullName}
-                                                        </span>
-                                                    {/if}
-                                                {/each}
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-
-                <!-- Fragments column -->
-                {#if subclassSockets.fragments?.length}
-                    <div>
-                        <p class="text-[9px] text-slate-700 uppercase tracking-widest mb-2">Fragments</p>
-                        <div class="space-y-1.5">
-                            {#each subclassSockets.fragments as fragment}
-                                {@const colors = SOCKET_COLORS.fragment}
-                                {@const bonuses = fragmentBonuses(fragment)}
-                                <div class="group/frag relative flex items-start gap-2
-                                            {colors.bg} rounded-lg px-2.5 py-2 ring-1 {colors.ring}">
-                                    {#if fragment.icon}
-                                        <img src={fragment.icon} alt={fragment.name}
-                                             class="w-7 h-7 rounded shrink-0 object-cover mt-0.5" />
-                                    {/if}
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-[10px] font-semibold {colors.text} leading-tight">{fragment.name}</p>
-                                        <!-- Stat bonuses inline (fragments often have -10 penalties) -->
-                                        {#if bonuses.length}
-                                            <div class="flex flex-wrap gap-0.5 mt-0.5">
-                                                {#each bonuses as b}
-                                                    <span class="text-[8px] font-bold {b.color}">{b.value} {b.label}</span>
-                                                {/each}
-                                            </div>
-                                        {/if}
-                                        {#if fragment.description}
-                                            <p class="text-[9px] text-slate-500 mt-0.5 leading-snug line-clamp-2">
-                                                {fragment.description}
-                                            </p>
-                                        {/if}
-                                    </div>
-                                    <!-- Full tooltip -->
-                                    <div class="absolute bottom-full left-0 mb-2 z-50 hidden group-hover/frag:block
-                                                w-72 bg-[#0d0f1a] border border-white/10 rounded-xl p-3
-                                                shadow-2xl pointer-events-none">
-                                        <div class="flex items-center gap-2 mb-2">
-                                            {#if fragment.icon}
-                                                <img src={fragment.icon} alt="" class="w-8 h-8 rounded object-cover" />
-                                            {/if}
-                                            <div>
-                                                <p class="text-xs font-bold {colors.text}">{fragment.name}</p>
-                                                <p class="text-[9px] text-slate-500">Fragment</p>
-                                            </div>
-                                        </div>
-                                        {#if fragment.description}
-                                            <p class="text-[10px] text-slate-300 leading-relaxed">{fragment.description}</p>
-                                        {/if}
-                                        {#if fragment.flavorText}
-                                            <p class="text-[9px] text-slate-600 italic mt-2 leading-snug">{fragment.flavorText}</p>
-                                        {/if}
-                                        {#if bonuses.length}
-                                            <div class="mt-2 pt-2 border-t border-white/[0.06]">
-                                                <p class="text-[8px] text-slate-600 uppercase tracking-wider mb-1">Stat Changes</p>
-                                                <div class="flex flex-wrap gap-1">
-                                                    {#each bonuses as b}
-                                                        <span class="text-[9px] font-bold {b.color} bg-white/[0.05] rounded px-1.5 py-0.5">
-                                                            {b.value} {b.fullName}
-                                                        </span>
-                                                    {/each}
-                                                </div>
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-            </div>
-        </div>
-    {/if}
-</div>
-
-<!-- ── Shared perk icon snippet ──────────────────────────────────────────────── -->
-{#snippet PerkIcon(perk, ring = 'ring-white/10', labelClass = 'text-white', prefix = '')}
-    <div class="group/p relative">
-        {#if perk.icon}
-            <img src={perk.icon} alt={perk.name}
-                 class="w-6 h-6 object-cover rounded ring-1 {ring}
-                        {perk.isEnabled === false ? 'opacity-30' : 'opacity-90'}" />
-        {:else}
-            <!-- Fallback: name initial if no icon -->
-            <div class="w-6 h-6 rounded ring-1 {ring} bg-white/5 flex items-center justify-center">
-                <span class="text-[8px] font-bold text-slate-400">{(perk.name ?? '?')[0]}</span>
-            </div>
-        {/if}
-        <!-- Rich tooltip -->
-        <div class="absolute bottom-full left-0 mb-2 z-50 hidden group-hover/p:block
-                    w-72 bg-[#0d0f1a] border border-white/10 rounded-xl p-3
-                    shadow-2xl pointer-events-none">
-            <div class="flex items-start gap-2 mb-2">
-                {#if perk.icon}
-                    <img src={perk.icon} alt="" class="w-8 h-8 rounded object-cover shrink-0" />
-                {/if}
-                <div>
-                    <p class="text-xs font-bold {labelClass} leading-tight">{prefix}{perk.name}</p>
-                    {#if perk.itemTypeDisplayName}
-                        <p class="text-[9px] text-slate-600 mt-0.5">{perk.itemTypeDisplayName}</p>
                     {/if}
                 </div>
-            </div>
-            {#if perk.description}
-                <p class="text-[10px] text-slate-300 leading-relaxed">{perk.description}</p>
-            {/if}
-            {#if perk.flavorText}
-                <p class="text-[9px] text-slate-600 italic mt-2 leading-snug border-t border-white/[0.05] pt-2">{perk.flavorText}</p>
-            {/if}
-            <!-- investmentStat bonuses -->
-            {#if perk.statBonuses?.length}
-                <div class="mt-2 pt-2 border-t border-white/[0.06]">
-                    <p class="text-[8px] text-slate-600 uppercase tracking-wider mb-1">Stat Bonuses</p>
-                    <div class="flex flex-wrap gap-1">
-                        {#each perk.statBonuses as bonus}
-                            {@const fmt = formatBonus(bonus)}
-                            {#if fmt}
-                                <span class="text-[9px] font-bold {fmt.color} bg-white/[0.05] rounded px-1.5 py-0.5">
-                                    {fmt.value} {fmt.fullName}
-                                </span>
-                            {/if}
-                        {/each}
-                    </div>
+
+                <div class="mt-6 text-center w-full">
+                    <span class="text-[9px] text-zinc-600 uppercase tracking-[0.2em] font-bold block mb-1">
+                        SUBCLASS
+                    </span>
+                    <p class="text-[11px] font-bold text-zinc-100 uppercase tracking-widest {subclassElement.text}">
+                        {eq.subclass?.name ?? '—'}
+                    </p>
                 </div>
-            {/if}
-            {#if perk.isEnabled === false}
-                <p class="text-[9px] text-red-400 mt-2 pt-2 border-t border-white/[0.06]">
-                    ⚠ Perk not active (requirements not met)
-                </p>
-            {/if}
+            </div>
+
+            <!-- Weapons -->
+            <div class="space-y-10 w-full flex flex-col items-center pt-8 border-t border-zinc-800/40">
+                {#each [
+                    { key: 'kinetic', label: 'KINETIC' },
+                    { key: 'energy',  label: 'ENERGY'  },
+                    { key: 'power',   label: 'POWER'   },
+                ] as w}
+                    {@const item   = eq[w.key]}
+                    {@const exotic = item?.tierType === 6}
+                    <div class="group flex flex-col items-center gap-2 cursor-pointer w-full">
+                        <div class="w-20 h-20 bg-[#0c0c0c]
+                                    border {exotic ? 'border-amber-500/20' : 'border-zinc-800'}
+                                    relative group-hover:border-zinc-500 transition-all duration-300
+                                    mx-auto overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+                            <!-- Rarity bar -->
+                            <div class="absolute top-0 left-0 w-full h-px opacity-70
+                                        {exotic ? 'bg-amber-500' : 'bg-zinc-100'}"></div>
+
+                            {#if item?.iconPath}
+                                <img src="https://www.bungie.net{item.iconPath}" alt=""
+                                     class="w-full h-full object-cover" />
+                            {:else}
+                                <!-- Diamond placeholder -->
+                                <div class="w-full h-full flex items-center justify-center
+                                            opacity-10 group-hover:opacity-30 transition-opacity">
+                                    <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
+                                </div>
+                            {/if}
+
+                            <!-- Tier label -->
+                            <div class="absolute bottom-0 right-0 px-1.5 bg-black/60
+                                        text-[8px] text-zinc-500 uppercase font-bold tracking-tighter">
+                                {TIER_LABEL[item?.tierType] ?? 'UNKNOWN'}
+                            </div>
+                        </div>
+
+                        <div class="text-center w-full">
+                            <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">{w.label}</p>
+                            <p class="text-[10px] font-bold uppercase tracking-tight
+                                      text-zinc-200 group-hover:text-white truncate w-28 mx-auto">
+                                {item?.name ?? '—'}
+                            </p>
+                        </div>
+                    </div>
+                {/each}
+            </div>
+        </div>
+
+        <!-- ── COLUMN 2: CHARACTER CORE (6/12) ────────────────────────────── -->
+        <div class="col-span-6 relative flex items-center justify-center min-h-[500px]">
+
+            <!-- Background decorative rings -->
+            <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+                <div class="w-[400px] h-[400px] border border-emerald-500 rounded-full animate-pulse"></div>
+                <div class="absolute w-[500px] h-[500px] border border-zinc-800 rounded-full"></div>
+            </div>
+
+            <!-- Center content area -->
+            <div class="w-80 h-[480px] relative z-10 flex flex-col items-center justify-center gap-8">
+
+                <!-- Ambient gradient -->
+                <div class="absolute inset-0 opacity-40 blur-3xl pointer-events-none"
+                     style="background: linear-gradient(to top, {subclassColor}, transparent)">
+                </div>
+
+                <!-- Rotated label -->
+                <div class="text-[10px] text-zinc-800 uppercase tracking-[1em] text-center
+                            rotate-90 whitespace-nowrap font-bold select-none opacity-40 absolute">
+                    CHARACTER_ENTITY
+                </div>
+
+                <!-- Real character data — centered -->
+                <div class="relative flex flex-col items-center gap-4 z-10">
+                    <!-- Class icon / emblem if available -->
+                    {#if eq.subclass?.iconPath}
+                        <div class="w-16 h-16 relative">
+                            <div class="absolute inset-0 rounded-full blur-xl opacity-30"
+                                 style="background: {subclassColor}"></div>
+                            <img src="https://www.bungie.net{eq.subclass.iconPath}" alt=""
+                                 class="w-16 h-16 object-cover opacity-20" />
+                        </div>
+                    {/if}
+
+                    <!-- Class name -->
+                    <div class="text-center">
+                        <p class="text-[9px] text-zinc-700 uppercase tracking-[0.4em] font-bold mb-1">
+                            Guardian Class
+                        </p>
+                        <p class="font-serif text-3xl font-light italic text-white/80 leading-none">
+                            {classNames[char?.classType] ?? '—'}
+                        </p>
+                    </div>
+
+                    <!-- Power level -->
+                    {#if char?.light}
+                        <div class="text-center border border-zinc-800 px-6 py-2 bg-[#0a0a0a]">
+                            <p class="text-[8px] text-zinc-600 uppercase tracking-[0.3em] font-bold mb-1">
+                                Power Level
+                            </p>
+                            <p class="text-2xl font-mono font-bold text-yellow-500/80">{char.light}</p>
+                        </div>
+                    {/if}
+
+                    <!-- Artifact bonus -->
+                    {#if artifact?.powerBonusProgression?.level}
+                        <div class="text-center">
+                            <p class="text-[8px] text-zinc-700 uppercase tracking-[0.3em] font-bold">
+                                +{artifact.powerBonusProgression.level} Artifact Bonus
+                            </p>
+                        </div>
+                    {/if}
+                </div>
+
+                <!-- Corner brackets -->
+                <div class="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-zinc-800"></div>
+                <div class="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-zinc-800"></div>
+            </div>
+        </div>
+
+        <!-- ── COLUMN 3: ARMOR & STATS (3/12) ─────────────────────────────── -->
+        <div class="col-span-3 flex flex-col space-y-8 items-center h-full">
+
+            <!-- Armor slots -->
+            <div class="flex flex-col items-center gap-6 w-full">
+                {#each [
+                    { key: 'helmet',    label: 'HELMET' },
+                    { key: 'gauntlets', label: 'ARMS'   },
+                    { key: 'chest',     label: 'CHEST'  },
+                    { key: 'legs',      label: 'LEGS'   },
+                ] as a}
+                    {@const item   = eq[a.key]}
+                    {@const exotic = item?.tierType === 6}
+                    <div class="group flex flex-col items-center gap-2 cursor-pointer w-full">
+                        <div class="w-20 h-20 bg-[#0c0c0c]
+                                    border {exotic ? 'border-amber-500/20' : 'border-zinc-800'}
+                                    relative group-hover:border-zinc-500 transition-all duration-300
+                                    mx-auto overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+                            <!-- Rarity bar -->
+                            <div class="absolute top-0 left-0 w-full h-px opacity-70
+                                        {exotic ? 'bg-amber-500' : 'bg-zinc-100'}"></div>
+
+                            {#if item?.iconPath}
+                                <img src="https://www.bungie.net{item.iconPath}" alt=""
+                                     class="w-full h-full object-cover" />
+                            {:else}
+                                <div class="w-full h-full flex items-center justify-center
+                                            opacity-10 group-hover:opacity-30 transition-opacity">
+                                    <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
+                                </div>
+                            {/if}
+
+                            <div class="absolute bottom-0 right-0 px-1.5 bg-black/60
+                                        text-[8px] text-zinc-500 uppercase font-bold tracking-tighter">
+                                {TIER_LABEL[item?.tierType] ?? 'UNKNOWN'}
+                            </div>
+                        </div>
+
+                        <div class="text-center w-full">
+                            <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">{a.label}</p>
+                            <p class="text-[10px] font-bold uppercase tracking-tight
+                                      text-zinc-200 group-hover:text-white truncate w-28 mx-auto">
+                                {item?.name ?? '—'}
+                            </p>
+                        </div>
+                    </div>
+                {/each}
+            </div>
+
+            <!-- Stats Summary Panel -->
+            <div class="w-full mt-auto bg-[#0a0a0a] border border-zinc-800 p-5
+                        shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
+
+                <!-- Header -->
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-3 mb-3">
+                    <span class="text-[10px] text-emerald-500 uppercase tracking-widest font-bold">STATS</span>
+                    <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                </div>
+
+                <!-- Stat rows -->
+                {#each armorStatMeta as stat}
+                    {@const total      = totalStats[stat.name] ?? 0}
+                    {@const bonus      = Math.max(0, total - 100)}
+                    {@const percentage = Math.min((total / 200) * 100, 100)}
+                    <div class="flex items-center gap-3 w-full group py-1.5">
+                        <!-- Indicator dot -->
+                        <div class="w-3 h-3 bg-zinc-900 border border-zinc-800
+                                    flex items-center justify-center shrink-0">
+                            <div class="w-1.5 h-1.5 transition-colors duration-300
+                                        {bonus > 0
+                                            ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]'
+                                            : 'bg-zinc-700'}">
+                            </div>
+                        </div>
+
+                        <div class="flex-1">
+                            <!-- Label + value row -->
+                            <div class="flex justify-between text-[8px] uppercase tracking-[0.15em]
+                                        text-zinc-500 mb-1">
+                                <span class="font-bold">{stat.name}</span>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-zinc-200 font-black">{total}</span>
+                                    {#if bonus > 0}
+                                        <span class="text-emerald-500 font-bold text-[7px]">+{bonus} FATE</span>
+                                    {/if}
+                                </div>
+                            </div>
+
+                            <!-- Progress bar -->
+                            <div class="h-px bg-zinc-900 w-full relative">
+                                <div class="h-full transition-all duration-1000 ease-out
+                                            {bonus > 0 ? 'bg-emerald-500' : 'bg-zinc-500'}"
+                                     style="width:{percentage}%">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {/each}
+
+                <!-- Totals footer -->
+                <div class="mt-6 pt-3 border-t border-zinc-800 flex items-center justify-between">
+                    <span class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">
+                        TOTAL: {grandTotal}
+                    </span>
+                    <span class="text-[10px] text-emerald-400 font-bold uppercase italic tracking-tighter">
+                        BUILD TIER {buildTier}
+                    </span>
+                </div>
+            </div>
+
         </div>
     </div>
-{/snippet}
+</div>
