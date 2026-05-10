@@ -662,7 +662,6 @@
                         </div>
 
                         <!-- ── 4 primary metric cards ───────────────────────── -->
-                        {@const motR = motesRank(dAvgMotes)}
                         <div class="grid grid-cols-4 gap-3">
 
                             <!-- Win Ratio -->
@@ -702,11 +701,11 @@
                                 <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">Motes Avg</span>
                                 <div class="flex items-baseline justify-between gap-1">
                                     <span class="text-[28px] font-mono font-bold leading-none
-                                                 {motR ? 'text-emerald-400' : 'text-zinc-100'}">
+                                                 {motesRank(dAvgMotes) ? 'text-emerald-400' : 'text-zinc-100'}">
                                         {dEntered > 0 ? fmtF(dAvgMotes, 1) : '—'}
                                     </span>
-                                    {#if motR}
-                                        <span class="text-[9px] font-mono font-bold {motR.color} text-right shrink-0">{motR.label}</span>
+                                    {#if motesRank(dAvgMotes)}
+                                        <span class="text-[9px] font-mono font-bold {motesRank(dAvgMotes).color} text-right shrink-0">{motesRank(dAvgMotes).label}</span>
                                     {:else}
                                         <span class="text-[9px] font-mono text-zinc-600 text-right shrink-0 leading-tight">
                                             {fmt(dMotes)}<br/>total
