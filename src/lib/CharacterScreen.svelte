@@ -380,42 +380,55 @@
                         </svg>
                     </button>
 
-                    <!-- Item header -->
-                    <div class="flex items-center gap-4 p-5 border-b border-zinc-800 shrink-0">
+                    <!-- Item header — masterwork: DIM purple bg + gold border -->
+                    <div class="flex items-center gap-4 p-5 shrink-0 border-b-2 transition-colors duration-300
+                                {selectedItem.masterwork && selectedType === 'weapon'
+                                    ? 'border-[#e2bc15]'
+                                    : 'border-zinc-800'}"
+                         style={selectedItem.masterwork && selectedType === 'weapon'
+                             ? 'background:linear-gradient(135deg,rgb(81,48,101) 0%,rgb(50,28,65) 100%)'
+                             : ''}>
                         {#if selectedItem.icon}
                             <div class="w-16 h-16 shrink-0 relative overflow-hidden border
-                                        {selectedItem.tierType === 6 ? 'border-amber-500/40' : 'border-zinc-700'}">
+                                        {selectedItem.tierType === 6 ? 'border-amber-500/60' :
+                                         selectedItem.masterwork && selectedType === 'weapon' ? 'border-[#e2bc15]/60' :
+                                         'border-zinc-700'}">
                                 <div class="absolute top-0 left-0 w-full h-px
-                                            {selectedItem.tierType === 6 ? 'bg-amber-500' : 'bg-zinc-300'} opacity-60"></div>
+                                            {selectedItem.tierType === 6 ? 'bg-amber-500' :
+                                             selectedItem.masterwork ? 'bg-[#e2bc15]' :
+                                             'bg-zinc-300'} opacity-70"></div>
                                 <img src={selectedItem.icon} alt="" class="w-full h-full object-cover" />
                             </div>
                         {/if}
                         <div class="min-w-0 flex-1">
                             <span class="text-[8px] font-mono uppercase tracking-[0.2em]
-                                         {selectedItem.tierType === 6 ? 'text-amber-500' : 'text-zinc-600'}">
+                                         {selectedItem.tierType === 6 ? 'text-amber-500' :
+                                          selectedItem.masterwork && selectedType === 'weapon' ? 'text-[#e2bc15]/80' :
+                                          'text-zinc-500'}">
                                 {TIER_LABEL[selectedItem.tierType] ?? '—'}
                                 {#if selectedItem.itemTypeDisplayName}· {selectedItem.itemTypeDisplayName}{/if}
                             </span>
-                            <p class="font-serif text-xl font-light italic text-white leading-tight mt-0.5 truncate">
+                            <!-- DIM-style: bold uppercase name -->
+                            <p class="text-[1.15rem] font-bold uppercase text-white leading-tight mt-0.5 truncate tracking-[0.5px]">
                                 {selectedItem.name}
                             </p>
-                            <!-- Weapon: damage type icon + power -->
+                            <!-- Weapon: damage type + power — DIM weapon-type style -->
                             {#if selectedType === 'weapon'}
-                                <div class="flex items-center gap-2 mt-1">
+                                <div class="flex items-center gap-2 mt-1.5">
                                     {#if selectedItem.damageType}
-                                        <div class="flex items-center gap-1">
+                                        <div class="flex items-center gap-1.5">
                                             {#if selectedItem.damageTypeIcon}
                                                 <img src={selectedItem.damageTypeIcon} alt=""
-                                                     class="w-3.5 h-3.5 object-contain"/>
+                                                     class="w-4 h-4 object-contain"/>
                                             {/if}
-                                            <span class="text-[9px] font-mono uppercase tracking-[0.15em]
-                                                         {damageColor[selectedItem.damageType] ?? 'text-zinc-500'}">
+                                            <span class="text-[0.85rem] leading-none
+                                                         {damageColor[selectedItem.damageType] ?? 'text-white/80'}">
                                                 {selectedItem.damageTypeName ?? damageLabel[selectedItem.damageType] ?? ''}
                                             </span>
                                         </div>
                                     {/if}
                                     {#if selectedItem.power}
-                                        <span class="text-[9px] font-mono text-zinc-500">
+                                        <span class="text-[0.85rem] text-white/60">
                                             {selectedItem.power} PL
                                         </span>
                                     {/if}
@@ -459,32 +472,34 @@
                                 return m;
                             })()}
 
-                            <!-- ① STATS — right-aligned names, amber when boosted by perks -->
+                            <!-- ① STATS — DIM grid: 110px label · 35px number · flex bar -->
                             {#if selectedItem.weaponStats?.length}
-                                <div class="mb-3 pb-3 border-b border-zinc-800/60">
+                                <div class="mb-4 pb-3 border-b border-zinc-800/60">
                                     {#each selectedItem.weaponStats as s}
                                         {@const bonus    = perkBonus[s.hash] ?? 0}
                                         {@const baseVal  = Math.max(0, s.value - bonus)}
                                         {@const maxVal   = s.maximum || 100}
                                         {@const basePct  = Math.min((baseVal / maxVal) * 100, 100)}
                                         {@const bonusPct = Math.min(Math.max((bonus / maxVal) * 100, 0), 100 - basePct)}
-                                        <div class="flex items-center gap-2 py-[2px]">
-                                            <!-- Right-aligned stat name -->
-                                            <span class="text-[8px] font-mono text-right w-[82px] shrink-0 leading-none tracking-wide
-                                                         {bonus > 0 ? 'text-amber-400' : 'text-zinc-500'}">
+                                        <!-- DIM stat row: 110px label | 35px number | bar -->
+                                        <div class="grid items-center mb-1.5"
+                                             style="grid-template-columns:110px 35px 1fr">
+                                            <!-- Stat label -->
+                                            <span class="text-[11px] uppercase leading-none
+                                                         {bonus > 0 ? 'text-amber-400' : 'text-[#abaaaa]'}">
                                                 {s.name}
                                             </span>
-                                            <!-- Value -->
-                                            <span class="text-[9px] font-mono w-6 text-right shrink-0 leading-none
-                                                         {bonus > 0 ? 'text-amber-400 font-bold' : 'text-zinc-400'}">
+                                            <!-- Stat number: right-aligned, bold -->
+                                            <span class="text-[11px] font-bold text-right pr-2 leading-none
+                                                         {bonus > 0 ? 'text-amber-400' : 'text-zinc-200'}">
                                                 {s.value}
                                             </span>
-                                            <!-- Bar: base (zinc) + perk bonus (amber) -->
-                                            <div class="flex-1 h-[3px] bg-zinc-800 flex overflow-hidden">
-                                                <div class="h-full bg-zinc-300 shrink-0 transition-all duration-500"
+                                            <!-- Bar: 12px tall, dark bg, white fill + amber perk bonus -->
+                                            <div class="h-3 bg-[#333] flex overflow-hidden">
+                                                <div class="h-full bg-white shrink-0 transition-all duration-500"
                                                      style="width:{basePct}%"></div>
                                                 {#if bonusPct > 0}
-                                                    <div class="h-full bg-amber-500 shrink-0 transition-all duration-500"
+                                                    <div class="h-full bg-amber-400 shrink-0 transition-all duration-500"
                                                          style="width:{bonusPct}%"></div>
                                                 {/if}
                                             </div>
