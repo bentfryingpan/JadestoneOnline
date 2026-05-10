@@ -1,6 +1,7 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
 import { cacheGet, cacheSet, MANIFEST_TTL } from '$lib/server/cache.js';
+import { getStatDef, getDamageTypeDef, getStatNames } from '$lib/server/manifest.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
@@ -79,7 +80,9 @@ async function bungieGet(url) {
     return res.json();
 }
 
-// Fetch DestinyInventoryItemDefinition with 1-hour cache
+// Fetch DestinyInventoryItemDefinition with 1-hour cache (individual hash endpoint —
+// still needed here since the bulk table is too large to download synchronously
+// inside the loadout request; the manifest service warm-up handles pre-loading).
 async function fetchDef(hash) {
     const cacheKey = `manifest:item:${hash}`;
     const cached   = cacheGet(cacheKey);
@@ -96,57 +99,6 @@ async function fetchDef(hash) {
     } catch {
         return [hash, null];
     }
-}
-
-// Fetch DestinyStatDefinition with 1-hour cache
-async function fetchStatDef(hash) {
-    const cacheKey = `manifest:stat:${hash}`;
-    const cached   = cacheGet(cacheKey);
-    if (cached !== undefined) return cached;
-    try {
-        const r = await fetch(
-            `${BUNGIE_ROOT}/Platform/Destiny2/Manifest/DestinyStatDefinition/${hash}/`,
-            { headers: { 'X-API-Key': BUNGIE_API_KEY } }
-        );
-        const d   = await r.json();
-        const def = d.Response ?? null;
-        cacheSet(cacheKey, def, MANIFEST_TTL);
-        return def;
-    } catch {
-        return null;
-    }
-}
-
-// Fetch DestinyDamageTypeDefinition with 1-hour cache
-async function fetchDamageTypeDef(hash) {
-    if (!hash) return null;
-    const cacheKey = `manifest:dmg:${hash}`;
-    const cached   = cacheGet(cacheKey);
-    if (cached !== undefined) return cached;
-    try {
-        const r = await fetch(
-            `${BUNGIE_ROOT}/Platform/Destiny2/Manifest/DestinyDamageTypeDefinition/${hash}/`,
-            { headers: { 'X-API-Key': BUNGIE_API_KEY } }
-        );
-        const d   = await r.json();
-        const def = d.Response ?? null;
-        cacheSet(cacheKey, def, MANIFEST_TTL);
-        return def;
-    } catch {
-        return null;
-    }
-}
-
-// Fetch weapon stat names live from DestinyStatDefinition, keyed by hash
-// Returns a map of hash → display name for enriching weaponStats labels
-async function fetchWeaponStatNames(hashes) {
-    const entries = await Promise.all(
-        hashes.map(async h => {
-            const def = await fetchStatDef(h);
-            return [h, def?.displayProperties?.name ?? null];
-        })
-    );
-    return Object.fromEntries(entries.filter(([, v]) => v !== null));
 }
 
 export async function GET({ url, setHeaders }) {
@@ -198,11 +150,12 @@ export async function GET({ url, setHeaders }) {
     )];
 
     // ── 4. Fetch armor stat defs + damage type defs + weapon stat names in parallel
+    // Uses manifest service (which maintains its own bulk-table cache).
     const weaponStatHashes = Object.keys(WEAPON_STAT_MAP).map(Number);
     const [armorStatDefs, dmgTypeDefs, weaponStatNames] = await Promise.all([
-        Promise.all(ARMOR_STAT_CONFIG.map(s => fetchStatDef(s.hash))),
-        Promise.all(dmgTypeHashes.map(h => fetchDamageTypeDef(h).then(d => [h, d]))),
-        fetchWeaponStatNames(weaponStatHashes),
+        Promise.all(ARMOR_STAT_CONFIG.map(s => getStatDef(s.hash))),
+        Promise.all(dmgTypeHashes.map(h => getDamageTypeDef(h).then(d => [h, d]))),
+        getStatNames(weaponStatHashes),
     ]);
     const defMap     = defMap_pre; // alias — item defs already fetched above
     const dmgTypeMap = new Map(dmgTypeDefs);
