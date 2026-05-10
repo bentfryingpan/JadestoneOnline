@@ -691,6 +691,7 @@
                 {@render GearSlot('gauntlets', 'ARMS')}
                 {@render GearSlot('chest',     'CHEST')}
                 {@render GearSlot('legs',      'LEGS')}
+                {@render GearSlot('classItem', 'CLASS')}
             </div>
 
             <!-- Stats panel -->

@@ -235,10 +235,10 @@
 </script>
 
 <!-- ── Full-height layout ──────────────────────────────────────────────────── -->
-<div class="flex h-[calc(100vh-56px)] bg-[#080808] overflow-hidden">
+<div class="flex bg-[#080808]">
 
     <!-- ── Left sidebar ────────────────────────────────────────────────────── -->
-    <aside class="w-16 border-r border-zinc-800 bg-[#0a0a0a] flex flex-col items-center py-4 shrink-0">
+    <aside class="w-16 sticky top-0 h-screen border-r border-zinc-800 bg-[#0a0a0a] flex flex-col items-center py-4 shrink-0 z-40">
 
         <!-- J Diamond logo -->
         <div class="relative w-9 h-9 mb-5 shrink-0">
@@ -332,7 +332,7 @@
     </aside>
 
     <!-- ── Right panel ─────────────────────────────────────────────────────── -->
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0">
 
         <!-- ── Hero header ──────────────────────────────────────────────────── -->
         <header
@@ -596,7 +596,7 @@
         </header>
 
         <!-- ── Tab nav strip (Gemini-exact style) ───────────────────────────── -->
-        <div class="h-14 bg-[#0d0d0d] border-b border-zinc-800 flex items-end overflow-x-auto shrink-0"
+        <div class="h-14 bg-[#0d0d0d] border-b border-zinc-800 flex items-end overflow-x-auto shrink-0 sticky top-0 z-30"
              style="scrollbar-width:none">
             {#each TABS as t}
                 <button onclick={() => tab = t.id}
@@ -617,8 +617,8 @@
             {/each}
         </div>
 
-        <!-- ── Scrollable content ────────────────────────────────────────────── -->
-        <main class="flex-1 overflow-y-auto bg-[#080808]" style="scrollbar-width:none">
+        <!-- ── Tab content ───────────────────────────────────────────────────── -->
+        <main class="bg-[#080808]">
 
         {#key tab}
         <div in:fly={{ y: 16, duration: 320, opacity: 0 }}>
