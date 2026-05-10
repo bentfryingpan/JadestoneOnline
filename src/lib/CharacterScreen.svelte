@@ -433,75 +433,176 @@
                     <!-- Scrollable content -->
                     <div class="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-1">
 
-                        <!-- ── WEAPON PERKS (D2-style categorised layout) ─── -->
+                        <!-- ── WEAPON INSPECT (DIM-style layout) ─────────── -->
                         {#if selectedType === 'weapon'}
-                            <!-- Weapon stat bars (DIM-style) -->
+                            {@const perks     = selectedItem.perks ?? []}
+                            {@const intrinsic = perks.find(p => p.isIntrinsic)}
+                            {@const traits    = perks.filter(p => !p.isIntrinsic && !p.isMasterwork && p.itemTypeDisplayName?.toLowerCase().includes('trait'))}
+                            {@const other     = perks.filter(p => !p.isIntrinsic && !p.isMasterwork && !p.itemTypeDisplayName?.toLowerCase().includes('trait'))}
+                            {@const mwPerk    = perks.find(p => p.isMasterwork)}
+
+                            <!-- Aggregate enabled perk stat bonuses per hash -->
+                            {@const perkBonus = (() => {
+                                const m = {};
+                                for (const p of perks) {
+                                    if (!p.isEnabled) continue;
+                                    for (const sb of p.statBonuses ?? []) {
+                                        m[sb.statHash] = (m[sb.statHash] ?? 0) + sb.value;
+                                    }
+                                }
+                                return m;
+                            })()}
+
+                            <!-- ① STATS — right-aligned names, amber when boosted by perks -->
                             {#if selectedItem.weaponStats?.length}
-                                <div class="mb-4 pb-4 border-b border-zinc-800/60">
+                                <div class="mb-3 pb-3 border-b border-zinc-800/60">
                                     {#each selectedItem.weaponStats as s}
-                                        <div class="flex items-center gap-2 py-[3px]">
-                                            <span class="text-[8px] font-mono text-zinc-500 w-[72px] shrink-0 uppercase tracking-wide leading-none">{s.name}</span>
-                                            <div class="flex-1 h-1 bg-zinc-900 relative overflow-hidden">
-                                                <div class="h-full bg-zinc-400 transition-all duration-500"
-                                                     style="width:{Math.min((s.value / (s.maximum || 100)) * 100, 100)}%"></div>
+                                        {@const bonus    = perkBonus[s.hash] ?? 0}
+                                        {@const baseVal  = Math.max(0, s.value - bonus)}
+                                        {@const maxVal   = s.maximum || 100}
+                                        {@const basePct  = Math.min((baseVal / maxVal) * 100, 100)}
+                                        {@const bonusPct = Math.min(Math.max((bonus / maxVal) * 100, 0), 100 - basePct)}
+                                        <div class="flex items-center gap-2 py-[2px]">
+                                            <!-- Right-aligned stat name -->
+                                            <span class="text-[8px] font-mono text-right w-[82px] shrink-0 leading-none tracking-wide
+                                                         {bonus > 0 ? 'text-amber-400' : 'text-zinc-500'}">
+                                                {s.name}
+                                            </span>
+                                            <!-- Value -->
+                                            <span class="text-[9px] font-mono w-6 text-right shrink-0 leading-none
+                                                         {bonus > 0 ? 'text-amber-400 font-bold' : 'text-zinc-400'}">
+                                                {s.value}
+                                            </span>
+                                            <!-- Bar: base (zinc) + perk bonus (amber) -->
+                                            <div class="flex-1 h-[3px] bg-zinc-800 flex overflow-hidden">
+                                                <div class="h-full bg-zinc-300 shrink-0 transition-all duration-500"
+                                                     style="width:{basePct}%"></div>
+                                                {#if bonusPct > 0}
+                                                    <div class="h-full bg-amber-500 shrink-0 transition-all duration-500"
+                                                         style="width:{bonusPct}%"></div>
+                                                {/if}
                                             </div>
-                                            <span class="text-[9px] font-mono text-zinc-300 w-6 text-right shrink-0 leading-none">{s.value}</span>
                                         </div>
                                     {/each}
                                 </div>
                             {/if}
 
-                            {@const perks      = selectedItem.perks ?? []}
-                            {@const intrinsic  = perks.filter(p => p.isIntrinsic)}
-                            {@const traits     = perks.filter(p => !p.isIntrinsic && !p.isMasterwork && p.itemTypeDisplayName?.toLowerCase().includes('trait'))}
-                            {@const other      = perks.filter(p => !p.isIntrinsic && !p.isMasterwork && !p.itemTypeDisplayName?.toLowerCase().includes('trait'))}
-                            {@const mwPerks    = perks.filter(p => p.isMasterwork)}
-
                             {#if !perks.length}
-                                <p class="text-[10px] font-sans text-zinc-700 text-center py-8">No perk data available.</p>
+                                <p class="text-[10px] font-sans text-zinc-700 text-center py-6">No perk data available.</p>
                             {/if}
 
-                            <!-- Intrinsic frame -->
-                            {#if intrinsic.length}
-                                <div class="mb-3">
-                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-amber-600/70 block mb-1.5">Frame</span>
-                                    {#each intrinsic as perk}
-                                        {@render PerkRow(perk)}
-                                    {/each}
-                                </div>
-                            {/if}
-
-                            <!-- Other non-trait perks (launcher, grip, scope...) -->
-                            {#if other.length}
-                                <div class="mb-3">
-                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-1.5">Perks</span>
-                                    <div class="grid grid-cols-2 gap-1.5">
-                                        {#each other as perk}
-                                            {@render PerkIcon(perk)}
-                                        {/each}
+                            <!-- ② FRAME row — icon + name inline -->
+                            {#if intrinsic}
+                                <div class="flex items-center gap-2.5 py-2 border-b border-zinc-800/50 mb-2">
+                                    {#if intrinsic.icon}
+                                        <div class="w-8 h-8 shrink-0 border border-amber-500/30 bg-amber-500/5 overflow-hidden">
+                                            <img src={intrinsic.icon} alt="" class="w-full h-full object-cover"/>
+                                        </div>
+                                    {/if}
+                                    <div class="min-w-0 flex-1">
+                                        <span class="text-[9px] font-mono font-bold uppercase tracking-wide text-amber-400 block leading-tight truncate">
+                                            {intrinsic.name}
+                                        </span>
+                                        {#if intrinsic.description}
+                                            <p class="text-[7px] font-sans text-zinc-600 leading-relaxed line-clamp-1 mt-px">
+                                                {intrinsic.description}
+                                            </p>
+                                        {/if}
                                     </div>
+                                    <span class="text-[7px] font-mono uppercase tracking-[0.15em] text-amber-700/60 shrink-0">Frame</span>
                                 </div>
                             {/if}
 
-                            <!-- Traits (main roll perks — enhanced get gold treatment) -->
+                            <!-- ③ PERKS row — small square icons (barrel, mag, grip…) with hover tooltip -->
+                            {#if other.length || mwPerk}
+                                <div class="flex flex-wrap items-center gap-1.5 py-2 border-b border-zinc-800/50 mb-3">
+                                    {#each other as p}
+                                        <div class="group/pi relative">
+                                            <div class="w-9 h-9 border overflow-hidden transition-colors
+                                                        {p.isEnabled
+                                                            ? 'border-zinc-700 hover:border-zinc-500'
+                                                            : 'border-zinc-800/60 opacity-40'}">
+                                                {#if p.icon}
+                                                    <img src={p.icon} alt="" class="w-full h-full object-cover"/>
+                                                {:else}
+                                                    <div class="w-full h-full flex items-center justify-center opacity-20">
+                                                        <div class="w-3 h-3 border border-zinc-600 rotate-45"></div>
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                            <!-- Tooltip -->
+                                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
+                                                        opacity-0 group-hover/pi:opacity-100 translate-y-1 group-hover/pi:translate-y-0
+                                                        transition-all duration-150 pointer-events-none w-40">
+                                                <div class="bg-[#141414] border border-zinc-700 px-2.5 py-2 shadow-[0_0_16px_rgba(0,0,0,0.9)]">
+                                                    <p class="text-[9px] font-mono font-bold text-zinc-200 mb-0.5">{p.name}</p>
+                                                    {#if p.description}<p class="text-[7px] font-sans text-zinc-500 leading-relaxed">{p.description}</p>{/if}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {/each}
+                                    <!-- Masterwork icon inline -->
+                                    {#if mwPerk}
+                                        <div class="group/pi relative">
+                                            <div class="w-9 h-9 border border-yellow-500/50 bg-yellow-500/5 overflow-hidden hover:border-yellow-400 transition-colors">
+                                                {#if mwPerk.icon}
+                                                    <img src={mwPerk.icon} alt="" class="w-full h-full object-cover"/>
+                                                {/if}
+                                            </div>
+                                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
+                                                        opacity-0 group-hover/pi:opacity-100 transition-opacity pointer-events-none w-40">
+                                                <div class="bg-[#141414] border border-zinc-700 px-2.5 py-2">
+                                                    <p class="text-[9px] font-mono font-bold text-yellow-400 mb-0.5">{mwPerk.name}</p>
+                                                    {#if mwPerk.description}<p class="text-[7px] font-sans text-zinc-500 leading-relaxed">{mwPerk.description}</p>{/if}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/if}
+
+                            <!-- ④ TRAITS — large round icons in 2-col grid (DIM style) -->
                             {#if traits.length}
-                                <div class="mb-3 border-t border-zinc-800/60 pt-3">
-                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-1.5">Traits</span>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        {#each traits as perk}
-                                            {@render TraitCard(perk)}
+                                <div>
+                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-zinc-700 block mb-2">Traits</span>
+                                    <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+                                        {#each traits as p}
+                                            <div class="group/trait flex items-center gap-2.5 cursor-default relative">
+                                                <!-- Large round icon -->
+                                                <div class="w-11 h-11 shrink-0 rounded-full overflow-hidden border-2 relative transition-all
+                                                            {p.isEnhanced
+                                                                ? 'border-yellow-500/70 shadow-[0_0_10px_rgba(234,179,8,0.3)] group-hover/trait:shadow-[0_0_16px_rgba(234,179,8,0.5)]'
+                                                                : 'border-zinc-700 group-hover/trait:border-zinc-500'}
+                                                            {!p.isEnabled ? 'opacity-40' : ''}">
+                                                    {#if p.icon}
+                                                        <img src={p.icon} alt="" class="w-full h-full object-cover scale-110"/>
+                                                    {:else}
+                                                        <div class="w-full h-full bg-zinc-900 flex items-center justify-center opacity-20">
+                                                            <div class="w-4 h-4 border border-zinc-600 rotate-45"></div>
+                                                        </div>
+                                                    {/if}
+                                                    <!-- Enhanced shimmer -->
+                                                    {#if p.isEnhanced}
+                                                        <div class="absolute inset-0 pointer-events-none"
+                                                             style="background:radial-gradient(ellipse at top left,rgba(234,179,8,0.3) 0%,transparent 65%)"></div>
+                                                    {/if}
+                                                </div>
+                                                <!-- Name + description -->
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-center gap-1 mb-px">
+                                                        <span class="text-[9px] font-mono font-bold uppercase leading-tight truncate
+                                                                     {p.isEnhanced ? 'text-yellow-300' : 'text-zinc-200'}">
+                                                            {p.name}
+                                                        </span>
+                                                        {#if p.isEnhanced}
+                                                            <span class="text-[6px] font-mono font-bold text-yellow-500 border border-yellow-500/30 px-1 py-px leading-none shrink-0">ENH</span>
+                                                        {/if}
+                                                    </div>
+                                                    <p class="text-[7px] font-sans text-zinc-600 leading-relaxed line-clamp-2">{p.description ?? ''}</p>
+                                                </div>
+                                            </div>
                                         {/each}
                                     </div>
-                                </div>
-                            {/if}
-
-                            <!-- Masterwork -->
-                            {#if mwPerks.length}
-                                <div class="border-t border-zinc-800/60 pt-3">
-                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-yellow-600/70 block mb-1.5">Masterwork</span>
-                                    {#each mwPerks as perk}
-                                        {@render PerkRow(perk)}
-                                    {/each}
                                 </div>
                             {/if}
 
