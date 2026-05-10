@@ -11,68 +11,80 @@ async function bungieGet(url) {
     return res.json();
 }
 
-export async function load({ params, parent, setHeaders }) {
+export async function load({ params, parent, url, setHeaders }) {
     const { name, code } = params;
 
     // Parent (layout.server) is cached — no Bungie call on cache hit
     const { user } = await parent();
 
-    // ── 1. Resolve player (cached 5 min — name→membershipId rarely changes) ──
+    // ── 1. Resolve player ─────────────────────────────────────────────────────
+    // Fast path: when navigating from a match page we already have the IDs —
+    // skip the Bungie search entirely (avoids 502s for renamed/cross-saved players).
     let membershipType, membershipId;
-    try {
-        const searchKey = `search:${name.toLowerCase()}#${code}`;
-        const player = await cacheWrap(searchKey, SEARCH_TTL, async () => {
-            const d = await bungieGet(
-                `/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(name + '#' + code)}/`
-            );
-            if (!d || d.ErrorCode !== 1 || !Array.isArray(d.Response) || !d.Response.length) return null;
-            return (
-                d.Response.find(p => p.crossSaveOverride === p.membershipType) ??
-                d.Response.find(p => p.membershipType === 3) ??
-                d.Response[0]
-            );
-        });
 
-        if (!player?.membershipType || !player?.membershipId) {
-            throw error(404, 'Player not found');
+    const midParam = url.searchParams.get('mid');
+    const mtParam  = url.searchParams.get('mt');
+
+    if (midParam && mtParam) {
+        membershipId   = midParam;
+        membershipType = parseInt(mtParam, 10);
+    } else {
+        // Slow path: resolve name → IDs via Bungie search (cached 5 min)
+        try {
+            const searchKey = `search:${name.toLowerCase()}#${code}`;
+            const player = await cacheWrap(searchKey, SEARCH_TTL, async () => {
+                const d = await bungieGet(
+                    `/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(name + '#' + code)}/`
+                );
+                if (!d || d.ErrorCode !== 1 || !Array.isArray(d.Response) || !d.Response.length) return null;
+                return (
+                    d.Response.find(p => p.crossSaveOverride === p.membershipType) ??
+                    d.Response.find(p => p.membershipType === 3) ??
+                    d.Response[0]
+                );
+            });
+
+            if (!player?.membershipType || !player?.membershipId) {
+                throw error(404, 'Player not found');
+            }
+            membershipType = player.membershipType;
+            membershipId   = player.membershipId;
+        } catch (e) {
+            if (e?.status) throw e; // re-throw SvelteKit errors
+            throw error(502, 'Bungie API unavailable');
         }
-        membershipType = player.membershipType;
-        membershipId   = player.membershipId;
-    } catch (e) {
-        if (e?.status) throw e; // re-throw SvelteKit errors
-        throw error(502, 'Bungie API unavailable');
     }
 
     // ── 2. Profile data (cached 60s) + match history fired in parallel ────────
-    // Both need membershipId (from step 1) but NOT each other, so we run them
-    // concurrently — this eliminates the old sequential waterfall.
     const profileKey = `profile:${membershipId}`;
     const matchKey   = `matches:${membershipId}`;
 
-    const [profileBundle, matchBundle, dbPlayer] = await Promise.all([
+    let profileBundle, dbPlayer;
+    try {
+        [profileBundle, , dbPlayer] = await Promise.all([
 
-        // Profile + clan + stats — cached as one bundle
-        cacheWrap(profileKey, PROFILE_TTL, async () => {
-            const [profileData, clanData, acctStats] = await Promise.all([
-                bungieGet(`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,200,205`),
-                bungieGet(`/Platform/GroupV2/User/${membershipType}/${membershipId}/0/1/`),
-                bungieGet(`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Stats/?modes=63`),
-            ]);
-            return { profileData, clanData, acctStats };
-        }),
+            // Profile + clan + stats — cached as one bundle
+            cacheWrap(profileKey, PROFILE_TTL, async () => {
+                const [profileData, clanData, acctStats] = await Promise.all([
+                    bungieGet(`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,200,205`),
+                    bungieGet(`/Platform/GroupV2/User/${membershipType}/${membershipId}/0/1/`),
+                    bungieGet(`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Stats/?modes=63`),
+                ]);
+                return { profileData, clanData, acctStats };
+            }),
 
-        // Match history — cached 60s, but we don't know mainCharId yet.
-        // Fetch all chars' activity in a single call using charId=0 trick won't
-        // work, so we cache null here and re-fetch once we have mainCharId.
-        // Instead: cache the match result keyed by membershipId, and re-use
-        // whenever the same membershipId is requested within the TTL.
-        cacheWrap(matchKey, PROFILE_TTL, async () => null), // placeholder resolved below
+            // placeholder slot (match key resolved below after we have mainCharId)
+            cacheWrap(matchKey, PROFILE_TTL, async () => null),
 
-        // Supabase claim check — fire-and-forget friendly, run in parallel
-        supabaseAdmin.from('players').select('claimed_by').eq('id', membershipId).single()
-            .then(r => r.data)
-            .catch(() => null),
-    ]);
+            // Supabase claim check
+            supabaseAdmin.from('players').select('claimed_by').eq('id', membershipId).single()
+                .then(r => r.data)
+                .catch(() => null),
+        ]);
+    } catch (e) {
+        if (e?.status) throw e;
+        throw error(502, 'Bungie API unavailable');
+    }
 
     const { profileData, clanData, acctStats } = profileBundle;
     const profile      = profileData?.Response ?? {};
