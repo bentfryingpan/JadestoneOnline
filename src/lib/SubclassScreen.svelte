@@ -3,203 +3,340 @@
 
     const classNames = { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' };
 
-    const theme = $derived((() => {
+    // Selected ability/aspect/fragment for center inspection
+    let selectedAbility = $state(null);
+
+    function selectAbility(item) {
+        selectedAbility = selectedAbility?.name === item?.name ? null : item;
+    }
+
+    // Subclass theming
+    const subclassColor = $derived((() => {
         const n = (eq.subclass?.name ?? '').toLowerCase();
-        if (n.includes('void'))   return { grad:'from-violet-950 via-[#0c0e1a] to-[#0c0e1a]', border:'border-violet-500/40', ring:'ring-violet-500/50', accent:'text-violet-400', bar:'bg-violet-500', glow:'shadow-violet-900/60' };
-        if (n.includes('solar'))  return { grad:'from-orange-950 via-[#0c0e1a] to-[#0c0e1a]', border:'border-orange-500/40', ring:'ring-orange-500/50', accent:'text-orange-400', bar:'bg-orange-500', glow:'shadow-orange-900/60' };
-        if (n.includes('arc'))    return { grad:'from-cyan-950 via-[#0c0e1a] to-[#0c0e1a]',   border:'border-cyan-500/40',   ring:'ring-cyan-400/50',   accent:'text-cyan-400',   bar:'bg-cyan-400',   glow:'shadow-cyan-900/60'   };
-        if (n.includes('stasis')) return { grad:'from-blue-950 via-[#0c0e1a] to-[#0c0e1a]',   border:'border-blue-500/40',   ring:'ring-blue-400/50',   accent:'text-blue-400',   bar:'bg-blue-400',   glow:'shadow-blue-900/60'   };
-        if (n.includes('strand')) return { grad:'from-emerald-950 via-[#0c0e1a] to-[#0c0e1a]',border:'border-emerald-500/40',ring:'ring-emerald-400/50',accent:'text-emerald-400',bar:'bg-emerald-400', glow:'shadow-emerald-900/60'};
-        if (n.includes('prism'))  return { grad:'from-fuchsia-950 via-[#0c0e1a] to-[#0c0e1a]',border:'border-fuchsia-500/40',ring:'ring-fuchsia-400/50',accent:'text-fuchsia-400',bar:'bg-fuchsia-400', glow:'shadow-fuchsia-900/60'};
-        return { grad:'from-slate-900 via-[#0c0e1a] to-[#0c0e1a]', border:'border-white/10', ring:'ring-white/20', accent:'text-slate-400', bar:'bg-slate-500', glow:'shadow-slate-900/60' };
+        if (n.includes('void'))      return 'rgba(109,40,217,0.15)';
+        if (n.includes('solar'))     return 'rgba(234,88,12,0.15)';
+        if (n.includes('arc'))       return 'rgba(8,145,178,0.15)';
+        if (n.includes('stasis'))    return 'rgba(29,78,216,0.15)';
+        if (n.includes('strand'))    return 'rgba(5,150,105,0.15)';
+        if (n.includes('prismatic')) return 'rgba(219,39,119,0.15)';
+        return 'rgba(16,185,129,0.07)';
     })());
 
-    function abilityLabel(t) {
-        const n = t.toLowerCase();
-        if (n.includes('movement')) return 'Jump';
+    const subclassEl = $derived((() => {
+        const n = (eq.subclass?.name ?? '').toLowerCase();
+        if (n.includes('void'))      return { border: 'border-violet-500/50', glow: 'shadow-[0_0_20px_rgba(139,92,246,0.25)]', text: 'text-violet-400',  bar: 'bg-violet-500'  };
+        if (n.includes('solar'))     return { border: 'border-orange-500/50', glow: 'shadow-[0_0_20px_rgba(249,115,22,0.25)]',  text: 'text-orange-400', bar: 'bg-orange-500' };
+        if (n.includes('arc'))       return { border: 'border-cyan-400/50',   glow: 'shadow-[0_0_20px_rgba(34,211,238,0.25)]',  text: 'text-cyan-400',   bar: 'bg-cyan-400'   };
+        if (n.includes('stasis'))    return { border: 'border-blue-500/50',   glow: 'shadow-[0_0_20px_rgba(59,130,246,0.25)]',  text: 'text-blue-400',   bar: 'bg-blue-500'   };
+        if (n.includes('strand'))    return { border: 'border-emerald-500/50',glow: 'shadow-[0_0_20px_rgba(16,185,129,0.25)]',  text: 'text-emerald-400',bar: 'bg-emerald-500'};
+        return { border: 'border-zinc-600/50', glow: '', text: 'text-zinc-400', bar: 'bg-zinc-500' };
+    })());
+
+    function abilityTypeLabel(t) {
+        const n = (t ?? '').toLowerCase();
+        if (n.includes('movement') || n.includes('jump')) return 'Jump';
         if (n.includes('melee'))   return 'Melee';
         if (n.includes('grenade')) return 'Grenade';
         if (n.includes('class'))   return 'Class';
-        return t;
+        return t ?? '';
     }
 </script>
 
-<!-- ── Wrapper ──────────────────────────────────────────────────────────────── -->
-<div class="bg-[#0c0e1a] border border-white/[0.07] rounded-2xl overflow-hidden">
+<!-- ── Subclass Layout (matches CharacterScreen 3-column Gemini grid) ──────── -->
+<div class="max-w-6xl mx-auto py-10 px-4">
+    <div class="grid grid-cols-12 gap-12 items-start">
 
-    <!-- ── Hero: Subclass + Super ─────────────────────────────────────────── -->
-    <div class="bg-gradient-to-b {theme.grad} px-6 pt-6 pb-4 border-b {theme.border}">
-        <div class="flex items-center gap-5">
+        <!-- ── COL 1: SUPER + SUBCLASS ICON ─────────────────────────────── -->
+        <div class="col-span-3 flex flex-col items-center space-y-10">
 
-            <!-- Super icon (large) -->
-            {#if sockets?.super?.icon}
-                <div class="relative shrink-0">
-                    <div class="absolute inset-0 rounded-xl blur-xl opacity-60 {theme.bar}"></div>
-                    <img src={sockets.super.icon} alt={sockets.super.name}
-                         class="relative w-20 h-20 object-cover rounded-xl {theme.ring} ring-2 shadow-2xl {theme.glow}" />
+            <!-- Subclass diamond -->
+            <div class="flex flex-col items-center w-full">
+                <div class="w-24 h-24 flex items-center justify-center mx-auto relative">
+                    <div class="absolute inset-0 rounded-full blur-3xl animate-pulse"
+                         style="background:{subclassColor}"></div>
+                    {#if eq.subclass?.icon}
+                        <div class="w-20 h-20 bg-[#0a0a0a] border-2 {subclassEl.border} {subclassEl.glow}
+                                    flex items-center justify-center rotate-45 shadow-2xl overflow-hidden">
+                            <img src={eq.subclass.icon} alt=""
+                                 class="w-16 h-16 object-cover -rotate-45 scale-110" />
+                        </div>
+                    {:else}
+                        <div class="w-20 h-20 bg-[#0a0a0a] border-2 border-zinc-800 flex items-center
+                                    justify-center rotate-45 shadow-2xl">
+                            <div class="w-10 h-10 border border-emerald-400/60 flex items-center justify-center">
+                                <div class="w-2 h-2 bg-emerald-500"></div>
+                            </div>
+                        </div>
+                    {/if}
                 </div>
-            {:else if eq.subclass?.icon}
-                <img src={eq.subclass.icon} alt={eq.subclass?.name}
-                     class="w-20 h-20 object-cover rounded-xl {theme.ring} ring-2" />
-            {:else}
-                <div class="w-20 h-20 rounded-xl bg-white/5 {theme.ring} ring-2"></div>
-            {/if}
-
-            <!-- Labels -->
-            <div>
-                <p class="text-xs {theme.accent} uppercase tracking-widest font-bold mb-1">
-                    {eq.subclass?.name ?? 'Unknown'}
-                </p>
-                <p class="text-white text-xl font-bold leading-tight">
-                    {sockets?.super?.name ?? 'Super Ability'}
-                </p>
-                {#if sockets?.super?.description}
-                    <p class="text-slate-400 text-sm mt-1.5 max-w-md leading-snug line-clamp-2">
-                        {sockets.super.description}
+                <div class="mt-6 text-center w-full">
+                    <span class="text-[9px] text-zinc-600 uppercase tracking-[0.2em] font-bold block mb-1">Subclass</span>
+                    <p class="text-[11px] font-bold uppercase tracking-widest {subclassEl.text}">
+                        {eq.subclass?.name ?? '—'}
                     </p>
-                {/if}
-                <p class="text-[11px] text-slate-600 mt-2 uppercase tracking-wider">
-                    {classNames[char?.classType] ?? 'Guardian'} · Super
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- ── Abilities row ─────────────────────────────────────────────────── -->
-    <div class="px-6 py-5 border-b {theme.border}">
-        <p class="text-[10px] text-slate-600 uppercase tracking-widest font-semibold mb-4">Abilities</p>
-
-        <div class="grid grid-cols-4 gap-3">
-            {#each sockets?.abilities ?? [] as ability}
-                <div class="group relative flex flex-col items-center gap-2">
-                    <!-- Icon -->
-                    <div class="relative w-16 h-16 rounded-lg {theme.ring} ring-1 overflow-hidden
-                                bg-white/5 hover:scale-105 transition-transform cursor-default">
-                        {#if ability.icon}
-                            <img src={ability.icon} alt={ability.name}
-                                 class="w-full h-full object-cover" />
-                        {/if}
-                        {#if !ability.isEnabled}
-                            <div class="absolute inset-0 bg-black/60"></div>
-                        {/if}
-                    </div>
-
-                    <!-- Label -->
-                    <div class="text-center">
-                        <p class="text-[10px] {theme.accent} font-bold uppercase tracking-wider">
-                            {abilityLabel(ability.itemTypeDisplayName)}
-                        </p>
-                        <p class="text-[11px] text-slate-300 leading-tight text-center line-clamp-2">
-                            {ability.name}
-                        </p>
-                    </div>
-
-                    <!-- Tooltip -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block
-                                w-56 bg-[#0d0f1a] border border-white/10 rounded-xl p-3 shadow-2xl pointer-events-none">
-                        <p class="text-xs font-bold text-white mb-1">{ability.name}</p>
-                        <p class="text-[10px] {theme.accent}">{ability.itemTypeDisplayName}</p>
-                        {#if ability.description}
-                            <p class="text-[10px] text-slate-400 mt-1.5 leading-snug">{ability.description}</p>
-                        {/if}
-                    </div>
+                    <p class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-700 mt-0.5">
+                        {classNames[char?.classType] ?? 'Guardian'}
+                    </p>
                 </div>
-            {/each}
+            </div>
 
-            <!-- Empty slots -->
-            {#each Array(Math.max(0, 4 - (sockets?.abilities?.length ?? 0))) as _}
-                <div class="w-16 h-16 rounded-lg border border-white/10 border-dashed opacity-20 mx-auto"></div>
-            {/each}
-        </div>
-    </div>
-
-    <!-- ── Aspects + Fragments ───────────────────────────────────────────── -->
-    <div class="grid grid-cols-[1fr_2fr] divide-x divide-white/[0.05]">
-
-        <!-- Aspects -->
-        <div class="px-6 py-5 border-b {theme.border}">
-            <p class="text-[10px] text-slate-600 uppercase tracking-widest font-semibold mb-4">Aspects</p>
-
-            <div class="space-y-3">
-                {#each sockets?.aspects ?? [] as aspect}
-                    <div class="group relative flex items-center gap-3 hover:bg-white/[0.03]
-                                rounded-xl p-2 -m-2 transition-colors cursor-default">
-                        <div class="relative w-14 h-14 shrink-0 rounded-lg {theme.ring} ring-1 overflow-hidden bg-white/5">
-                            {#if aspect.icon}
-                                <img src={aspect.icon} alt={aspect.name} class="w-full h-full object-cover" />
+            <!-- Super ability slot -->
+            <div class="w-full pt-8 border-t border-zinc-800/40">
+                <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-4">Super</span>
+                {#if sockets?.super}
+                    <button onclick={() => selectAbility(sockets.super)}
+                            class="group flex flex-col items-center gap-3 w-full text-left
+                                   transition-all duration-200">
+                        <div class="w-20 h-20 bg-[#0c0c0c] border mx-auto overflow-hidden
+                                    shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
+                                    {selectedAbility?.name === sockets.super.name
+                                        ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
+                                        : subclassEl.border.replace('/50','/30') + ' group-hover:' + subclassEl.border}">
+                            <!-- Rarity bar -->
+                            <div class="absolute top-0 left-0 w-full h-px {subclassEl.bar} opacity-70 pointer-events-none"></div>
+                            {#if sockets.super.icon}
+                                <img src={sockets.super.icon} alt="" class="w-full h-full object-cover" />
+                            {:else}
+                                <div class="w-full h-full flex items-center justify-center opacity-10">
+                                    <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
+                                </div>
                             {/if}
                         </div>
-                        <div>
-                            <p class="text-sm font-semibold text-white leading-tight">{aspect.name}</p>
-                            {#if aspect.description}
-                                <p class="text-[10px] text-slate-400 mt-0.5 line-clamp-2 leading-snug">
-                                    {aspect.description}
+                        <div class="text-center w-full">
+                            <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">Super</p>
+                            <p class="text-[10px] font-bold uppercase tracking-tight truncate w-28 mx-auto
+                                      transition-colors {selectedAbility?.name === sockets.super.name
+                                          ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
+                                {sockets.super.name}
+                            </p>
+                        </div>
+                    </button>
+                {:else}
+                    <div class="w-20 h-20 bg-[#0c0c0c] border border-zinc-800 mx-auto flex items-center justify-center opacity-20">
+                        <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
+                    </div>
+                {/if}
+            </div>
+
+        </div>
+
+        <!-- ── COL 2: CENTER — ABILITIES + INSPECTION ─────────────────────── -->
+        <div class="col-span-6 relative flex flex-col items-center min-h-[500px] gap-8">
+
+            <!-- Abilities row -->
+            <div class="w-full">
+                <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-4">Abilities</span>
+                <div class="grid grid-cols-4 gap-4">
+                    {#each sockets?.abilities ?? [] as ability}
+                        {@const isActive = selectedAbility?.name === ability.name}
+                        <button onclick={() => selectAbility(ability)}
+                                class="group flex flex-col items-center gap-2 w-full text-left transition-all">
+                            <div class="w-16 h-16 bg-[#0c0c0c] border mx-auto overflow-hidden relative
+                                        shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] transition-all duration-300
+                                        {isActive
+                                            ? 'border-emerald-500/70 shadow-[0_0_10px_rgba(52,211,153,0.15)]'
+                                            : subclassEl.border.replace('/50','/20') + ' group-hover:' + subclassEl.border}">
+                                <div class="absolute top-0 left-0 w-full h-px {subclassEl.bar} opacity-50"></div>
+                                {#if ability.icon}
+                                    <img src={ability.icon} alt="" class="w-full h-full object-cover" />
+                                {:else}
+                                    <div class="w-full h-full flex items-center justify-center opacity-10">
+                                        <div class="w-8 h-8 border border-zinc-500 rotate-45"></div>
+                                    </div>
+                                {/if}
+                                {#if !ability.isEnabled}
+                                    <div class="absolute inset-0 bg-black/60"></div>
+                                {/if}
+                            </div>
+                            <div class="text-center">
+                                <p class="text-[8px] font-mono uppercase tracking-widest font-bold
+                                          {isActive ? 'text-emerald-400' : subclassEl.text}">
+                                    {abilityTypeLabel(ability.itemTypeDisplayName)}
+                                </p>
+                                <p class="text-[9px] font-bold uppercase tracking-tight truncate w-20 mx-auto
+                                          transition-colors {isActive ? 'text-emerald-300' : 'text-zinc-300 group-hover:text-white'}">
+                                    {ability.name}
+                                </p>
+                            </div>
+                        </button>
+                    {/each}
+                    <!-- Empty ability slots -->
+                    {#each Array(Math.max(0, 4 - (sockets?.abilities?.length ?? 0))) as _}
+                        <div class="flex flex-col items-center gap-2">
+                            <div class="w-16 h-16 border border-zinc-800 border-dashed opacity-20 flex items-center justify-center">
+                                <div class="w-8 h-8 border border-zinc-700 rotate-45 opacity-50"></div>
+                            </div>
+                            <p class="text-[8px] font-mono text-zinc-800 uppercase">Empty</p>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+
+            <!-- Inspection panel / Decorative center -->
+            <div class="w-full flex-1 relative">
+                {#if selectedAbility}
+                    <!-- Ability inspection -->
+                    <div class="w-full bg-[#0a0a0a] border border-zinc-800 relative overflow-hidden">
+                        <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/40 pointer-events-none z-10"></span>
+                        <span class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-emerald-500/40 pointer-events-none z-10"></span>
+
+                        <!-- Close -->
+                        <button onclick={() => selectedAbility = null}
+                                class="absolute top-3 right-3 z-20 text-zinc-600 hover:text-zinc-300
+                                       transition-colors w-6 h-6 flex items-center justify-center border border-zinc-800 hover:border-zinc-600">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+
+                        <!-- Header -->
+                        <div class="flex items-center gap-4 p-5 border-b border-zinc-800">
+                            {#if selectedAbility.icon}
+                                <div class="w-14 h-14 shrink-0 border {subclassEl.border} overflow-hidden relative">
+                                    <div class="absolute top-0 left-0 w-full h-px {subclassEl.bar} opacity-60"></div>
+                                    <img src={selectedAbility.icon} alt="" class="w-full h-full object-cover" />
+                                </div>
+                            {/if}
+                            <div>
+                                <span class="text-[8px] font-mono uppercase tracking-[0.2em] {subclassEl.text} block">
+                                    {selectedAbility.itemTypeDisplayName}
+                                </span>
+                                <p class="font-serif text-xl font-light italic text-white leading-tight">
+                                    {selectedAbility.name}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="p-5">
+                            {#if selectedAbility.description}
+                                <p class="text-sm font-sans text-zinc-400 leading-relaxed">
+                                    {selectedAbility.description}
                                 </p>
                             {/if}
-                        </div>
-                        <!-- Tooltip -->
-                        <div class="absolute bottom-full left-0 mb-2 z-50 hidden group-hover:block
-                                    w-64 bg-[#0d0f1a] border border-white/10 rounded-xl p-3 shadow-2xl pointer-events-none">
-                            <p class="text-xs font-bold text-white mb-1">{aspect.name}</p>
-                            <p class="text-[10px] {theme.accent} mb-1">Aspect</p>
-                            {#if aspect.description}
-                                <p class="text-[10px] text-slate-400 leading-snug">{aspect.description}</p>
+                            <!-- Stat bonuses (fragments) -->
+                            {#if selectedAbility.statBonuses?.length}
+                                <div class="flex flex-wrap gap-2 mt-4">
+                                    {#each selectedAbility.statBonuses as sb}
+                                        <span class="text-[9px] font-mono border px-2 py-0.5
+                                                     {sb.value > 0
+                                                         ? 'text-emerald-400 border-emerald-500/30'
+                                                         : 'text-red-400 border-red-500/30'}">
+                                            {sb.value > 0 ? '+' : ''}{sb.value}
+                                        </span>
+                                    {/each}
+                                </div>
                             {/if}
                         </div>
                     </div>
-                {/each}
-
-                {#each Array(Math.max(0, 2 - (sockets?.aspects?.length ?? 0))) as _}
-                    <div class="flex items-center gap-3 opacity-20">
-                        <div class="w-14 h-14 rounded-lg border border-white/10 border-dashed shrink-0"></div>
-                        <p class="text-xs text-slate-600">Empty aspect</p>
+                {:else}
+                    <!-- Decorative idle -->
+                    <div class="w-full h-48 flex items-center justify-center relative border border-zinc-800/40">
+                        <div class="absolute inset-0 opacity-30 blur-3xl pointer-events-none"
+                             style="background:linear-gradient(to top,{subclassColor},transparent)"></div>
+                        <p class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-800 relative">
+                            Select a slot to inspect
+                        </p>
+                        <div class="absolute top-0 left-0 w-6 h-6 border-t border-l border-zinc-800"></div>
+                        <div class="absolute bottom-0 right-0 w-6 h-6 border-b border-r border-zinc-800"></div>
                     </div>
-                {/each}
+                {/if}
             </div>
+
         </div>
 
-        <!-- Fragments -->
-        <div class="px-6 py-5">
-            <p class="text-[10px] text-slate-600 uppercase tracking-widest font-semibold mb-4">
-                Fragments
-                <span class="text-slate-700 normal-case tracking-normal ml-2">
-                    {sockets?.fragments?.length ?? 0} equipped
-                </span>
-            </p>
+        <!-- ── COL 3: ASPECTS + FRAGMENTS ─────────────────────────────────── -->
+        <div class="col-span-3 flex flex-col space-y-8 items-center">
 
-            <div class="grid grid-cols-3 gap-2">
-                {#each sockets?.fragments ?? [] as fragment}
-                    <div class="group relative flex flex-col items-center gap-1.5 cursor-default">
-                        <div class="w-12 h-12 rounded-lg {theme.ring} ring-1 overflow-hidden bg-white/5
-                                    hover:scale-105 transition-transform">
-                            {#if fragment.icon}
-                                <img src={fragment.icon} alt={fragment.name}
-                                     class="w-full h-full object-cover" />
-                            {/if}
+            <!-- Aspects -->
+            <div class="w-full">
+                <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-4">Aspects</span>
+                <div class="flex flex-col items-center gap-6">
+                    {#each sockets?.aspects ?? [] as aspect}
+                        {@const isActive = selectedAbility?.name === aspect.name}
+                        <button onclick={() => selectAbility(aspect)}
+                                class="group flex flex-col items-center gap-2 w-full text-left transition-all">
+                            <div class="w-20 h-20 bg-[#0c0c0c] border mx-auto overflow-hidden
+                                        shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
+                                        {isActive
+                                            ? 'border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.2)]'
+                                            : subclassEl.border.replace('/50','/20') + ' group-hover:' + subclassEl.border}">
+                                <div class="absolute top-0 left-0 w-full h-px {subclassEl.bar} opacity-60 pointer-events-none"></div>
+                                {#if aspect.icon}
+                                    <img src={aspect.icon} alt="" class="w-full h-full object-cover" />
+                                {:else}
+                                    <div class="w-full h-full flex items-center justify-center opacity-10">
+                                        <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
+                                    </div>
+                                {/if}
+                            </div>
+                            <div class="text-center w-full">
+                                <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">Aspect</p>
+                                <p class="text-[10px] font-bold uppercase tracking-tight truncate w-28 mx-auto
+                                          transition-colors {isActive ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
+                                    {aspect.name}
+                                </p>
+                            </div>
+                        </button>
+                    {/each}
+                    <!-- Empty aspect slots -->
+                    {#each Array(Math.max(0, 2 - (sockets?.aspects?.length ?? 0))) as _}
+                        <div class="flex flex-col items-center gap-2 opacity-20">
+                            <div class="w-20 h-20 border border-dashed border-zinc-700 flex items-center justify-center">
+                                <div class="w-8 h-8 border border-zinc-600 rotate-45"></div>
+                            </div>
+                            <p class="text-[8px] font-mono text-zinc-700 uppercase">Empty</p>
                         </div>
-                        <p class="text-[9px] text-slate-400 text-center leading-tight line-clamp-2 px-0.5">
-                            {fragment.name}
-                        </p>
-                        <!-- Tooltip -->
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover:block
-                                    w-52 bg-[#0d0f1a] border border-white/10 rounded-xl p-3 shadow-2xl pointer-events-none">
-                            <p class="text-xs font-bold text-white mb-1">{fragment.name}</p>
-                            <p class="text-[10px] {theme.accent} mb-1">Fragment</p>
-                            {#if fragment.description}
-                                <p class="text-[10px] text-slate-400 leading-snug">{fragment.description}</p>
-                            {/if}
-                        </div>
-                    </div>
-                {/each}
-
-                <!-- Empty slots (fragments unlocked by aspects, up to 5 max) -->
-                {#each Array(Math.max(0, 5 - (sockets?.fragments?.length ?? 0))) as _}
-                    <div class="flex flex-col items-center gap-1.5 opacity-15">
-                        <div class="w-12 h-12 rounded-lg border border-white/10 border-dashed"></div>
-                        <p class="text-[9px] text-slate-600">—</p>
-                    </div>
-                {/each}
+                    {/each}
+                </div>
             </div>
+
+            <!-- Fragments -->
+            <div class="w-full pt-8 border-t border-zinc-800/40">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600">Fragments</span>
+                    <span class="text-[8px] font-mono text-zinc-700">
+                        {sockets?.fragments?.length ?? 0} equipped
+                    </span>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    {#each sockets?.fragments ?? [] as frag}
+                        {@const isActive = selectedAbility?.name === frag.name}
+                        <button onclick={() => selectAbility(frag)}
+                                class="group flex flex-col items-center gap-1.5 transition-all">
+                            <div class="w-14 h-14 bg-[#0c0c0c] border overflow-hidden relative
+                                        shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] transition-all duration-200
+                                        {isActive
+                                            ? 'border-emerald-500/60'
+                                            : subclassEl.border.replace('/50','/15') + ' group-hover:' + subclassEl.border.replace('/50','/40')}">
+                                <div class="absolute top-0 left-0 w-full h-px {subclassEl.bar} opacity-40"></div>
+                                {#if frag.icon}
+                                    <img src={frag.icon} alt="" class="w-full h-full object-cover" />
+                                {:else}
+                                    <div class="w-full h-full flex items-center justify-center opacity-10">
+                                        <div class="w-6 h-6 border border-zinc-500 rotate-45"></div>
+                                    </div>
+                                {/if}
+                            </div>
+                            <p class="text-[7px] font-mono uppercase tracking-tight text-center leading-tight px-0.5
+                                      transition-colors w-14 truncate
+                                      {isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300'}">
+                                {frag.name}
+                            </p>
+                        </button>
+                    {/each}
+                    <!-- Empty fragment slots -->
+                    {#each Array(Math.max(0, 5 - (sockets?.fragments?.length ?? 0))) as _}
+                        <div class="flex flex-col items-center gap-1.5 opacity-15">
+                            <div class="w-14 h-14 border border-dashed border-zinc-700 flex items-center justify-center">
+                                <div class="w-5 h-5 border border-zinc-600 rotate-45"></div>
+                            </div>
+                            <p class="text-[7px] font-mono text-zinc-800">—</p>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
