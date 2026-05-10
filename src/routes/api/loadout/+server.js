@@ -226,7 +226,14 @@ export async function GET({ url, setHeaders }) {
             hash:                item.itemHash,
             name:                def?.displayProperties?.name       ?? 'Unknown',
             icon:                def?.displayProperties?.icon        ? BUNGIE_ROOT + def.displayProperties.icon : null,
+            // Full-resolution weapon/armor artwork (used as inspect-panel banner background)
+            screenshot:          def?.screenshot                    ? BUNGIE_ROOT + def.screenshot : null,
+            // DLC / seasonal watermark badge overlaid on the item icon (same pixel dimensions as icon)
+            iconWatermark:       def?.iconWatermark                 ? BUNGIE_ROOT + def.iconWatermark
+                                 : def?.iconWatermarkShelved        ? BUNGIE_ROOT + def.iconWatermarkShelved
+                                 : null,
             tierType:            def?.inventory?.tierType,
+            tierTypeName:        def?.inventory?.tierTypeName       ?? null,
             itemType:            def?.itemType,
             itemSubType:         def?.itemSubType,
             damageType:          def?.defaultDamageType,

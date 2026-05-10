@@ -179,6 +179,11 @@
             <!-- Item icon -->
             {#if item?.icon}
                 <img src={item.icon} alt="" class="w-full h-full object-cover" />
+                <!-- Seasonal / DLC watermark overlay (same size as icon) -->
+                {#if item?.iconWatermark}
+                    <img src={item.iconWatermark} alt=""
+                         class="absolute inset-0 w-full h-full object-cover pointer-events-none z-10"/>
+                {/if}
             {:else}
                 <div class="w-full h-full flex items-center justify-center opacity-10">
                     <div class="w-6 h-6 border border-zinc-500 rotate-45"></div>
@@ -381,87 +386,102 @@
                         </svg>
                     </button>
 
-                    <!-- Item header -->
-                    <div class="flex items-center gap-5 px-5 py-4 shrink-0 border-b-2 transition-colors duration-300
-                                {selectedItem.masterwork && selectedType === 'weapon'
-                                    ? 'border-[#e2bc15]'
-                                    : 'border-zinc-800/80'}"
-                         style={selectedItem.masterwork && selectedType === 'weapon'
-                             ? 'background:linear-gradient(135deg,rgb(81,48,101) 0%,rgb(50,28,65) 100%)'
-                             : ''}>
+                    <!-- ── Item header: full-width screenshot banner ── -->
+                    <div class="relative shrink-0 h-36 overflow-hidden">
+                        <!-- Screenshot background -->
+                        {#if selectedItem.screenshot}
+                            <img src={selectedItem.screenshot} alt=""
+                                 class="absolute inset-0 w-full h-full object-cover object-center"
+                                 style="filter:brightness(0.55) saturate(0.85)"/>
+                        {:else if selectedItem.masterwork && selectedType === 'weapon'}
+                            <div class="absolute inset-0"
+                                 style="background:linear-gradient(135deg,rgb(81,48,101),rgb(50,28,65))"></div>
+                        {:else}
+                            <div class="absolute inset-0 bg-zinc-950"></div>
+                        {/if}
+                        <!-- Left-side gradient so text stays readable -->
+                        <div class="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-transparent"></div>
+                        <!-- Bottom tier-colored rule -->
+                        <div class="absolute bottom-0 left-0 w-full h-[2px]
+                                    {selectedItem.tierType === 6 ? 'bg-amber-400/70' :
+                                     selectedItem.masterwork && selectedType === 'weapon' ? 'bg-yellow-400/60' :
+                                     selectedItem.tierType === 5 ? 'bg-violet-500/50' :
+                                     selectedItem.tierType === 4 ? 'bg-blue-400/40' : 'bg-zinc-700/60'}"></div>
 
-                        <!-- Icon block + vertical tier diamonds -->
-                        <div class="shrink-0 flex items-center gap-2">
-                            {#if selectedItem.icon}
-                                <div class="w-[72px] h-[72px] relative overflow-hidden border
-                                            {selectedItem.tierType === 6 ? 'border-amber-500/60' :
-                                             selectedItem.masterwork && selectedType === 'weapon' ? 'border-[#e2bc15]/60' :
-                                             'border-zinc-700'}">
-                                    <div class="absolute top-0 left-0 w-full h-[2px]
-                                                {selectedItem.tierType === 6 ? 'bg-amber-500' :
-                                                 selectedItem.masterwork ? 'bg-[#e2bc15]' :
-                                                 'bg-zinc-500'} opacity-80"></div>
-                                    <img src={selectedItem.icon} alt="" class="w-full h-full object-cover" />
+                        <!-- Content -->
+                        <div class="relative flex items-center gap-4 px-5 h-full">
+                            <!-- Icon + watermark + tier diamonds -->
+                            <div class="shrink-0 flex items-center gap-3">
+                                <div class="relative w-[72px] h-[72px] border shadow-lg
+                                            {selectedItem.tierType === 6 ? 'border-amber-500/70' :
+                                             selectedItem.masterwork && selectedType === 'weapon' ? 'border-yellow-400/60' :
+                                             selectedItem.tierType === 5 ? 'border-violet-500/50' : 'border-zinc-600/80'}">
+                                    {#if selectedItem.icon}
+                                        <img src={selectedItem.icon} alt="" class="w-full h-full object-cover"/>
+                                        <!-- DLC / seasonal watermark overlaid on icon -->
+                                        {#if selectedItem.iconWatermark}
+                                            <img src={selectedItem.iconWatermark} alt=""
+                                                 class="absolute inset-0 w-full h-full object-cover pointer-events-none"/>
+                                        {/if}
+                                    {/if}
                                 </div>
-                            {/if}
-                            <!-- Vertical tier diamonds (in-game style) -->
-                            {#if selectedType === 'weapon' && hdrTierCount > 0}
-                                <div class="flex flex-col gap-[4px] items-center">
-                                    {#each {length: hdrTierCount} as _}
-                                        <div class="w-2.5 h-2.5 rotate-45 shrink-0 {hdrTierColor}"></div>
-                                    {/each}
-                                </div>
-                            {/if}
-                        </div>
-
-                        <!-- Text info -->
-                        <div class="min-w-0 flex-1">
-                            <span class="text-xs font-medium
-                                         {selectedItem.tierType === 6 ? 'text-amber-400' :
-                                          selectedItem.masterwork && selectedType === 'weapon' ? 'text-yellow-300/80' :
-                                          'text-zinc-400'}">
-                                {TIER_LABEL[selectedItem.tierType] ?? '—'}
-                                {#if selectedItem.itemTypeDisplayName}
-                                    <span class="text-zinc-500"> · {selectedItem.itemTypeDisplayName}</span>
+                                <!-- Vertical tier diamonds — in-game style -->
+                                {#if hdrTierCount > 0}
+                                    <div class="flex flex-col gap-[4px] items-center">
+                                        {#each {length: hdrTierCount} as _}
+                                            <div class="w-2.5 h-2.5 rotate-45 shrink-0 {hdrTierColor}"></div>
+                                        {/each}
+                                    </div>
                                 {/if}
-                            </span>
-                            <!-- Weapon name -->
-                            <p class="text-2xl font-bold text-white leading-tight mt-0.5 truncate">
-                                {selectedItem.name}
-                            </p>
-                            <!-- Damage type + power -->
-                            {#if selectedType === 'weapon'}
-                                <div class="flex items-center gap-3 mt-1.5">
-                                    {#if selectedItem.damageType}
-                                        <div class="flex items-center gap-1.5">
-                                            {#if selectedItem.damageTypeIcon}
-                                                <img src={selectedItem.damageTypeIcon} alt="" class="w-4 h-4 object-contain"/>
-                                            {/if}
-                                            <span class="text-sm font-medium leading-none
-                                                         {damageColor[selectedItem.damageType] ?? 'text-white/80'}">
-                                                {selectedItem.damageTypeName ?? damageLabel[selectedItem.damageType] ?? ''}
-                                            </span>
-                                        </div>
+                            </div>
+
+                            <!-- Text -->
+                            <div class="min-w-0 flex-1">
+                                <span class="text-xs font-medium
+                                             {selectedItem.tierType === 6 ? 'text-amber-400' :
+                                              selectedItem.masterwork && selectedType === 'weapon' ? 'text-yellow-300' :
+                                              selectedItem.tierType === 5 ? 'text-violet-400' : 'text-zinc-400'}">
+                                    {selectedItem.tierTypeName ?? TIER_LABEL[selectedItem.tierType] ?? '—'}
+                                    {#if selectedItem.itemTypeDisplayName}
+                                        <span class="text-zinc-500"> · {selectedItem.itemTypeDisplayName}</span>
                                     {/if}
-                                    {#if selectedItem.power}
-                                        <span class="text-sm font-medium text-zinc-400">
-                                            {selectedItem.power} <span class="text-zinc-600">PL</span>
-                                        </span>
-                                    {/if}
-                                </div>
-                            {/if}
-                            <!-- Armor: flavor text -->
-                            {#if selectedType === 'armor' && selectedItem.flavorText}
-                                <p class="text-xs text-zinc-500 mt-1 line-clamp-1 italic">
-                                    {selectedItem.flavorText}
-                                </p>
-                            {/if}
-                            <!-- Subclass -->
-                            {#if selectedType === 'subclass'}
-                                <span class="text-sm font-medium {subclassEl.text}">
-                                    {classNames[char?.classType] ?? 'Guardian'} · Subclass
                                 </span>
-                            {/if}
+                                <p class="text-[1.6rem] font-bold text-white leading-tight mt-0.5 truncate drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                                    {selectedItem.name}
+                                </p>
+                                {#if selectedType === 'weapon'}
+                                    <div class="flex items-center gap-3 mt-1.5">
+                                        {#if selectedItem.damageType}
+                                            <div class="flex items-center gap-1.5">
+                                                {#if selectedItem.damageTypeIcon}
+                                                    <img src={selectedItem.damageTypeIcon} alt=""
+                                                         class="w-4 h-4 object-contain drop-shadow"/>
+                                                {/if}
+                                                <span class="text-sm font-semibold
+                                                             {damageColor[selectedItem.damageType] ?? 'text-zinc-300'}">
+                                                    {selectedItem.damageTypeName ?? damageLabel[selectedItem.damageType] ?? ''}
+                                                </span>
+                                            </div>
+                                        {/if}
+                                        {#if selectedItem.power}
+                                            <span class="text-sm font-semibold text-zinc-200">
+                                                {selectedItem.power}
+                                                <span class="text-zinc-500 font-normal"> PL</span>
+                                            </span>
+                                        {/if}
+                                    </div>
+                                {/if}
+                                {#if selectedType === 'armor' && selectedItem.flavorText}
+                                    <p class="text-xs text-zinc-400 mt-1 line-clamp-1 italic drop-shadow">
+                                        {selectedItem.flavorText}
+                                    </p>
+                                {/if}
+                                {#if selectedType === 'subclass'}
+                                    <span class="text-sm font-semibold {subclassEl.text}">
+                                        {classNames[char?.classType] ?? 'Guardian'} · Subclass
+                                    </span>
+                                {/if}
+                            </div>
                         </div>
                     </div>
 
