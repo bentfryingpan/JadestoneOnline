@@ -161,6 +161,7 @@ export async function GET({ url, setHeaders }) {
             isEnabled:            s.isEnabled,
             isIntrinsic:          typeName.includes('intrinsic'),
             isMasterwork:         typeName.includes('masterwork'),
+            isEnhanced:           name.toLowerCase().startsWith('enhanced ') || typeName.includes('enhanced trait'),
             isMod:                typeName.includes('weapon mod') || typeName.includes('armor mod'),
             energyCost:           def.plug?.energyCost?.energyCost ?? 0,
             itemTypeDisplayName:  def.itemTypeDisplayName ?? '',

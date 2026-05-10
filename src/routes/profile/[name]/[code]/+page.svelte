@@ -335,262 +335,199 @@
     <div class="flex-1 flex flex-col min-w-0">
 
         <!-- ── Hero header ──────────────────────────────────────────────────── -->
-        <header
-            onmousemove={onHeroMouseMove}
-            onmouseleave={onHeroMouseLeave}
-            class="relative h-64 shrink-0 overflow-hidden border-b border-zinc-800">
+        <header onmousemove={onHeroMouseMove} onmouseleave={onHeroMouseLeave}
+                class="relative h-64 shrink-0 overflow-hidden border-b border-zinc-800">
 
-            <!-- Parallax emblem background -->
-            {#if data.emblemBg}
-                <img src={data.emblemBg} alt=""
-                     class="absolute inset-0 w-full h-full object-cover object-center opacity-25 scale-110"
-                     style="transform: translate({mouseX}px, {mouseY}px) scale(1.1); transition: transform 75ms ease-out" />
-            {:else}
-                <div class="absolute inset-0 bg-gradient-to-br from-zinc-900 to-[#080808] scale-110"
-                     style="transform: translate({mouseX}px, {mouseY}px) scale(1.1); transition: transform 75ms ease-out"></div>
-            {/if}
-
-            <!-- Gradient overlays -->
-            <div class="absolute inset-0 bg-gradient-to-t from-[#080808] via-[#080808]/60 to-transparent pointer-events-none"></div>
-            <div class="absolute inset-0 bg-gradient-to-r from-[#080808]/90 via-transparent to-transparent pointer-events-none"></div>
-            <!-- Scanlines -->
-            <div class="absolute inset-0 opacity-[0.025] pointer-events-none"
-                 style="background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 3px)">
+            <!-- Parallax background -->
+            <div class="absolute inset-[-40px] z-0 transition-transform duration-100 ease-out"
+                 style="transform:translate({mouseX}px,{mouseY}px)">
+                {#if data.emblemBg}
+                    <img src={data.emblemBg} alt=""
+                         class="w-full h-full object-cover grayscale-[0.3] opacity-30 contrast-125 scale-110" />
+                {:else}
+                    <div class="w-full h-full bg-gradient-to-br from-zinc-900 to-[#080808]"></div>
+                {/if}
+                <div class="absolute inset-0 bg-gradient-to-t from-[#080808] via-[#080808]/80 to-transparent z-10"></div>
             </div>
+            <!-- Scanlines -->
+            <div class="absolute inset-0 opacity-[0.02] pointer-events-none z-10"
+                 style="background-image:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.5) 2px,rgba(255,255,255,0.5) 3px)"></div>
 
-            <!-- ── Avatar box + player info ──────────────────────────────── -->
-            <div class="absolute left-8 bottom-8 flex items-end gap-8 anim-in">
+            <!-- ── Main content row ──────────────────────────────────────── -->
+            <div class="relative z-20 flex items-end gap-10 h-full px-8 pb-8 max-w-7xl">
 
-                <!-- Avatar diamond — rotates + glows on hover, reveals rank -->
-                <div class="group/avatar relative w-32 h-32 shrink-0 cursor-default">
-                    <!-- Outer diamond frame -->
-                    <div class="absolute inset-4 rotate-45 border-2 border-zinc-700
-                                transition-all duration-500
-                                group-hover/avatar:border-emerald-500/70
-                                group-hover/avatar:shadow-[0_0_28px_rgba(16,185,129,0.35)]
-                                group-hover/avatar:rotate-[225deg]"></div>
-                    <!-- Inner box -->
-                    <div class="absolute inset-0 bg-[#0e0e0e] border border-zinc-800
-                                flex items-center justify-center overflow-hidden
-                                transition-all duration-500
-                                group-hover/avatar:border-emerald-500/30
-                                group-hover/avatar:shadow-[inset_0_0_24px_rgba(16,185,129,0.07)]">
+                <!-- Avatar box + rank medallion -->
+                <div class="group/avatar relative shrink-0 cursor-default">
+                    <div class="w-32 h-32 bg-[#0c0c0c] border border-zinc-700 p-1.5 relative shadow-2xl overflow-hidden
+                                transition-all duration-300
+                                group-hover/avatar:border-zinc-500
+                                group-hover/avatar:shadow-[0_0_24px_rgba(255,255,255,0.06)]">
                         <!-- Grid texture -->
                         <div class="absolute inset-0 opacity-[0.06]"
                              style="background-image:linear-gradient(rgba(255,255,255,0.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.15) 1px,transparent 1px);background-size:16px 16px"></div>
-                        <!-- Monogram (fades out, rank fades in on hover) -->
-                        <span class="font-serif text-5xl font-light italic z-10 select-none tracking-tight
-                                     transition-all duration-300 text-zinc-300
-                                     group-hover/avatar:opacity-0 group-hover/avatar:scale-75">
-                            {monogram}
-                        </span>
-                        <!-- Rank reveal on hover -->
-                        <div class="absolute inset-0 flex flex-col items-center justify-center z-20
-                                    opacity-0 group-hover/avatar:opacity-100
-                                    transition-all duration-300 delay-100">
-                            <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-1">Rank</span>
-                            <span class="text-[13px] font-mono font-bold text-emerald-400 leading-none">{gambitRank}</span>
-                            <div class="w-14 h-px bg-zinc-800 mt-2 mb-1">
-                                <div class="h-full bg-emerald-400/70" style="width:{gambitPct}%"></div>
-                            </div>
-                            <span class="text-[7px] font-mono text-zinc-700">{gambitPct}%</span>
+                        <!-- Corner accents -->
+                        <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-zinc-400/60 z-10"></div>
+                        <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-zinc-400/60 z-10"></div>
+                        <!-- Monogram -->
+                        <div class="w-full h-full flex items-center justify-center relative z-0">
+                            <span class="font-serif text-5xl font-black italic text-zinc-700 select-none
+                                         transition-colors duration-300 group-hover/avatar:text-zinc-500">
+                                {monogram}
+                            </span>
                         </div>
                     </div>
-                    <!-- Power level badge — bottom left -->
-                    {#if char.light}
-                        <div class="absolute -bottom-2 -left-1 bg-[#0a0a0a] border border-zinc-700 px-2 py-0.5 z-20
-                                    transition-colors duration-200 group-hover/avatar:border-zinc-500">
-                            <span class="text-[8px] font-mono font-bold text-zinc-300">{char.light} <span class="text-zinc-600">PL</span></span>
+
+                    <!-- Rank icon placeholder — bottom-right (will hold tier icon for top 100/50/10/3/2/1) -->
+                    <div class="group/rank absolute -bottom-3 -right-3 z-20 cursor-default">
+                        <div class="w-9 h-9 relative transition-all duration-400
+                                    group-hover/rank:scale-110">
+                            <!-- Diamond shell -->
+                            <div class="absolute inset-0 rotate-45 border-2 bg-[#0a0a0a]
+                                        transition-all duration-300
+                                        {gambitRank === 'Legend'  ? 'border-amber-400  shadow-[0_0_10px_rgba(251,191,36,0.5)]'  :
+                                         gambitRank === 'Mythic'  ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.4)]' :
+                                         gambitRank === 'Fabled'  ? 'border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' :
+                                         gambitRank === 'Heroic'  ? 'border-blue-500'   :
+                                                                    'border-zinc-600'}
+                                        group-hover/rank:shadow-[0_0_16px_rgba(16,185,129,0.6)]
+                                        group-hover/rank:border-emerald-400"></div>
+                            <!-- Rank initial -->
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-[9px] font-mono font-black
+                                             {gambitRank === 'Legend' ? 'text-amber-400' :
+                                              gambitRank === 'Mythic' ? 'text-violet-400' :
+                                              gambitRank === 'Fabled' ? 'text-emerald-400' :
+                                              gambitRank === 'Heroic' ? 'text-blue-400' : 'text-zinc-500'}">
+                                    {gambitRank[0]}
+                                </span>
+                            </div>
                         </div>
-                    {/if}
+                        <!-- Rank tooltip -->
+                        <div class="absolute bottom-full right-0 mb-2 z-30
+                                    opacity-0 group-hover/rank:opacity-100
+                                    translate-y-1 group-hover/rank:translate-y-0
+                                    transition-all duration-200 pointer-events-none whitespace-nowrap">
+                            <div class="bg-[#111] border border-zinc-700 px-3 py-2 shadow-[0_0_16px_rgba(0,0,0,0.8)] text-right">
+                                <span class="text-[8px] font-mono font-bold text-emerald-400 block">{gambitRank}</span>
+                                <div class="w-16 h-px bg-zinc-800 mt-1.5 ml-auto">
+                                    <div class="h-full bg-emerald-400/70" style="width:{gambitPct}%"></div>
+                                </div>
+                                <span class="text-[7px] font-mono text-zinc-600 mt-0.5 block">{gambitPct}% to next tier</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Player text block -->
-                <div class="pb-1">
-                    <!-- Micro label -->
-                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-emerald-500/70 block mb-1">
-                        Guardian Profile
-                    </span>
-                    <!-- Player name -->
-                    <h1 class="font-serif text-5xl font-light italic tracking-tight uppercase text-white leading-none mb-2 flex items-baseline gap-2">
-                        {data.player.bungieGlobalDisplayName}<span class="font-mono text-lg text-zinc-600 not-italic tracking-normal">#{String(data.player.bungieGlobalDisplayNameCode).padStart(4,'0')}</span>
+                <!-- Identity block -->
+                <div class="flex-1 min-w-0 mb-1">
+                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-emerald-500/60 block mb-1">Guardian Profile</span>
+                    <h1 class="font-serif text-6xl font-light italic tracking-tighter uppercase leading-none text-white
+                               drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] mb-2 anim-in truncate">
+                        {data.player.bungieGlobalDisplayName}<span class="font-mono text-xl text-zinc-600 not-italic tracking-normal ml-1">#{String(data.player.bungieGlobalDisplayNameCode).padStart(4,'0')}</span>
                     </h1>
-                    <!-- Clan + class info -->
-                    <div class="flex items-center gap-3 mb-4">
+                    <!-- Clan + class -->
+                    <div class="flex items-center gap-3 mb-6">
                         {#if data.clan}
                             <a href="/clan/{data.clan.groupId}"
-                               class="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400
-                                      hover:text-emerald-300 transition-colors border border-emerald-500/30
-                                      px-2 py-0.5 hover:border-emerald-500/60">
+                               class="text-[11px] font-sans text-zinc-400 uppercase tracking-[0.2em] font-medium
+                                      hover:text-zinc-200 transition-colors">
                                 [{data.clan.name}]
                             </a>
                         {/if}
                         {#if classNames[char.classType]}
-                            <span class="text-[10px] font-mono uppercase tracking-[0.15em] text-zinc-600">
+                            <span class="text-[11px] font-sans uppercase tracking-[0.15em] text-zinc-600">
                                 {classNames[char.classType]}{raceNames[char.raceType] ? ' · ' + raceNames[char.raceType] : ''}
                             </span>
                         {/if}
                     </div>
-                    <!-- Achievement badge strip — sleek diamonds, rotate+reveal on hover -->
-                    <div class="flex items-center gap-1.5 mb-4">
+                    <!-- Medal badges row -->
+                    <div class="flex items-center gap-5">
                         {#each ACHIEVEMENT_BADGES as badge}
                             {@const ts = tierStyle[badge.tier]}
                             <div class="group relative cursor-default select-none">
-                                <!-- Diamond shell: rotates 45° on hover -->
-                                <div class="w-7 h-7 relative transition-all duration-400 ease-out
-                                            group-hover:rotate-45 group-hover:scale-110">
+                                <div class="w-8 h-8 relative transition-all duration-300 ease-out
+                                            group-hover:scale-125">
                                     <div class="absolute inset-0 rotate-45 border {ts.border} bg-[#0c0c0c]
-                                                transition-all duration-400
-                                                {badge.tier !== 'locked' ? ts.glow : ''}
-                                                group-hover:{ts.hoverBorder}"></div>
-                                    <!-- Icon: counter-rotates to stay upright, fades out on hover -->
-                                    <div class="absolute inset-0 flex items-center justify-center
                                                 transition-all duration-300
-                                                group-hover:opacity-0">
-                                        <span class="text-[9px] leading-none {ts.text}
-                                                     {badge.tier === 'locked' ? 'opacity-20' : 'opacity-80'}">
+                                                {badge.tier !== 'locked' ? ts.glow : ''}
+                                                group-hover:{ts.hoverBorder}
+                                                group-hover:rotate-[90deg]"></div>
+                                    <div class="absolute inset-0 flex items-center justify-center
+                                                transition-all duration-300">
+                                        <span class="text-[11px] leading-none {ts.text}
+                                                     {badge.tier === 'locked' ? 'opacity-20' : 'opacity-80 group-hover:opacity-100'}">
                                             {badge.icon}
                                         </span>
                                     </div>
-                                    <!-- Revealed label on hover (rotates with diamond, so text appears at 45°) -->
-                                    <div class="absolute inset-0 flex items-center justify-center
-                                                opacity-0 group-hover:opacity-100 transition-all duration-300 delay-75">
-                                        <span class="text-[6px] font-mono font-bold {ts.text} leading-none text-center
-                                                     {badge.tier === 'locked' ? 'opacity-40' : ''}">
-                                            {badge.tier === 'locked' ? '?' : badge.icon}
-                                        </span>
-                                    </div>
                                 </div>
-                                <!-- Tooltip above -->
+                                <!-- Tooltip -->
                                 <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-40
                                             opacity-0 group-hover:opacity-100
                                             translate-y-1 group-hover:translate-y-0
                                             transition-all duration-200 pointer-events-none whitespace-nowrap">
-                                    <div class="bg-[#111] border border-zinc-700/80 px-3 py-2
-                                                shadow-[0_0_16px_rgba(0,0,0,0.8)] text-center">
+                                    <div class="bg-[#111] border border-zinc-700/80 px-3 py-2 shadow-[0_0_16px_rgba(0,0,0,0.8)] text-center">
                                         <div class="w-full h-px mb-1.5
-                                            {badge.tier === 'amber'   ? 'bg-amber-500/50'   :
-                                             badge.tier === 'emerald' ? 'bg-emerald-500/50' :
-                                             badge.tier === 'violet'  ? 'bg-violet-500/50'  :
-                                             badge.tier === 'zinc'    ? 'bg-zinc-600/50'     :
-                                                                        'bg-zinc-800'}"></div>
+                                            {badge.tier==='amber' ? 'bg-amber-500/50' : badge.tier==='emerald' ? 'bg-emerald-500/50' :
+                                             badge.tier==='violet' ? 'bg-violet-500/50' : badge.tier==='zinc' ? 'bg-zinc-600/50' : 'bg-zinc-800'}"></div>
                                         <span class="text-[9px] font-mono font-bold {ts.text} block">{badge.label}</span>
                                         <span class="text-[7px] font-sans text-zinc-600 block mt-0.5 max-w-[140px] whitespace-normal leading-relaxed">{badge.desc}</span>
                                     </div>
-                                    <div class="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px]
-                                                border-l-transparent border-r-transparent border-t-zinc-700/80 mx-auto"></div>
-                                </div>
-                            </div>
-                        {/each}
-                    </div>
-
-                    <!-- Medal badge row — rotating diamonds -->
-                    <div class="flex items-center gap-3">
-                        {#each [
-                            { label: 'Win Rate',  short: 'WR',  value: dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—', tip: `${fmt(dWon)} wins · ${fmt(dEntered - dWon)} losses` },
-                            { label: 'K/D Ratio', short: 'KD',  value: dKD      != null ? fmtF(dKD, 2)             : '—', tip: `${fmt(dKills)} kills · ${fmt(dDeaths)} deaths`        },
-                            { label: 'Motes',     short: 'MO',  value: fmt(dMotes),                                        tip: `${fmt(dMotesLost)} motes lost`                        },
-                            { label: 'Invasions', short: 'INV', value: fmt(dInvasions),                                    tip: `${fmt(dInvKills)} invasion kills`                     },
-                            { label: 'Matches',   short: 'GP',  value: fmt(dEntered),                                      tip: `${fmt(dWon)} wins total`                              },
-                        ] as medal}
-                            <div class="group relative cursor-default select-none">
-                                <!-- Diamond badge -->
-                                <div class="relative w-11 h-11 transition-all duration-300 ease-out
-                                            rotate-45 border border-zinc-700 bg-[#0c0c0c]
-                                            group-hover:rotate-0 group-hover:border-emerald-500/50 group-hover:bg-emerald-500/5
-                                            group-hover:shadow-[0_0_16px_rgba(16,185,129,0.2)]">
-                                </div>
-                                <!-- Value (counter-rotates to stay upright) -->
-                                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span class="text-[9px] font-mono font-bold transition-all duration-300
-                                                 -rotate-45 group-hover:rotate-0
-                                                 text-zinc-300 group-hover:text-emerald-400 leading-none">
-                                        {medal.value}
-                                    </span>
-                                    <!-- Label — only visible when de-rotated -->
-                                    <span class="text-[6px] font-mono uppercase tracking-[0.1em] text-zinc-600
-                                                 opacity-0 group-hover:opacity-100 group-hover:text-emerald-600
-                                                 transition-all duration-200 mt-0.5 leading-none">
-                                        {medal.short}
-                                    </span>
-                                </div>
-                                <!-- Tooltip below -->
-                                <div class="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-30
-                                            opacity-0 group-hover:opacity-100
-                                            translate-y-1 group-hover:translate-y-0
-                                            transition-all duration-200 pointer-events-none">
-                                    <div class="bg-[#111] border border-zinc-700 px-3 py-2 text-center shadow-[0_0_16px_rgba(0,0,0,0.6)] whitespace-nowrap">
-                                        <span class="text-[9px] font-mono font-bold text-emerald-400 block">{medal.value}</span>
-                                        <span class="text-[7px] font-mono uppercase tracking-[0.2em] text-zinc-400 block mt-0.5">{medal.label}</span>
-                                        <span class="text-[7px] font-sans text-zinc-600 block mt-1">{medal.tip}</span>
-                                    </div>
+                                    <div class="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-l-transparent border-r-transparent border-t-zinc-700/80 mx-auto"></div>
                                 </div>
                             </div>
                         {/each}
                     </div>
                 </div>
-            </div>
 
-            <!-- ── Rating panel — top right (styled after reference image) ──── -->
-            <div class="group/ego absolute top-0 right-0 bottom-0 flex flex-col items-end justify-center
-                        pr-10 cursor-default anim-in anim-in-d2 select-none">
-                <!-- Vertical accent line -->
-                <div class="absolute left-0 top-8 bottom-8 w-px bg-gradient-to-b from-transparent via-zinc-700 to-transparent"></div>
-
-                <span class="text-[8px] font-mono uppercase tracking-[0.35em] text-zinc-500 block mb-1">Rating</span>
-                <!-- Big number -->
-                <span class="font-mono font-bold text-white leading-none block mb-1
-                             text-5xl transition-all duration-300
-                             group-hover/ego:drop-shadow-[0_0_18px_rgba(255,255,255,0.25)]">
-                    {egoRating.toLocaleString()}
-                </span>
-                <!-- Rank tier — italic emerald like "# WORLDWIDE" in reference -->
-                <span class="font-serif italic text-emerald-400 text-[13px] leading-none tracking-wide block mb-3
-                             transition-all duration-300 group-hover/ego:text-emerald-300">
-                    #{gambitRank.toUpperCase()}
-                </span>
-                <!-- Rank progress bar -->
-                <div class="w-24 h-px bg-zinc-800 mb-1 ml-auto">
-                    <div class="h-full bg-emerald-400/80 transition-all"
-                         style="width:{gambitPct}%"></div>
-                </div>
-                <span class="text-[7px] font-mono text-zinc-700 block">{gambitPct}% TO NEXT TIER</span>
-
-                <!-- Formula breakdown tooltip -->
-                <div class="absolute top-1/2 -translate-y-1/2 right-full mr-4 z-30
-                            opacity-0 group-hover/ego:opacity-100
-                            translate-x-2 group-hover/ego:translate-x-0
-                            transition-all duration-200 pointer-events-none whitespace-nowrap">
-                    <div class="bg-[#111] border border-zinc-700 px-4 py-3 text-left shadow-[0_0_20px_rgba(0,0,0,0.7)]">
-                        <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-500 block mb-2">EGO Formula</span>
-                        {#each [
-                            { label: 'Wins × 15',           value: fmt(ltWon * 15)                        },
-                            { label: 'Kills × 0.3',         value: fmt(Math.floor(ltKills * 0.3))         },
-                            { label: 'Inv. Kills × 5',      value: fmt(ltInvKills * 5)                    },
-                            { label: 'Motes × 0.1',         value: fmt(Math.floor(ltMotes * 0.1))         },
-                        ] as row}
-                            <div class="flex items-center justify-between gap-6 mb-1">
-                                <span class="text-[8px] font-sans text-zinc-600">{row.label}</span>
-                                <span class="text-[8px] font-mono text-zinc-300">{row.value}</span>
+                <!-- Rating section -->
+                <div class="group/ego shrink-0 text-right mb-1 cursor-default select-none">
+                    <span class="text-[8px] font-sans uppercase tracking-[0.35em] text-zinc-500 block mb-1">Rating</span>
+                    <span class="text-5xl font-sans font-light tracking-tighter text-white leading-none block
+                                 transition-all duration-300 group-hover/ego:drop-shadow-[0_0_16px_rgba(255,255,255,0.2)]">
+                        {egoRating.toLocaleString()}
+                    </span>
+                    <span class="text-[10px] font-sans italic tracking-[0.3em] text-emerald-500 font-bold
+                                 uppercase block mt-2 drop-shadow-md">
+                        #{gambitRank.toUpperCase()}
+                    </span>
+                    <div class="w-24 h-px bg-zinc-800 mt-3 ml-auto">
+                        <div class="h-full bg-emerald-400/70 transition-all" style="width:{gambitPct}%"></div>
+                    </div>
+                    <span class="text-[7px] font-mono text-zinc-700 mt-1 block">{gambitPct}% TO NEXT TIER</span>
+                    <!-- Formula tooltip -->
+                    <div class="absolute top-1/2 -translate-y-1/2 right-full mr-4 z-30
+                                opacity-0 group-hover/ego:opacity-100
+                                translate-x-2 group-hover/ego:translate-x-0
+                                transition-all duration-200 pointer-events-none whitespace-nowrap">
+                        <div class="bg-[#111] border border-zinc-700 px-4 py-3 text-left shadow-[0_0_20px_rgba(0,0,0,0.7)]">
+                            <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-500 block mb-2">EGO Formula</span>
+                            {#each [
+                                { label: 'Wins × 15',      value: fmt(ltWon * 15)              },
+                                { label: 'Kills × 0.3',    value: fmt(Math.floor(ltKills*0.3)) },
+                                { label: 'Inv. Kills × 5', value: fmt(ltInvKills * 5)          },
+                                { label: 'Motes × 0.1',    value: fmt(Math.floor(ltMotes*0.1)) },
+                            ] as row}
+                                <div class="flex items-center justify-between gap-6 mb-1">
+                                    <span class="text-[8px] font-sans text-zinc-600">{row.label}</span>
+                                    <span class="text-[8px] font-mono text-zinc-300">{row.value}</span>
+                                </div>
+                            {/each}
+                            <div class="h-px bg-zinc-800 my-2"></div>
+                            <div class="flex items-center justify-between gap-6">
+                                <span class="text-[8px] font-mono uppercase text-zinc-500">Total</span>
+                                <span class="text-[10px] font-mono font-bold text-emerald-400">{egoRating.toLocaleString()}</span>
                             </div>
-                        {/each}
-                        <div class="h-px bg-zinc-800 my-2"></div>
-                        <div class="flex items-center justify-between gap-6">
-                            <span class="text-[8px] font-mono uppercase tracking-[0.1em] text-zinc-500">Total</span>
-                            <span class="text-[10px] font-mono font-bold text-emerald-400">{egoRating.toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Decorative accents -->
-            <div class="absolute top-4 left-4 w-3 h-3 border border-emerald-500/30 rotate-45"></div>
-            <div class="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-emerald-500/30 via-transparent to-transparent"></div>
+            <!-- Bottom accent line -->
+            <div class="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-emerald-500/30 via-transparent to-transparent z-20"></div>
         </header>
 
-        <!-- ── Tab nav strip (Gemini-exact style) ───────────────────────────── -->
-        <div class="h-14 bg-[#0d0d0d] border-b border-zinc-800 flex items-end overflow-x-auto shrink-0 sticky top-0 z-30"
-             style="scrollbar-width:none">
+        <!-- ── Tab nav strip ────────────────────────────────────────────────── -->
+        <div class="h-14 bg-[#0d0d0d] border-b border-zinc-800 flex items-end shrink-0 sticky top-0 z-30">
             {#each TABS as t}
                 <button onclick={() => tab = t.id}
                     class="text-[10px] font-sans uppercase tracking-[0.3em] h-10 px-6 relative

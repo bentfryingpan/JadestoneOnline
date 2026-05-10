@@ -136,13 +136,25 @@
      Snippet used for weapons and armor.
      key: slot key in eq, label: display label, item: eq[key]
 ────────────────────────────────────────────────────────────────────────────── -->
+<!-- Tier diamond colors: exotic=amber, legendary=violet, rare=blue, uncommon=green -->
+{#snippet TierDiamond(tierType)}
+    {@const c =
+        tierType === 6 ? 'border-amber-400  bg-amber-400/20  shadow-[0_0_6px_rgba(251,191,36,0.5)]'  :
+        tierType === 5 ? 'border-violet-400 bg-violet-400/20 shadow-[0_0_6px_rgba(167,139,250,0.4)]' :
+        tierType === 4 ? 'border-blue-400   bg-blue-400/20'   :
+        tierType === 3 ? 'border-green-400  bg-green-400/20'  :
+                         'border-zinc-600   bg-zinc-800'}
+    <div class="w-3 h-3 rotate-45 border {c} transition-all duration-300"></div>
+{/snippet}
+
 {#snippet GearSlot(key, label)}
     {@const item      = eq[key]}
     {@const exotic    = item?.tierType === 6}
+    {@const isWeapon  = ['kinetic','energy','power'].includes(key)}
     {@const mw        = item?.masterwork ?? false}
     {@const isActive  = selectedSlot === key}
     <button onclick={() => selectSlot(key)}
-            class="group flex flex-col items-center gap-2 w-full text-left transition-all">
+            class="group flex flex-col items-center gap-1.5 w-full text-left transition-all">
         <div class="w-20 h-20 bg-[#0c0c0c] relative mx-auto overflow-hidden
                     shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
                     border
@@ -153,16 +165,15 @@
                             : exotic
                                 ? 'border-amber-500/30 group-hover:border-amber-500/60'
                                 : 'border-zinc-800 group-hover:border-zinc-500'}">
-            <!-- Top rarity / masterwork bar -->
+            <!-- Top rarity / MW bar -->
             <div class="absolute top-0 left-0 w-full h-[2px] z-10
                         {mw && !exotic
                             ? 'bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600'
-                            : exotic ? 'bg-amber-500 opacity-80' : 'bg-zinc-100 opacity-40'}"></div>
-            <!-- Masterwork corner glow -->
+                            : exotic ? 'bg-amber-500 opacity-80' : 'bg-zinc-100 opacity-30'}"></div>
+            <!-- MW corner glow -->
             {#if mw && !isActive}
                 <div class="absolute inset-0 pointer-events-none"
-                     style="background:radial-gradient(ellipse at top right, rgba(234,179,8,0.12) 0%, transparent 65%)"></div>
-                <!-- MW star ornament top-right -->
+                     style="background:radial-gradient(ellipse at top right,rgba(234,179,8,0.10) 0%,transparent 65%)"></div>
                 <div class="absolute top-1 right-1 w-2 h-2 rotate-45 border border-yellow-400/50
                             bg-yellow-400/10 z-10 transition-all duration-300
                             group-hover:border-yellow-300 group-hover:shadow-[0_0_6px_rgba(234,179,8,0.6)]"></div>
@@ -171,30 +182,129 @@
             {#if item?.icon}
                 <img src={item.icon} alt="" class="w-full h-full object-cover" />
             {:else}
-                <div class="w-full h-full flex items-center justify-center
-                            opacity-10 group-hover:opacity-25 transition-opacity">
+                <div class="w-full h-full flex items-center justify-center opacity-10 group-hover:opacity-25 transition-opacity">
                     <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
                 </div>
             {/if}
-            <!-- Tier / MW badge -->
-            <div class="absolute bottom-0 right-0 px-1.5 bg-black/70 z-10
-                        text-[7px] uppercase font-bold tracking-tight
-                        {mw ? 'text-yellow-400' : 'text-zinc-500'}">
-                {mw ? 'MW' : (TIER_LABEL[item?.tierType] ?? '—')}
-            </div>
             <!-- Selected pulse -->
             {#if isActive}
                 <div class="absolute inset-0 border border-emerald-500/30 pointer-events-none"></div>
             {/if}
         </div>
+
+        <!-- Weapon tier diamonds row -->
+        {#if isWeapon && item}
+            <div class="flex items-center gap-1 justify-center">
+                {#each {length: Math.max(0, (item.tierType ?? 1) - 1)} as _, i}
+                    {@render TierDiamond(i < (item.tierType ?? 1) - 1 ? item.tierType : 0)}
+                {/each}
+            </div>
+        {/if}
+
         <div class="text-center w-full">
-            <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">{label}</p>
-            <p class="text-[10px] font-bold uppercase tracking-tight truncate w-28 mx-auto transition-colors
+            <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold leading-none">{label}</p>
+            <p class="text-[9px] font-bold uppercase tracking-tight truncate w-28 mx-auto transition-colors mt-0.5
                       {isActive ? 'text-emerald-400' : 'text-zinc-200 group-hover:text-white'}">
                 {item?.name ?? '—'}
             </p>
         </div>
     </button>
+{/snippet}
+
+<!-- ── Perk snippets ─────────────────────────────────────────────────────────── -->
+{#snippet PerkRow(perk)}
+    <div class="flex items-start gap-2.5 py-2 border-b border-zinc-800/40 last:border-0 group/perk">
+        <div class="shrink-0 w-8 h-8 border relative overflow-hidden
+                    {perk.isIntrinsic ? 'border-amber-500/40 bg-amber-500/5' :
+                     perk.isMasterwork ? 'border-yellow-400/30 bg-yellow-500/5' :
+                     'border-zinc-800 group-hover/perk:border-zinc-600'}">
+            {#if perk.icon}<img src={perk.icon} alt="" class="w-full h-full object-cover"/>
+            {:else}<div class="w-full h-full flex items-center justify-center opacity-20"><div class="w-3 h-3 border border-zinc-500 rotate-45"></div></div>{/if}
+            {#if !perk.isEnabled}<div class="absolute inset-0 bg-black/60"></div>{/if}
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-0.5">
+                <span class="text-[9px] font-mono font-bold uppercase tracking-wide
+                             {perk.isIntrinsic ? 'text-amber-400' : perk.isMasterwork ? 'text-yellow-400' : 'text-zinc-200'}">
+                    {perk.name}
+                </span>
+            </div>
+            {#if perk.description}
+                <p class="text-[8px] font-sans text-zinc-500 leading-relaxed line-clamp-2">{perk.description}</p>
+            {/if}
+        </div>
+    </div>
+{/snippet}
+
+{#snippet PerkIcon(perk)}
+    <div class="group/perk flex items-center gap-2 p-1.5 border border-zinc-800/60
+                hover:border-zinc-700 transition-colors cursor-default relative">
+        <div class="shrink-0 w-7 h-7 border border-zinc-800 overflow-hidden relative">
+            {#if perk.icon}<img src={perk.icon} alt="" class="w-full h-full object-cover"/>
+            {:else}<div class="w-full h-full flex items-center justify-center opacity-10"><div class="w-3 h-3 border border-zinc-600 rotate-45"></div></div>{/if}
+            {#if !perk.isEnabled}<div class="absolute inset-0 bg-black/50"></div>{/if}
+        </div>
+        <span class="text-[8px] font-mono text-zinc-400 truncate flex-1 leading-tight">{perk.name}</span>
+        <!-- Mini tooltip -->
+        {#if perk.description}
+            <div class="absolute bottom-full left-0 mb-1 z-50 opacity-0 group-hover/perk:opacity-100
+                        translate-y-1 group-hover/perk:translate-y-0 transition-all duration-150
+                        pointer-events-none w-48">
+                <div class="bg-[#141414] border border-zinc-700 p-2 shadow-[0_0_16px_rgba(0,0,0,0.8)]">
+                    <p class="text-[8px] font-mono font-bold text-zinc-200 mb-1">{perk.name}</p>
+                    <p class="text-[7px] font-sans text-zinc-500 leading-relaxed">{perk.description}</p>
+                </div>
+            </div>
+        {/if}
+    </div>
+{/snippet}
+
+{#snippet TraitCard(perk)}
+    <div class="group/trait relative border transition-all duration-200 cursor-default
+                {perk.isEnhanced
+                    ? 'border-yellow-500/40 bg-yellow-500/5 hover:border-yellow-400/70 hover:shadow-[0_0_12px_rgba(234,179,8,0.2)]'
+                    : 'border-zinc-800 hover:border-zinc-600'}
+                {!perk.isEnabled ? 'opacity-50' : ''}">
+        <!-- Enhanced indicator bar -->
+        {#if perk.isEnhanced}
+            <div class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-yellow-500/60 via-yellow-300/40 to-transparent"></div>
+        {/if}
+        <div class="flex items-start gap-2 p-2">
+            <div class="shrink-0 w-8 h-8 relative overflow-hidden">
+                {#if perk.icon}
+                    <img src={perk.icon} alt="" class="w-full h-full object-cover"/>
+                    {#if perk.isEnhanced}
+                        <!-- Gold overlay shimmer for enhanced -->
+                        <div class="absolute inset-0 pointer-events-none"
+                             style="background:radial-gradient(ellipse at top left,rgba(234,179,8,0.25) 0%,transparent 70%)"></div>
+                    {/if}
+                {/if}
+                {#if !perk.isEnabled}<div class="absolute inset-0 bg-black/60"></div>{/if}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1 mb-0.5">
+                    <span class="text-[9px] font-mono font-bold uppercase tracking-wide leading-tight
+                                 {perk.isEnhanced ? 'text-yellow-300' : 'text-zinc-200'}">
+                        {perk.name}
+                    </span>
+                    {#if perk.isEnhanced}
+                        <span class="text-[6px] font-mono font-bold text-yellow-500 border border-yellow-500/30 px-1 leading-none py-px shrink-0">ENH</span>
+                    {/if}
+                </div>
+                <p class="text-[7px] font-sans text-zinc-600 leading-relaxed line-clamp-3">{perk.description ?? ''}</p>
+            </div>
+        </div>
+        <!-- Stat bonus chips -->
+        {#if perk.statBonuses?.length}
+            <div class="flex flex-wrap gap-1 px-2 pb-1.5">
+                {#each perk.statBonuses as sb}
+                    <span class="text-[6px] font-mono text-emerald-500 border border-emerald-500/20 px-1 py-px">
+                        +{sb.value} {statHashToName[sb.statHash] ?? ''}
+                    </span>
+                {/each}
+            </div>
+        {/if}
+    </div>
 {/snippet}
 
 <!-- ── Main Layout ─────────────────────────────────────────────────────────── -->
@@ -321,75 +431,60 @@
                     <!-- Scrollable content -->
                     <div class="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-1">
 
-                        <!-- ── WEAPON PERKS ────────────────────────────────── -->
+                        <!-- ── WEAPON PERKS (D2-style categorised layout) ─── -->
                         {#if selectedType === 'weapon'}
-                            {#each (selectedItem.perks ?? []) as perk}
-                                <div class="flex items-start gap-3 py-2.5
-                                            border-b border-zinc-800/60 last:border-0 group/perk">
-                                    <!-- Perk icon -->
-                                    <div class="shrink-0 w-9 h-9 border relative overflow-hidden
-                                                transition-colors duration-200
-                                                {perk.isIntrinsic
-                                                    ? 'border-amber-500/40 bg-amber-500/5'
-                                                    : perk.isMasterwork
-                                                        ? 'border-yellow-400/40 bg-yellow-500/5'
-                                                        : 'border-zinc-800 group-hover/perk:border-zinc-600'}">
-                                        {#if perk.icon}
-                                            <img src={perk.icon} alt="" class="w-full h-full object-cover" />
-                                        {:else}
-                                            <div class="w-full h-full flex items-center justify-center opacity-20">
-                                                <div class="w-4 h-4 border border-zinc-500 rotate-45"></div>
-                                            </div>
-                                        {/if}
-                                        <!-- Disabled overlay -->
-                                        {#if !perk.isEnabled}
-                                            <div class="absolute inset-0 bg-black/60"></div>
-                                        {/if}
-                                    </div>
-                                    <!-- Perk text -->
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 mb-0.5">
-                                            <span class="text-[10px] font-mono font-bold uppercase tracking-wide
-                                                         {perk.isIntrinsic
-                                                             ? 'text-amber-400'
-                                                             : perk.isMasterwork
-                                                                 ? 'text-yellow-400'
-                                                                 : 'text-zinc-200'}">
-                                                {perk.name}
-                                            </span>
-                                            {#if perk.isIntrinsic}
-                                                <span class="text-[7px] font-mono uppercase tracking-wider
-                                                             text-amber-600 border border-amber-500/20 px-1">
-                                                    INTRINSIC
-                                                </span>
-                                            {/if}
-                                            {#if perk.isMasterwork}
-                                                <span class="text-[7px] font-mono uppercase tracking-wider
-                                                             text-yellow-600 border border-yellow-500/20 px-1">
-                                                    MW
-                                                </span>
-                                            {/if}
-                                        </div>
-                                        {#if perk.description}
-                                            <p class="text-[9px] font-sans text-zinc-500 leading-relaxed line-clamp-3">
-                                                {perk.description}
-                                            </p>
-                                        {/if}
-                                        <!-- Stat bonuses -->
-                                        {#if perk.statBonuses?.length}
-                                            <div class="flex flex-wrap gap-1.5 mt-1">
-                                                {#each perk.statBonuses as sb}
-                                                    <span class="text-[7px] font-mono text-emerald-500 border border-emerald-500/20 px-1">
-                                                        +{sb.value}
-                                                    </span>
-                                                {/each}
-                                            </div>
-                                        {/if}
+                            {@const perks      = selectedItem.perks ?? []}
+                            {@const intrinsic  = perks.filter(p => p.isIntrinsic)}
+                            {@const traits     = perks.filter(p => !p.isIntrinsic && !p.isMasterwork && p.itemTypeDisplayName?.toLowerCase().includes('trait'))}
+                            {@const other      = perks.filter(p => !p.isIntrinsic && !p.isMasterwork && !p.itemTypeDisplayName?.toLowerCase().includes('trait'))}
+                            {@const mwPerks    = perks.filter(p => p.isMasterwork)}
+
+                            {#if !perks.length}
+                                <p class="text-[10px] font-sans text-zinc-700 text-center py-8">No perk data available.</p>
+                            {/if}
+
+                            <!-- Intrinsic frame -->
+                            {#if intrinsic.length}
+                                <div class="mb-3">
+                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-amber-600/70 block mb-1.5">Frame</span>
+                                    {#each intrinsic as perk}
+                                        {@render PerkRow(perk)}
+                                    {/each}
+                                </div>
+                            {/if}
+
+                            <!-- Other non-trait perks (launcher, grip, scope...) -->
+                            {#if other.length}
+                                <div class="mb-3">
+                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-1.5">Perks</span>
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        {#each other as perk}
+                                            {@render PerkIcon(perk)}
+                                        {/each}
                                     </div>
                                 </div>
-                            {/each}
-                            {#if !selectedItem.perks?.length}
-                                <p class="text-[10px] font-sans text-zinc-700 text-center py-8">No perk data available.</p>
+                            {/if}
+
+                            <!-- Traits (main roll perks — enhanced get gold treatment) -->
+                            {#if traits.length}
+                                <div class="mb-3 border-t border-zinc-800/60 pt-3">
+                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-1.5">Traits</span>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        {#each traits as perk}
+                                            {@render TraitCard(perk)}
+                                        {/each}
+                                    </div>
+                                </div>
+                            {/if}
+
+                            <!-- Masterwork -->
+                            {#if mwPerks.length}
+                                <div class="border-t border-zinc-800/60 pt-3">
+                                    <span class="text-[7px] font-mono uppercase tracking-[0.25em] text-yellow-600/70 block mb-1.5">Masterwork</span>
+                                    {#each mwPerks as perk}
+                                        {@render PerkRow(perk)}
+                                    {/each}
+                                </div>
                             {/if}
 
                         <!-- ── ARMOR STATS + MODS ──────────────────────────── -->
@@ -704,78 +799,60 @@
             {/if}
         </div>
 
-        <!-- ── COL 3: ARMOR + STATS ────────────────────────────────────────── -->
-        <div class="col-span-3 flex flex-col space-y-8 items-center h-full">
+        <!-- ── COL 3: STATS (left) + ARMOR (right) ──────────────────────────── -->
+        <div class="col-span-3 flex gap-4 items-start">
 
-            <!-- Armor slots -->
-            <div class="flex flex-col items-center gap-6 w-full">
-                {@render GearSlot('helmet',    'HELMET')}
-                {@render GearSlot('gauntlets', 'ARMS')}
-                {@render GearSlot('chest',     'CHEST')}
-                {@render GearSlot('legs',      'LEGS')}
-                {@render GearSlot('classItem', 'CLASS')}
-            </div>
-
-            <!-- Stats panel -->
-            <div class="w-full mt-auto bg-[#0a0a0a] border border-zinc-800 p-5
-                        shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
-                <div class="flex justify-between items-center border-b border-zinc-800 pb-3 mb-3">
-                    <span class="text-[10px] text-emerald-500 uppercase tracking-widest font-bold">STATS</span>
-                    <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+            <!-- ── Vertical stats column ──────────────────────────────────── -->
+            <div class="flex flex-col gap-0 shrink-0 pt-1">
+                <!-- STATS label -->
+                <div class="flex items-center gap-1.5 mb-3">
+                    <span class="text-[8px] text-emerald-500 uppercase tracking-[0.25em] font-bold">STATS</span>
+                    <div class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>
                 </div>
 
                 {#each armorStatMeta as stat}
-                    {@const total    = totalStats[stat.name] ?? 0}
-                    {@const bonus    = Math.max(0, total - 100)}
-                    {@const primary  = FATE_PRIMARY[stat.name]}
+                    {@const total       = totalStats[stat.name] ?? 0}
+                    {@const bonus       = Math.max(0, total - 100)}
+                    {@const primary     = FATE_PRIMARY[stat.name]}
                     {@const fateBonuses = calcFateBonuses(stat.name, bonus)}
-                    <div class="flex items-center gap-3 w-full py-1.5 group/stat relative">
-                        <div class="w-3 h-3 bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-                            <div class="w-1.5 h-1.5 transition-colors duration-300
-                                        {bonus > 0 ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}">
-                            </div>
+                    <!-- Each stat: number above, short name below -->
+                    <div class="group/stat relative flex flex-col items-center py-2.5 px-1
+                                border-b border-zinc-800/40 last:border-0 cursor-default">
+                        <!-- Number -->
+                        <span class="text-[15px] font-mono font-bold leading-none transition-colors
+                                     {bonus > 0 ? 'text-emerald-400' : total >= 80 ? 'text-zinc-200' : 'text-zinc-500'}">
+                            {total}
+                        </span>
+                        <!-- Thin bar below number -->
+                        <div class="w-8 h-px bg-zinc-900 mt-1 mb-1 relative overflow-hidden">
+                            <div class="absolute left-0 top-0 h-full bg-zinc-600 transition-all duration-700"
+                                 style="width:{Math.min((Math.min(total,100)/200)*100,50)}%"></div>
+                            {#if bonus > 0}
+                                <div class="absolute top-0 h-full bg-emerald-500 transition-all duration-700"
+                                     style="left:50%;width:{Math.min((bonus/100)*50,50)}%"></div>
+                            {/if}
                         </div>
-                        <div class="flex-1">
-                            <div class="flex justify-between text-[8px] uppercase tracking-[0.15em] text-zinc-500 mb-1">
-                                <span class="font-bold">{stat.name}</span>
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-zinc-200 font-black">{total}</span>
-                                    {#if bonus > 0}
-                                        <span class="text-emerald-500 font-bold text-[7px]">+{bonus}</span>
-                                    {/if}
-                                </div>
-                            </div>
-                            <div class="h-px bg-zinc-900 w-full relative">
-                                <!-- 0–100 zone (zinc) -->
-                                <div class="absolute left-0 top-0 h-full bg-zinc-500 transition-all duration-1000 ease-out"
-                                     style="width:{Math.min((Math.min(total,100)/200)*100,50)}%"></div>
-                                <!-- 101–200 FATE zone (emerald) -->
-                                {#if bonus > 0}
-                                    <div class="absolute top-0 h-full bg-emerald-500 transition-all duration-1000 ease-out"
-                                         style="left:50%;width:{Math.min((bonus/100)*50,50)}%"></div>
-                                    <div class="absolute top-[-2px] bottom-[-2px] w-px bg-emerald-500/60"
-                                         style="left:50%"></div>
-                                {/if}
-                            </div>
-                        </div>
+                        <!-- Short name -->
+                        <span class="text-[7px] font-mono uppercase tracking-[0.1em]
+                                     {bonus > 0 ? 'text-emerald-600' : 'text-zinc-700'} leading-none">
+                            {stat.short ?? stat.name.slice(0,3)}
+                        </span>
 
-                        <!-- Tooltip: primary cap info + calculated FATE bonuses -->
+                        <!-- Hover tooltip (anchored right of the stats column) -->
                         {#if primary}
-                            <div class="absolute right-0 bottom-full mb-2 z-50
+                            <div class="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50
                                         opacity-0 group-hover/stat:opacity-100
-                                        translate-y-1 group-hover/stat:translate-y-0
-                                        transition-all duration-200 pointer-events-none w-[230px]">
+                                        -translate-x-1 group-hover/stat:translate-x-0
+                                        transition-all duration-200 pointer-events-none w-[220px]">
                                 <div class="bg-[#111] border border-zinc-700 p-3 shadow-[0_0_24px_rgba(0,0,0,0.9)]">
-                                    <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center justify-between mb-1.5">
                                         <span class="text-[9px] font-mono font-bold uppercase tracking-wide text-zinc-200">{stat.name}</span>
-                                        <span class="text-[8px] font-mono text-zinc-200 font-bold">{total}</span>
+                                        <span class="text-[9px] font-mono font-bold {bonus > 0 ? 'text-emerald-400' : 'text-zinc-300'}">{total}</span>
                                     </div>
                                     <p class="text-[8px] font-sans text-zinc-500 leading-relaxed">{primary}</p>
                                     {#if bonus > 0 && fateBonuses.length}
                                         <div class="border-t border-emerald-500/20 pt-2 mt-2">
-                                            <span class="text-[7px] font-mono uppercase tracking-[0.15em] text-emerald-500 font-bold block mb-1.5">
-                                                FATE ZONE (+{bonus})
-                                            </span>
+                                            <span class="text-[7px] font-mono uppercase tracking-[0.15em] text-emerald-500 font-bold block mb-1.5">+{bonus} above cap</span>
                                             {#each fateBonuses as fb}
                                                 <div class="flex items-center justify-between gap-3 mb-1 last:mb-0">
                                                     <span class="text-[8px] font-sans text-zinc-500">{fb.label}</span>
@@ -790,14 +867,20 @@
                     </div>
                 {/each}
 
-                <div class="mt-6 pt-3 border-t border-zinc-800 flex items-center justify-between">
-                    <span class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold">
-                        TOTAL: {grandTotal}
-                    </span>
-                    <span class="text-[10px] text-emerald-400 font-bold uppercase italic tracking-tighter">
-                        BUILD TIER {buildTier}
-                    </span>
+                <!-- Total + tier -->
+                <div class="pt-3 mt-1 border-t border-zinc-800 text-center">
+                    <span class="text-[9px] font-mono font-bold text-zinc-300 block leading-none">{grandTotal}</span>
+                    <span class="text-[6px] font-mono text-emerald-600 uppercase tracking-[0.1em] mt-0.5 block">T{buildTier}</span>
                 </div>
+            </div>
+
+            <!-- ── Armor slots ──────────────────────────────────────────────── -->
+            <div class="flex flex-col items-center gap-5 flex-1">
+                {@render GearSlot('helmet',    'HELMET')}
+                {@render GearSlot('gauntlets', 'ARMS')}
+                {@render GearSlot('chest',     'CHEST')}
+                {@render GearSlot('legs',      'LEGS')}
+                {@render GearSlot('classItem', 'CLASS')}
             </div>
         </div>
 
