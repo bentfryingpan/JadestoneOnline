@@ -361,60 +361,46 @@
             <!-- ── Avatar box + player info ──────────────────────────────── -->
             <div class="absolute left-8 bottom-8 flex items-end gap-8 anim-in">
 
-                <!-- Avatar box: w-32 h-32 -->
+                <!-- Avatar diamond — rotates + glows on hover, reveals rank -->
                 <div class="group/avatar relative w-32 h-32 shrink-0 cursor-default">
-                    <!-- Corner accents — animate on hover -->
-                    <span class="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-emerald-500/70 z-10 transition-all duration-300 group-hover/avatar:w-5 group-hover/avatar:h-5 group-hover/avatar:border-emerald-400"></span>
-                    <span class="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-emerald-500/70 z-10 transition-all duration-300 group-hover/avatar:w-5 group-hover/avatar:h-5 group-hover/avatar:border-emerald-400"></span>
-                    <span class="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-emerald-500/70 z-10 transition-all duration-300 group-hover/avatar:w-5 group-hover/avatar:h-5 group-hover/avatar:border-emerald-400"></span>
-                    <span class="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-emerald-500/70 z-10 transition-all duration-300 group-hover/avatar:w-5 group-hover/avatar:h-5 group-hover/avatar:border-emerald-400"></span>
-                    <!-- Box -->
-                    <div class="w-full h-full bg-[#111111] border border-zinc-700 flex items-center justify-center relative overflow-hidden
-                                transition-all duration-300 group-hover/avatar:border-emerald-500/40
-                                group-hover/avatar:shadow-[0_0_30px_rgba(16,185,129,0.15),inset_0_0_30px_rgba(16,185,129,0.05)]">
+                    <!-- Outer diamond frame -->
+                    <div class="absolute inset-4 rotate-45 border-2 border-zinc-700
+                                transition-all duration-500
+                                group-hover/avatar:border-emerald-500/70
+                                group-hover/avatar:shadow-[0_0_28px_rgba(16,185,129,0.35)]
+                                group-hover/avatar:rotate-[225deg]"></div>
+                    <!-- Inner box -->
+                    <div class="absolute inset-0 bg-[#0e0e0e] border border-zinc-800
+                                flex items-center justify-center overflow-hidden
+                                transition-all duration-500
+                                group-hover/avatar:border-emerald-500/30
+                                group-hover/avatar:shadow-[inset_0_0_24px_rgba(16,185,129,0.07)]">
                         <!-- Grid texture -->
-                        <div class="absolute inset-0 opacity-[0.08]"
-                             style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 16px 16px">
-                        </div>
-                        <!-- Monogram -->
+                        <div class="absolute inset-0 opacity-[0.06]"
+                             style="background-image:linear-gradient(rgba(255,255,255,0.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.15) 1px,transparent 1px);background-size:16px 16px"></div>
+                        <!-- Monogram (fades out, rank fades in on hover) -->
                         <span class="font-serif text-5xl font-light italic z-10 select-none tracking-tight
-                                     transition-colors duration-300 text-zinc-200 group-hover/avatar:text-emerald-300">
+                                     transition-all duration-300 text-zinc-300
+                                     group-hover/avatar:opacity-0 group-hover/avatar:scale-75">
                             {monogram}
                         </span>
-                    </div>
-                    <!-- Rank medallion — bottom-right badge (hover reveals progress) -->
-                    <div class="group/rank absolute -bottom-2.5 -right-2 bg-[#0a0a0a] border border-zinc-700 px-2 py-0.5 z-20 cursor-default
-                                transition-all duration-200 hover:border-emerald-500/50 hover:shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                        <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-emerald-400 whitespace-nowrap">
-                            {gambitRank}
-                        </span>
-                        <!-- Rank tooltip -->
-                        <div class="absolute bottom-full right-0 mb-2 opacity-0 group-hover/rank:opacity-100
-                                    translate-y-1 group-hover/rank:translate-y-0
-                                    transition-all duration-200 pointer-events-none z-30 whitespace-nowrap">
-                            <div class="bg-[#111] border border-zinc-700 px-3 py-2 text-right shadow-[0_0_16px_rgba(0,0,0,0.6)]">
-                                <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-emerald-400 block">{gambitRank}</span>
-                                <div class="w-24 h-px bg-zinc-800 mt-1.5 ml-auto">
-                                    <div class="h-full bg-emerald-400" style="width:{gambitPct}%"></div>
-                                </div>
-                                <span class="text-[7px] font-mono text-zinc-600 mt-0.5 block">{gambitPct}% to next tier</span>
+                        <!-- Rank reveal on hover -->
+                        <div class="absolute inset-0 flex flex-col items-center justify-center z-20
+                                    opacity-0 group-hover/avatar:opacity-100
+                                    transition-all duration-300 delay-100">
+                            <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-1">Rank</span>
+                            <span class="text-[13px] font-mono font-bold text-emerald-400 leading-none">{gambitRank}</span>
+                            <div class="w-14 h-px bg-zinc-800 mt-2 mb-1">
+                                <div class="h-full bg-emerald-400/70" style="width:{gambitPct}%"></div>
                             </div>
+                            <span class="text-[7px] font-mono text-zinc-700">{gambitPct}%</span>
                         </div>
                     </div>
-                    <!-- Power level — top-right badge (hover reveals class) -->
+                    <!-- Power level badge — bottom left -->
                     {#if char.light}
-                        <div class="group/pl absolute -top-2.5 -right-2 bg-[#0a0a0a] border border-zinc-700 px-2 py-0.5 z-20 cursor-default
-                                    transition-all duration-200 hover:border-zinc-500 hover:shadow-[0_0_8px_rgba(255,255,255,0.06)]">
-                            <span class="text-[8px] font-mono font-bold text-zinc-200">{char.light} PL</span>
-                            <!-- PL tooltip -->
-                            <div class="absolute top-full right-0 mt-2 opacity-0 group-hover/pl:opacity-100
-                                        -translate-y-1 group-hover/pl:translate-y-0
-                                        transition-all duration-200 pointer-events-none z-30 whitespace-nowrap">
-                                <div class="bg-[#111] border border-zinc-700 px-3 py-2 shadow-[0_0_16px_rgba(0,0,0,0.6)]">
-                                    <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-400 block">{classNames[char.classType] ?? ''}</span>
-                                    <span class="text-[8px] font-mono text-zinc-200">{char.light} Power Level</span>
-                                </div>
-                            </div>
+                        <div class="absolute -bottom-2 -left-1 bg-[#0a0a0a] border border-zinc-700 px-2 py-0.5 z-20
+                                    transition-colors duration-200 group-hover/avatar:border-zinc-500">
+                            <span class="text-[8px] font-mono font-bold text-zinc-300">{char.light} <span class="text-zinc-600">PL</span></span>
                         </div>
                     {/if}
                 </div>
@@ -445,56 +431,54 @@
                             </span>
                         {/if}
                     </div>
-                    <!-- Achievement badge strip -->
-                    <div class="flex items-center gap-2 mb-4">
+                    <!-- Achievement badge strip — sleek diamonds, rotate+reveal on hover -->
+                    <div class="flex items-center gap-1.5 mb-4">
                         {#each ACHIEVEMENT_BADGES as badge}
                             {@const ts = tierStyle[badge.tier]}
                             <div class="group relative cursor-default select-none">
-                                <!-- Outer diamond wrapper -->
-                                <div class="relative w-8 h-8 rotate-45 border {ts.border} {ts.hoverBorder} {ts.bg} {ts.glow}
-                                            bg-[#0a0a0a] transition-all duration-300 ease-out
-                                            group-hover:scale-125 group-hover:rotate-[30deg]">
-                                </div>
-                                <!-- Icon (counter-rotates) -->
-                                <div class="absolute inset-0 flex items-center justify-center">
-                                    <span class="-rotate-45 group-hover:rotate-[-30deg] transition-all duration-300
-                                                 text-[10px] leading-none {ts.text}
-                                                 {badge.tier === 'locked' ? 'opacity-30' : 'opacity-90 group-hover:opacity-100'}">
-                                        {badge.icon}
-                                    </span>
-                                </div>
-                                <!-- Tooltip — appears ABOVE the badge -->
-                                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 z-40
-                                            opacity-0 group-hover:opacity-100
-                                            translate-y-2 group-hover:translate-y-0
-                                            transition-all duration-200 pointer-events-none">
-                                    <!-- Notch connector -->
-                                    <div class="flex flex-col items-center">
-                                        <div class="bg-[#141414] border border-zinc-700 px-3 py-2.5 text-center
-                                                    shadow-[0_0_20px_rgba(0,0,0,0.8)] whitespace-nowrap min-w-[120px]">
-                                            <!-- Tier bar -->
-                                            <div class="w-full h-px mb-2
-                                                        {badge.tier === 'amber'   ? 'bg-amber-500/60'   :
-                                                         badge.tier === 'emerald' ? 'bg-emerald-500/60' :
-                                                         badge.tier === 'violet'  ? 'bg-violet-500/60'  :
-                                                         badge.tier === 'zinc'    ? 'bg-zinc-600'        :
-                                                                                    'bg-zinc-800'}"></div>
-                                            <span class="text-[9px] font-mono font-bold block {ts.text} mb-0.5">
-                                                {badge.label}
-                                            </span>
-                                            <span class="text-[7px] font-sans text-zinc-600 block leading-relaxed max-w-[160px] whitespace-normal">
-                                                {badge.desc}
-                                            </span>
-                                            <!-- Tier label -->
-                                            <span class="text-[6px] font-mono uppercase tracking-[0.2em] mt-1.5 block
-                                                         {badge.tier === 'locked' ? 'text-zinc-700' : ts.text + ' opacity-60'}">
-                                                {badge.tier === 'locked' ? 'Locked' : badge.tier}
-                                            </span>
-                                        </div>
-                                        <!-- Arrow notch -->
-                                        <div class="w-0 h-0 border-l-4 border-r-4 border-t-4
-                                                    border-l-transparent border-r-transparent border-t-zinc-700"></div>
+                                <!-- Diamond shell: rotates 45° on hover -->
+                                <div class="w-7 h-7 relative transition-all duration-400 ease-out
+                                            group-hover:rotate-45 group-hover:scale-110">
+                                    <div class="absolute inset-0 rotate-45 border {ts.border} bg-[#0c0c0c]
+                                                transition-all duration-400
+                                                {badge.tier !== 'locked' ? ts.glow : ''}
+                                                group-hover:{ts.hoverBorder}"></div>
+                                    <!-- Icon: counter-rotates to stay upright, fades out on hover -->
+                                    <div class="absolute inset-0 flex items-center justify-center
+                                                transition-all duration-300
+                                                group-hover:opacity-0">
+                                        <span class="text-[9px] leading-none {ts.text}
+                                                     {badge.tier === 'locked' ? 'opacity-20' : 'opacity-80'}">
+                                            {badge.icon}
+                                        </span>
                                     </div>
+                                    <!-- Revealed label on hover (rotates with diamond, so text appears at 45°) -->
+                                    <div class="absolute inset-0 flex items-center justify-center
+                                                opacity-0 group-hover:opacity-100 transition-all duration-300 delay-75">
+                                        <span class="text-[6px] font-mono font-bold {ts.text} leading-none text-center
+                                                     {badge.tier === 'locked' ? 'opacity-40' : ''}">
+                                            {badge.tier === 'locked' ? '?' : badge.icon}
+                                        </span>
+                                    </div>
+                                </div>
+                                <!-- Tooltip above -->
+                                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-40
+                                            opacity-0 group-hover:opacity-100
+                                            translate-y-1 group-hover:translate-y-0
+                                            transition-all duration-200 pointer-events-none whitespace-nowrap">
+                                    <div class="bg-[#111] border border-zinc-700/80 px-3 py-2
+                                                shadow-[0_0_16px_rgba(0,0,0,0.8)] text-center">
+                                        <div class="w-full h-px mb-1.5
+                                            {badge.tier === 'amber'   ? 'bg-amber-500/50'   :
+                                             badge.tier === 'emerald' ? 'bg-emerald-500/50' :
+                                             badge.tier === 'violet'  ? 'bg-violet-500/50'  :
+                                             badge.tier === 'zinc'    ? 'bg-zinc-600/50'     :
+                                                                        'bg-zinc-800'}"></div>
+                                        <span class="text-[9px] font-mono font-bold {ts.text} block">{badge.label}</span>
+                                        <span class="text-[7px] font-sans text-zinc-600 block mt-0.5 max-w-[140px] whitespace-normal leading-relaxed">{badge.desc}</span>
+                                    </div>
+                                    <div class="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px]
+                                                border-l-transparent border-r-transparent border-t-zinc-700/80 mx-auto"></div>
                                 </div>
                             </div>
                         {/each}
@@ -547,34 +531,43 @@
                 </div>
             </div>
 
-            <!-- EGO rating — top right -->
-            <div class="group/ego absolute top-6 right-8 text-right anim-in anim-in-d2 cursor-default">
-                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-0.5">EGO Rating</span>
-                <span class="text-4xl font-mono font-bold text-emerald-400 block leading-none
-                             transition-all duration-300 group-hover/ego:text-emerald-300 group-hover/ego:drop-shadow-[0_0_12px_rgba(52,211,153,0.6)]">
+            <!-- ── Rating panel — top right (styled after reference image) ──── -->
+            <div class="group/ego absolute top-0 right-0 bottom-0 flex flex-col items-end justify-center
+                        pr-10 cursor-default anim-in anim-in-d2 select-none">
+                <!-- Vertical accent line -->
+                <div class="absolute left-0 top-8 bottom-8 w-px bg-gradient-to-b from-transparent via-zinc-700 to-transparent"></div>
+
+                <span class="text-[8px] font-mono uppercase tracking-[0.35em] text-zinc-500 block mb-1">Rating</span>
+                <!-- Big number -->
+                <span class="font-mono font-bold text-white leading-none block mb-1
+                             text-5xl transition-all duration-300
+                             group-hover/ego:drop-shadow-[0_0_18px_rgba(255,255,255,0.25)]">
                     {egoRating.toLocaleString()}
                 </span>
-                <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600 block mt-1">
-                    {gambitRank}
+                <!-- Rank tier — italic emerald like "# WORLDWIDE" in reference -->
+                <span class="font-serif italic text-emerald-400 text-[13px] leading-none tracking-wide block mb-3
+                             transition-all duration-300 group-hover/ego:text-emerald-300">
+                    #{gambitRank.toUpperCase()}
                 </span>
-                <!-- Rank progress -->
-                <div class="w-20 h-px bg-zinc-800 mt-2 ml-auto">
-                    <div class="h-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] transition-all"
+                <!-- Rank progress bar -->
+                <div class="w-24 h-px bg-zinc-800 mb-1 ml-auto">
+                    <div class="h-full bg-emerald-400/80 transition-all"
                          style="width:{gambitPct}%"></div>
                 </div>
-                <span class="text-[7px] font-mono text-zinc-700 mt-0.5 block">{gambitPct}% TO NEXT</span>
+                <span class="text-[7px] font-mono text-zinc-700 block">{gambitPct}% TO NEXT TIER</span>
+
                 <!-- Formula breakdown tooltip -->
-                <div class="absolute top-0 right-full mr-3 z-30
+                <div class="absolute top-1/2 -translate-y-1/2 right-full mr-4 z-30
                             opacity-0 group-hover/ego:opacity-100
                             translate-x-2 group-hover/ego:translate-x-0
-                            transition-all duration-250 pointer-events-none whitespace-nowrap">
+                            transition-all duration-200 pointer-events-none whitespace-nowrap">
                     <div class="bg-[#111] border border-zinc-700 px-4 py-3 text-left shadow-[0_0_20px_rgba(0,0,0,0.7)]">
                         <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-500 block mb-2">EGO Formula</span>
                         {#each [
-                            { label: 'Wins × 15',           value: fmt(ltWon * 15)                           },
-                            { label: 'Kills × 0.3',         value: fmt(Math.floor(ltKills * 0.3))            },
-                            { label: 'Inv. Kills × 5',      value: fmt(ltInvKills * 5)                       },
-                            { label: 'Motes Banked × 0.1',  value: fmt(Math.floor(ltMotes * 0.1))            },
+                            { label: 'Wins × 15',           value: fmt(ltWon * 15)                        },
+                            { label: 'Kills × 0.3',         value: fmt(Math.floor(ltKills * 0.3))         },
+                            { label: 'Inv. Kills × 5',      value: fmt(ltInvKills * 5)                    },
+                            { label: 'Motes × 0.1',         value: fmt(Math.floor(ltMotes * 0.1))         },
                         ] as row}
                             <div class="flex items-center justify-between gap-6 mb-1">
                                 <span class="text-[8px] font-sans text-zinc-600">{row.label}</span>

@@ -43,49 +43,71 @@
         Object.fromEntries((armorStatMeta ?? []).map(s => [s.hash, s.name]))
     );
 
-    // ── FATE zone tooltip data (Edge of Fate Season 26) ───────────────────────
-    // Secondary zone unlocks at 101+; benefits scale linearly to 200.
-    // Primary-zone caps shown for reference. FATE max values are at stat=200.
-    const FATE_INFO = {
-        // Edge of Fate renamed stats
-        'Weapons':    { primary: 'T10 (100): Fastest weapon swap, max jump height & walk speed',
-                        fate: 'Ammo restoration from Orbs of Power; improved boss & Guardian damage. At 200: +100% chance for double ammo pickup.',
-                        fateShort: 'Damage & ammo' },
-        'Health':     { primary: 'T10 (100): 40% damage reduction in PvE; enhanced shield regen',
-                        fate: 'Shield capacity +20 in PvE; 25% faster shield recharge; 50% faster full shield recharge at 200.',
-                        fateShort: 'Shields & DR' },
-        'Class':      { primary: 'T10 (100): Fastest class ability cooldown',
-                        fate: 'Class ability use grants an overshield in PvE (up to 40 HP at 200).',
-                        fateShort: 'Overshield' },
-        'Grenade':    { primary: 'T10 (100): ~32s grenade ability cooldown',
-                        fate: 'Increased grenade damage: up to +65% in PvE / +20% in PvP at 200.',
-                        fateShort: 'Grenade damage' },
-        'Super':      { primary: 'T10 (100): Fastest passive Super regen',
-                        fate: 'Increased Super damage: up to +45% in PvE / +15% in PvP at 200.',
-                        fateShort: 'Super damage' },
-        'Melee':      { primary: 'T10 (100): ~32s melee ability cooldown',
-                        fate: 'Increased melee damage: up to +30% in PvE / +20% in PvP at 200.',
-                        fateShort: 'Melee damage' },
-        // Legacy names (pre-Edge of Fate)
-        'Mobility':   { primary: 'T10 (100): Fastest weapon swap, max jump & walk speed',
-                        fate: 'Ammo restoration from Orbs; improved damage scaling at higher values.',
-                        fateShort: 'Damage & ammo' },
-        'Resilience': { primary: 'T10 (100): 40% damage reduction in PvE',
-                        fate: 'Shield capacity increase; faster shield recharge above 100.',
-                        fateShort: 'Shields & DR' },
-        'Recovery':   { primary: 'T10 (100): Fastest class ability cooldown',
-                        fate: 'Overshield on class ability use in PvE.',
-                        fateShort: 'Overshield' },
-        'Discipline': { primary: 'T10 (100): ~32s grenade cooldown',
-                        fate: 'Grenade damage bonus scaling above 100.',
-                        fateShort: 'Grenade damage' },
-        'Intellect':  { primary: 'T10 (100): Fastest passive Super regen',
-                        fate: 'Super damage bonus scaling above 100.',
-                        fateShort: 'Super damage' },
-        'Strength':   { primary: 'T10 (100): ~32s melee cooldown',
-                        fate: 'Melee damage bonus scaling above 100.',
-                        fateShort: 'Melee damage' },
+    // ── FATE zone: primary-zone caps + computed secondary-zone bonuses ───────────
+    // All secondary benefits scale linearly 101→200 (bonus = stat − 100, max 100).
+    const FATE_PRIMARY = {
+        'Weapons': 'T10 (100): Fastest weapon swap · max jump height & walk speed',
+        'Health':  'T10 (100): 40% damage reduction in PvE · fastest shield regen',
+        'Class':   'T10 (100): Fastest class ability cooldown',
+        'Grenade': 'T10 (100): ~32 s grenade cooldown',
+        'Super':   'T10 (100): Fastest passive Super regen',
+        'Melee':   'T10 (100): ~32 s melee ability cooldown',
+        // Legacy names
+        'Mobility':   'T10 (100): Fastest weapon swap · max jump & walk speed',
+        'Resilience': 'T10 (100): 40% damage reduction in PvE',
+        'Recovery':   'T10 (100): Fastest class ability cooldown',
+        'Discipline': 'T10 (100): ~32 s grenade cooldown',
+        'Intellect':  'T10 (100): Fastest passive Super regen',
+        'Strength':   'T10 (100): ~32 s melee cooldown',
     };
+
+    // Returns an array of { label, value } lines computed from points-above-100.
+    // Scaling sourced from Edge of Fate datamining; linear between 101–200.
+    function calcFateBonuses(statName, bonus) {
+        const b = Math.min(Math.max(bonus, 0), 100); // clamp 0–100
+        const pct = (max, dp = 1) => ((b / 100) * max).toFixed(dp) + '%';
+        const hp  = (max)         => ((b / 100) * max).toFixed(1) + ' HP';
+        switch (statName) {
+            // Weapons / Mobility
+            case 'Weapons': case 'Mobility':
+                return [
+                    { label: 'Double-ammo pickup (Orbs)', value: pct(100, 0) },
+                    { label: 'PvE boss damage bonus',     value: pct(20,  1) },
+                    { label: 'PvP Guardian damage bonus', value: pct(10,  1) },
+                ];
+            // Health / Resilience
+            case 'Health': case 'Resilience':
+                return [
+                    { label: 'Extra shield HP (PvE)',     value: hp(20)       },
+                    { label: 'Shield recharge speed',     value: '+' + pct(50, 0) },
+                ];
+            // Class / Recovery
+            case 'Class': case 'Recovery':
+                return [
+                    { label: 'Overshield on class ability', value: hp(40) },
+                ];
+            // Grenade / Discipline
+            case 'Grenade': case 'Discipline':
+                return [
+                    { label: 'Grenade damage (PvE)', value: '+' + pct(65, 1) },
+                    { label: 'Grenade damage (PvP)', value: '+' + pct(20, 1) },
+                ];
+            // Super / Intellect
+            case 'Super': case 'Intellect':
+                return [
+                    { label: 'Super damage (PvE)',   value: '+' + pct(45, 1) },
+                    { label: 'Super damage (PvP)',   value: '+' + pct(15, 1) },
+                ];
+            // Melee / Strength
+            case 'Melee': case 'Strength':
+                return [
+                    { label: 'Melee damage (PvE)',   value: '+' + pct(30, 1) },
+                    { label: 'Melee damage (PvP)',   value: '+' + pct(20, 1) },
+                ];
+            default:
+                return [];
+        }
+    }
 
     // ── Subclass theming ───────────────────────────────────────────────────────
     const subclassColor = $derived((() => {
@@ -703,10 +725,10 @@
                 </div>
 
                 {#each armorStatMeta as stat}
-                    {@const total      = totalStats[stat.name] ?? 0}
-                    {@const bonus      = Math.max(0, total - 100)}
-                    {@const percentage = Math.min((total / 200) * 100, 100)}
-                    {@const fateInfo   = FATE_INFO[stat.name]}
+                    {@const total    = totalStats[stat.name] ?? 0}
+                    {@const bonus    = Math.max(0, total - 100)}
+                    {@const primary  = FATE_PRIMARY[stat.name]}
+                    {@const fateBonuses = calcFateBonuses(stat.name, bonus)}
                     <div class="flex items-center gap-3 w-full py-1.5 group/stat relative">
                         <div class="w-3 h-3 bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
                             <div class="w-1.5 h-1.5 transition-colors duration-300
@@ -719,52 +741,47 @@
                                 <div class="flex items-center gap-1.5">
                                     <span class="text-zinc-200 font-black">{total}</span>
                                     {#if bonus > 0}
-                                        <span class="text-emerald-500 font-bold text-[7px]">+{bonus} FATE</span>
+                                        <span class="text-emerald-500 font-bold text-[7px]">+{bonus}</span>
                                     {/if}
                                 </div>
                             </div>
                             <div class="h-px bg-zinc-900 w-full relative">
-                                <!-- 0–100 fill -->
-                                <div class="absolute left-0 top-0 h-full transition-all duration-1000 ease-out
-                                            {bonus > 0 ? 'bg-zinc-500' : 'bg-zinc-500'}"
+                                <!-- 0–100 zone (zinc) -->
+                                <div class="absolute left-0 top-0 h-full bg-zinc-500 transition-all duration-1000 ease-out"
                                      style="width:{Math.min((Math.min(total,100)/200)*100,50)}%"></div>
-                                <!-- 101–200 FATE fill (emerald) -->
+                                <!-- 101–200 FATE zone (emerald) -->
                                 {#if bonus > 0}
                                     <div class="absolute top-0 h-full bg-emerald-500 transition-all duration-1000 ease-out"
                                          style="left:50%;width:{Math.min((bonus/100)*50,50)}%"></div>
-                                    <!-- divider at 100 -->
                                     <div class="absolute top-[-2px] bottom-[-2px] w-px bg-emerald-500/60"
                                          style="left:50%"></div>
                                 {/if}
                             </div>
                         </div>
 
-                        <!-- FATE tooltip: shown on hover when stat info available -->
-                        {#if fateInfo}
+                        <!-- Tooltip: primary cap info + calculated FATE bonuses -->
+                        {#if primary}
                             <div class="absolute right-0 bottom-full mb-2 z-50
                                         opacity-0 group-hover/stat:opacity-100
                                         translate-y-1 group-hover/stat:translate-y-0
-                                        transition-all duration-200 pointer-events-none w-[220px]">
-                                <div class="bg-[#111] border border-zinc-700 p-3
-                                            shadow-[0_0_24px_rgba(0,0,0,0.9)]">
+                                        transition-all duration-200 pointer-events-none w-[230px]">
+                                <div class="bg-[#111] border border-zinc-700 p-3 shadow-[0_0_24px_rgba(0,0,0,0.9)]">
                                     <div class="flex items-center justify-between mb-2">
-                                        <span class="text-[9px] font-mono font-bold uppercase tracking-wide text-zinc-200">
-                                            {stat.name}
-                                        </span>
+                                        <span class="text-[9px] font-mono font-bold uppercase tracking-wide text-zinc-200">{stat.name}</span>
                                         <span class="text-[8px] font-mono text-zinc-200 font-bold">{total}</span>
                                     </div>
-                                    <p class="text-[8px] font-sans text-zinc-500 leading-relaxed mb-2">
-                                        {fateInfo.primary}
-                                    </p>
-                                    {#if bonus > 0}
-                                        <div class="border-t border-emerald-500/20 pt-2 mt-1">
-                                            <span class="text-[7px] font-mono uppercase tracking-[0.15em]
-                                                         text-emerald-500 font-bold block mb-1">
-                                                FATE BONUS (+{bonus})
+                                    <p class="text-[8px] font-sans text-zinc-500 leading-relaxed">{primary}</p>
+                                    {#if bonus > 0 && fateBonuses.length}
+                                        <div class="border-t border-emerald-500/20 pt-2 mt-2">
+                                            <span class="text-[7px] font-mono uppercase tracking-[0.15em] text-emerald-500 font-bold block mb-1.5">
+                                                FATE ZONE (+{bonus})
                                             </span>
-                                            <p class="text-[8px] font-sans text-zinc-400 leading-relaxed">
-                                                {fateInfo.fate}
-                                            </p>
+                                            {#each fateBonuses as fb}
+                                                <div class="flex items-center justify-between gap-3 mb-1 last:mb-0">
+                                                    <span class="text-[8px] font-sans text-zinc-500">{fb.label}</span>
+                                                    <span class="text-[8px] font-mono font-bold text-emerald-400 shrink-0">{fb.value}</span>
+                                                </div>
+                                            {/each}
                                         </div>
                                     {/if}
                                 </div>
