@@ -22,22 +22,44 @@ const BUCKET_HASHES = {
 };
 
 // Weapon stat hashes — stable Bungie API values.
-// Ordered as displayed in DIM / in-game inspect.
+// Names are also fetched live from DestinyStatDefinition below; these are fallbacks.
+// Order mirrors the in-game / DIM display order.
 const WEAPON_STAT_MAP = {
+    // Fire-mode stat (only one shows per weapon type — RPM / Draw Time / Charge Time)
     1480404414: { name: 'RPM',            order:  0 },
     4284893193: { name: 'Draw Time',       order:  0 },
     2961396640: { name: 'Charge Time',     order:  0 },
+    // Universal damage stats
     4043523819: { name: 'Impact',          order:  1 },
+    3614673599: { name: 'Blast Radius',    order:  1 }, // rockets / GLs (same slot as Impact on other weapons)
+    // Range / Velocity
     1240592695: { name: 'Range',           order:  2 },
+    2523465841: { name: 'Velocity',        order:  2 }, // rockets / LFRs (same slot as Range)
+    // Handling & reload
     155624089:  { name: 'Stability',       order:  3 },
     943549884:  { name: 'Handling',        order:  4 },
     4188031367: { name: 'Reload Speed',    order:  5 },
+    // Aiming
     1345609583: { name: 'Aim Assistance',  order:  6 },
     1931675084: { name: 'Airborne',        order:  7 },
-    3614673599: { name: 'Zoom',            order:  8 },
-    2523465841: { name: 'Ammo Gen',        order:  9 },
-    3871231066: { name: 'Recoil Dir.',     order: 10 },
-    1885944937: { name: 'Accuracy',        order: 11 },
+    2846385770: { name: 'Zoom',            order:  8 },  // actual Zoom hash (separate from Blast Radius)
+    // Ammo
+    3871231066: { name: 'Mag',             order:  9 },  // Magazine size
+    1885944937: { name: 'Inventory Size',  order: 10 },  // Total reserve ammo
+    // Ballistics
+    4188031367: { name: 'Reload Speed',    order:  5 },
+    // Recoil
+    2714273228: { name: 'Recoil Dir.',     order: 11 },
+    // Accuracy / Bounce (bows, swords)
+    3700468519: { name: 'Accuracy',        order: 11 },
+    // Sword stats
+    2837207746: { name: 'Swing Speed',     order:  0 },
+    3736848092: { name: 'Guard Efficiency',order:  3 },
+    3600925574: { name: 'Guard Endurance', order:  4 },
+    3779501674: { name: 'Guard Resistance',order:  5 },
+    925767036:  { name: 'Charge Rate',     order:  1 }, // glaive / sword
+    // Glaive
+    1890422460: { name: 'Shield Duration', order:  3 },
 };
 
 // Hashes are stable; names are fetched live from DestinyStatDefinition so
@@ -95,6 +117,38 @@ async function fetchStatDef(hash) {
     }
 }
 
+// Fetch DestinyDamageTypeDefinition with 1-hour cache
+async function fetchDamageTypeDef(hash) {
+    if (!hash) return null;
+    const cacheKey = `manifest:dmg:${hash}`;
+    const cached   = cacheGet(cacheKey);
+    if (cached !== undefined) return cached;
+    try {
+        const r = await fetch(
+            `${BUNGIE_ROOT}/Platform/Destiny2/Manifest/DestinyDamageTypeDefinition/${hash}/`,
+            { headers: { 'X-API-Key': BUNGIE_API_KEY } }
+        );
+        const d   = await r.json();
+        const def = d.Response ?? null;
+        cacheSet(cacheKey, def, MANIFEST_TTL);
+        return def;
+    } catch {
+        return null;
+    }
+}
+
+// Fetch weapon stat names live from DestinyStatDefinition, keyed by hash
+// Returns a map of hash → display name for enriching weaponStats labels
+async function fetchWeaponStatNames(hashes) {
+    const entries = await Promise.all(
+        hashes.map(async h => {
+            const def = await fetchStatDef(h);
+            return [h, def?.displayProperties?.name ?? null];
+        })
+    );
+    return Object.fromEntries(entries.filter(([, v]) => v !== null));
+}
+
 export async function GET({ url, setHeaders }) {
     const membershipType = url.searchParams.get('membershipType');
     const membershipId   = url.searchParams.get('membershipId');
@@ -136,16 +190,26 @@ export async function GET({ url, setHeaders }) {
         ...(artifactHash ? [artifactHash] : [])
     ])];
 
-    // ── 3. Fetch item defs + stat defs in one parallel wave ──────────────────
-    const [defEntries, ...statDefs] = await Promise.all([
-        Promise.all(allHashes.map(fetchDef)),
-        ...ARMOR_STAT_CONFIG.map(s => fetchStatDef(s.hash))
+    // ── 3. Pre-fetch item defs → extract unique damage type hashes ──────────
+    const defEntries_pre = await Promise.all(allHashes.map(fetchDef));
+    const defMap_pre     = new Map(defEntries_pre);
+    const dmgTypeHashes  = [...new Set(
+        items.map(i => defMap_pre.get(i.itemHash)?.defaultDamageTypeHash).filter(Boolean)
+    )];
+
+    // ── 4. Fetch armor stat defs + damage type defs + weapon stat names in parallel
+    const weaponStatHashes = Object.keys(WEAPON_STAT_MAP).map(Number);
+    const [armorStatDefs, dmgTypeDefs, weaponStatNames] = await Promise.all([
+        Promise.all(ARMOR_STAT_CONFIG.map(s => fetchStatDef(s.hash))),
+        Promise.all(dmgTypeHashes.map(h => fetchDamageTypeDef(h).then(d => [h, d]))),
+        fetchWeaponStatNames(weaponStatHashes),
     ]);
-    const defMap = new Map(defEntries);
+    const defMap     = defMap_pre; // alias — item defs already fetched above
+    const dmgTypeMap = new Map(dmgTypeDefs);
 
     // Build the live ARMOR_STATS from manifest names — stays correct through renames
     const ARMOR_STATS = ARMOR_STAT_CONFIG.map((cfg, i) => {
-        const def   = statDefs[i];
+        const def   = armorStatDefs[i];
         const name  = def?.displayProperties?.name ?? ['Mobility','Resilience','Recovery','Discipline','Intellect','Strength'][i];
         const desc  = def?.displayProperties?.description ?? '';
         // Short label: first 3 chars of each word capitalised
@@ -200,6 +264,10 @@ export async function GET({ url, setHeaders }) {
 
         const instance = instancesData[item.itemInstanceId];
 
+        // Resolve damage type definition for icon + color
+        const dmgHash    = def?.defaultDamageTypeHash;
+        const dmgTypeDef = dmgHash ? dmgTypeMap.get(dmgHash) : null;
+
         const itemData = {
             instanceId:          item.itemInstanceId,
             hash:                item.itemHash,
@@ -209,6 +277,9 @@ export async function GET({ url, setHeaders }) {
             itemType:            def?.itemType,
             itemSubType:         def?.itemSubType,
             damageType:          def?.defaultDamageType,
+            damageTypeIcon:      dmgTypeDef?.displayProperties?.icon
+                                     ? BUNGIE_ROOT + dmgTypeDef.displayProperties.icon : null,
+            damageTypeName:      dmgTypeDef?.displayProperties?.name ?? null,
             slot,
             flavorText:          def?.flavorText                    ?? '',
             itemTypeDisplayName: def?.itemTypeDisplayName           ?? '',
@@ -227,7 +298,7 @@ export async function GET({ url, setHeaders }) {
                 const sdef = defMap.get(s.plugHash);
                 return (sdef?.itemTypeDisplayName ?? '').toLowerCase().includes('masterwork');
             });
-            // Weapon stats from itemStats component
+            // Weapon stats from itemStats component (component 303)
             if (statsData[item.itemInstanceId]) {
                 const raw = statsData[item.itemInstanceId].stats ?? {};
                 itemData.weaponStats = Object.entries(raw)
@@ -235,16 +306,20 @@ export async function GET({ url, setHeaders }) {
                         const hash = Number(hashStr);
                         const info = WEAPON_STAT_MAP[hash];
                         if (!info) return null;
+                        // Prefer live manifest stat name, fall back to our map label
+                        const liveName = weaponStatNames[hash];
                         return {
                             hash,
-                            name:    info.name,
+                            name:    liveName ?? info.name,
                             value:   stat.value   ?? 0,
                             maximum: stat.displayMaximum ?? stat.maximum ?? 100,
                             order:   info.order,
                         };
                     })
                     .filter(Boolean)
-                    .sort((a, b) => a.order - b.order);
+                    // De-duplicate by hash (WEAPON_STAT_MAP has intentional dupes for blast-radius/range overlap)
+                    .filter((s, i, arr) => arr.findIndex(x => x.hash === s.hash) === i)
+                    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
             }
         }
 

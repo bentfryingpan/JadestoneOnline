@@ -399,14 +399,20 @@
                             <p class="font-serif text-xl font-light italic text-white leading-tight mt-0.5 truncate">
                                 {selectedItem.name}
                             </p>
-                            <!-- Weapon: damage type + power -->
+                            <!-- Weapon: damage type icon + power -->
                             {#if selectedType === 'weapon'}
-                                <div class="flex items-center gap-3 mt-1">
+                                <div class="flex items-center gap-2 mt-1">
                                     {#if selectedItem.damageType}
-                                        <span class="text-[9px] font-mono uppercase tracking-[0.15em]
-                                                     {damageColor[selectedItem.damageType] ?? 'text-zinc-500'}">
-                                            {damageLabel[selectedItem.damageType] ?? ''}
-                                        </span>
+                                        <div class="flex items-center gap-1">
+                                            {#if selectedItem.damageTypeIcon}
+                                                <img src={selectedItem.damageTypeIcon} alt=""
+                                                     class="w-3.5 h-3.5 object-contain"/>
+                                            {/if}
+                                            <span class="text-[9px] font-mono uppercase tracking-[0.15em]
+                                                         {damageColor[selectedItem.damageType] ?? 'text-zinc-500'}">
+                                                {selectedItem.damageTypeName ?? damageLabel[selectedItem.damageType] ?? ''}
+                                            </span>
+                                        </div>
                                     {/if}
                                     {#if selectedItem.power}
                                         <span class="text-[9px] font-mono text-zinc-500">
@@ -513,51 +519,60 @@
                                 </div>
                             {/if}
 
-                            <!-- ③ PERKS row — small square icons (barrel, mag, grip…) with hover tooltip -->
+                            <!-- ③ ALL SOCKETS in one icon row (barrel · mag · grip · origin · mw · mod) -->
                             {#if other.length || mwPerk}
-                                <div class="flex flex-wrap items-center gap-1.5 py-2 border-b border-zinc-800/50 mb-3">
-                                    {#each other as p}
+                                {@const allSockets = [...other, ...(mwPerk ? [mwPerk] : [])]}
+                                <div class="flex flex-wrap gap-[3px] py-2 border-b border-zinc-800/50 mb-3">
+                                    {#each allSockets as p}
                                         <div class="group/pi relative">
-                                            <div class="w-9 h-9 border overflow-hidden transition-colors
-                                                        {p.isEnabled
-                                                            ? 'border-zinc-700 hover:border-zinc-500'
-                                                            : 'border-zinc-800/60 opacity-40'}">
+                                            <div class="w-[50px] h-[50px] bg-[#0d0d0d] border overflow-hidden transition-colors cursor-default
+                                                        {p.isMasterwork
+                                                            ? 'border-yellow-500/60 bg-yellow-500/5 hover:border-yellow-400'
+                                                            : p.isEnabled
+                                                                ? 'border-zinc-700/80 hover:border-zinc-500'
+                                                                : 'border-zinc-800/40 opacity-40'}">
+                                                <!-- Top rarity strip -->
+                                                <div class="absolute top-0 left-0 w-full h-[2px]
+                                                            {p.isMasterwork ? 'bg-yellow-400/70' : 'bg-zinc-600/40'}"></div>
                                                 {#if p.icon}
                                                     <img src={p.icon} alt="" class="w-full h-full object-cover"/>
                                                 {:else}
-                                                    <div class="w-full h-full flex items-center justify-center opacity-20">
-                                                        <div class="w-3 h-3 border border-zinc-600 rotate-45"></div>
+                                                    <div class="w-full h-full flex items-center justify-center opacity-15">
+                                                        <div class="w-4 h-4 border border-zinc-600 rotate-45"></div>
                                                     </div>
                                                 {/if}
+                                                {#if !p.isEnabled}
+                                                    <div class="absolute inset-0 bg-black/50"></div>
+                                                {/if}
                                             </div>
-                                            <!-- Tooltip -->
+                                            <!-- Hover tooltip -->
                                             <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
                                                         opacity-0 group-hover/pi:opacity-100 translate-y-1 group-hover/pi:translate-y-0
-                                                        transition-all duration-150 pointer-events-none w-40">
-                                                <div class="bg-[#141414] border border-zinc-700 px-2.5 py-2 shadow-[0_0_16px_rgba(0,0,0,0.9)]">
-                                                    <p class="text-[9px] font-mono font-bold text-zinc-200 mb-0.5">{p.name}</p>
-                                                    {#if p.description}<p class="text-[7px] font-sans text-zinc-500 leading-relaxed">{p.description}</p>{/if}
+                                                        transition-all duration-150 pointer-events-none w-44">
+                                                <div class="bg-[#141414] border border-zinc-700 px-3 py-2.5 shadow-[0_0_20px_rgba(0,0,0,0.9)]">
+                                                    <p class="text-[9px] font-mono font-bold mb-0.5
+                                                               {p.isMasterwork ? 'text-yellow-400' : 'text-zinc-200'}">
+                                                        {p.name}
+                                                    </p>
+                                                    {#if p.itemTypeDisplayName}
+                                                        <p class="text-[7px] font-mono text-zinc-600 uppercase tracking-wide mb-1">{p.itemTypeDisplayName}</p>
+                                                    {/if}
+                                                    {#if p.description}
+                                                        <p class="text-[7px] font-sans text-zinc-500 leading-relaxed">{p.description}</p>
+                                                    {/if}
+                                                    {#if p.statBonuses?.length}
+                                                        <div class="flex flex-wrap gap-1 mt-1.5">
+                                                            {#each p.statBonuses as sb}
+                                                                <span class="text-[6px] font-mono text-emerald-400 border border-emerald-500/20 px-1 py-px">
+                                                                    +{sb.value} {statHashToName[sb.statHash] ?? ''}
+                                                                </span>
+                                                            {/each}
+                                                        </div>
+                                                    {/if}
                                                 </div>
                                             </div>
                                         </div>
                                     {/each}
-                                    <!-- Masterwork icon inline -->
-                                    {#if mwPerk}
-                                        <div class="group/pi relative">
-                                            <div class="w-9 h-9 border border-yellow-500/50 bg-yellow-500/5 overflow-hidden hover:border-yellow-400 transition-colors">
-                                                {#if mwPerk.icon}
-                                                    <img src={mwPerk.icon} alt="" class="w-full h-full object-cover"/>
-                                                {/if}
-                                            </div>
-                                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
-                                                        opacity-0 group-hover/pi:opacity-100 transition-opacity pointer-events-none w-40">
-                                                <div class="bg-[#141414] border border-zinc-700 px-2.5 py-2">
-                                                    <p class="text-[9px] font-mono font-bold text-yellow-400 mb-0.5">{mwPerk.name}</p>
-                                                    {#if mwPerk.description}<p class="text-[7px] font-sans text-zinc-500 leading-relaxed">{mwPerk.description}</p>{/if}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {/if}
                                 </div>
                             {/if}
 
