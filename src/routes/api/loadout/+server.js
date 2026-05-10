@@ -21,6 +21,25 @@ const BUCKET_HASHES = {
     1506418338: 'artifact'
 };
 
+// Weapon stat hashes — stable Bungie API values.
+// Ordered as displayed in DIM / in-game inspect.
+const WEAPON_STAT_MAP = {
+    1480404414: { name: 'RPM',            order:  0 },
+    4284893193: { name: 'Draw Time',       order:  0 },
+    2961396640: { name: 'Charge Time',     order:  0 },
+    4043523819: { name: 'Impact',          order:  1 },
+    1240592695: { name: 'Range',           order:  2 },
+    155624089:  { name: 'Stability',       order:  3 },
+    943549884:  { name: 'Handling',        order:  4 },
+    4188031367: { name: 'Reload Speed',    order:  5 },
+    1345609583: { name: 'Aim Assistance',  order:  6 },
+    1931675084: { name: 'Airborne',        order:  7 },
+    3614673599: { name: 'Zoom',            order:  8 },
+    2523465841: { name: 'Ammo Gen',        order:  9 },
+    3871231066: { name: 'Recoil Dir.',     order: 10 },
+    1885944937: { name: 'Accuracy',        order: 11 },
+};
+
 // Hashes are stable; names are fetched live from DestinyStatDefinition so
 // they stay current if Bungie renames them (e.g. Resilience → Health).
 // Colors are positional — we control these.
@@ -208,6 +227,25 @@ export async function GET({ url, setHeaders }) {
                 const sdef = defMap.get(s.plugHash);
                 return (sdef?.itemTypeDisplayName ?? '').toLowerCase().includes('masterwork');
             });
+            // Weapon stats from itemStats component
+            if (statsData[item.itemInstanceId]) {
+                const raw = statsData[item.itemInstanceId].stats ?? {};
+                itemData.weaponStats = Object.entries(raw)
+                    .map(([hashStr, stat]) => {
+                        const hash = Number(hashStr);
+                        const info = WEAPON_STAT_MAP[hash];
+                        if (!info) return null;
+                        return {
+                            hash,
+                            name:    info.name,
+                            value:   stat.value   ?? 0,
+                            maximum: stat.displayMaximum ?? stat.maximum ?? 100,
+                            order:   info.order,
+                        };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => a.order - b.order);
+            }
         }
 
         // Armor (itemType 2): stats + mods + energy + masterwork

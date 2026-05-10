@@ -378,22 +378,23 @@
                     </div>
 
                     <!-- Rank icon placeholder — bottom-right (will hold tier icon for top 100/50/10/3/2/1) -->
-                    <div class="group/rank absolute -bottom-3 -right-3 z-20 cursor-default">
-                        <div class="w-9 h-9 relative transition-all duration-400
-                                    group-hover/rank:scale-110">
+                    <div class="group/rank absolute -bottom-4 -right-4 z-20 cursor-default">
+                        <div class="w-12 h-12 relative transition-all duration-500
+                                    group-hover/rank:scale-110 group-hover/rank:rotate-[135deg]">
                             <!-- Diamond shell -->
-                            <div class="absolute inset-0 rotate-45 border-2 bg-[#0a0a0a]
-                                        transition-all duration-300
-                                        {gambitRank === 'Legend'  ? 'border-amber-400  shadow-[0_0_10px_rgba(251,191,36,0.5)]'  :
-                                         gambitRank === 'Mythic'  ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.4)]' :
-                                         gambitRank === 'Fabled'  ? 'border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' :
-                                         gambitRank === 'Heroic'  ? 'border-blue-500'   :
+                            <div class="absolute inset-0 rotate-45 border-2 bg-[#070707]
+                                        transition-all duration-500
+                                        {gambitRank === 'Legend'  ? 'border-amber-400  shadow-[0_0_14px_rgba(251,191,36,0.6)]'  :
+                                         gambitRank === 'Mythic'  ? 'border-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.5)]' :
+                                         gambitRank === 'Fabled'  ? 'border-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.5)]' :
+                                         gambitRank === 'Heroic'  ? 'border-blue-400   shadow-[0_0_10px_rgba(96,165,250,0.4)]'  :
                                                                     'border-zinc-600'}
-                                        group-hover/rank:shadow-[0_0_16px_rgba(16,185,129,0.6)]
-                                        group-hover/rank:border-emerald-400"></div>
-                            <!-- Rank initial -->
-                            <div class="absolute inset-0 flex items-center justify-center">
-                                <span class="text-[9px] font-mono font-black
+                                        group-hover/rank:shadow-[0_0_24px_rgba(16,185,129,0.7)]
+                                        group-hover/rank:border-emerald-300"></div>
+                            <!-- Rank initial (counter-rotates to stay upright) -->
+                            <div class="absolute inset-0 flex items-center justify-center
+                                        transition-all duration-500 group-hover/rank:-rotate-[135deg]">
+                                <span class="text-[11px] font-mono font-black leading-none
                                              {gambitRank === 'Legend' ? 'text-amber-400' :
                                               gambitRank === 'Mythic' ? 'text-violet-400' :
                                               gambitRank === 'Fabled' ? 'text-emerald-400' :

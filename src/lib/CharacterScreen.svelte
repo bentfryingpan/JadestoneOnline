@@ -46,14 +46,14 @@
     // ── FATE zone: primary-zone caps + computed secondary-zone bonuses ───────────
     // All secondary benefits scale linearly 101→200 (bonus = stat − 100, max 100).
     const FATE_PRIMARY = {
-        'Weapons': 'T10 (100): Fastest weapon swap · max jump height & walk speed',
-        'Health':  'T10 (100): 40% damage reduction in PvE · fastest shield regen',
-        'Class':   'T10 (100): Fastest class ability cooldown',
-        'Grenade': 'T10 (100): ~32 s grenade cooldown',
-        'Super':   'T10 (100): Fastest passive Super regen',
-        'Melee':   'T10 (100): ~32 s melee ability cooldown',
-        // Legacy names
-        'Mobility':   'T10 (100): Fastest weapon swap · max jump & walk speed',
+        'Weapons':    'T10 (100): Max weapon handling · fastest ready/stow · optimal stability',
+        'Health':     'T10 (100): 40% damage reduction in PvE · fastest shield regen',
+        'Class':      'T10 (100): Fastest class ability cooldown',
+        'Grenade':    'T10 (100): ~32 s grenade cooldown',
+        'Super':      'T10 (100): Fastest passive Super regen',
+        'Melee':      'T10 (100): ~32 s melee ability cooldown',
+        // Legacy names (Edge of Fate renames these stats)
+        'Mobility':   'T10 (100): Max weapon handling · fastest ready/stow · optimal stability',
         'Resilience': 'T10 (100): 40% damage reduction in PvE',
         'Recovery':   'T10 (100): Fastest class ability cooldown',
         'Discipline': 'T10 (100): ~32 s grenade cooldown',
@@ -71,9 +71,10 @@
             // Weapons / Mobility
             case 'Weapons': case 'Mobility':
                 return [
-                    { label: 'Double-ammo pickup (Orbs)', value: pct(100, 0) },
-                    { label: 'PvE boss damage bonus',     value: pct(20,  1) },
-                    { label: 'PvP Guardian damage bonus', value: pct(10,  1) },
+                    { label: 'Primary/Special vs bosses (PvE)', value: '+' + pct(15, 1) },
+                    { label: 'Heavy vs bosses (PvE)',            value: '+' + pct(10, 1) },
+                    { label: 'Guardian damage (PvP)',            value: '+' + pct(6,  1) },
+                    { label: 'Double ammo pickup (at 200)',      value: pct(100, 0)       },
                 ];
             // Health / Resilience
             case 'Health': case 'Resilience':
@@ -186,20 +187,21 @@
                     <div class="w-10 h-10 border border-zinc-500 rotate-45"></div>
                 </div>
             {/if}
+            <!-- Weapon tier diamonds — overlaid on bottom of icon, like DIM -->
+            {#if isWeapon && item}
+                <div class="absolute bottom-0 left-0 w-full flex items-center justify-center gap-[3px]
+                            pb-[3px] pt-2 z-20 pointer-events-none
+                            bg-gradient-to-t from-black/70 to-transparent">
+                    {#each {length: Math.max(0, (item.tierType ?? 1) - 1)} as _}
+                        {@render TierDiamond(item.tierType)}
+                    {/each}
+                </div>
+            {/if}
             <!-- Selected pulse -->
             {#if isActive}
                 <div class="absolute inset-0 border border-emerald-500/30 pointer-events-none"></div>
             {/if}
         </div>
-
-        <!-- Weapon tier diamonds row -->
-        {#if isWeapon && item}
-            <div class="flex items-center gap-1 justify-center">
-                {#each {length: Math.max(0, (item.tierType ?? 1) - 1)} as _, i}
-                    {@render TierDiamond(i < (item.tierType ?? 1) - 1 ? item.tierType : 0)}
-                {/each}
-            </div>
-        {/if}
 
         <div class="text-center w-full">
             <p class="text-[8px] text-zinc-600 uppercase tracking-widest font-bold leading-none">{label}</p>
@@ -433,6 +435,22 @@
 
                         <!-- ── WEAPON PERKS (D2-style categorised layout) ─── -->
                         {#if selectedType === 'weapon'}
+                            <!-- Weapon stat bars (DIM-style) -->
+                            {#if selectedItem.weaponStats?.length}
+                                <div class="mb-4 pb-4 border-b border-zinc-800/60">
+                                    {#each selectedItem.weaponStats as s}
+                                        <div class="flex items-center gap-2 py-[3px]">
+                                            <span class="text-[8px] font-mono text-zinc-500 w-[72px] shrink-0 uppercase tracking-wide leading-none">{s.name}</span>
+                                            <div class="flex-1 h-1 bg-zinc-900 relative overflow-hidden">
+                                                <div class="h-full bg-zinc-400 transition-all duration-500"
+                                                     style="width:{Math.min((s.value / (s.maximum || 100)) * 100, 100)}%"></div>
+                                            </div>
+                                            <span class="text-[9px] font-mono text-zinc-300 w-6 text-right shrink-0 leading-none">{s.value}</span>
+                                        </div>
+                                    {/each}
+                                </div>
+                            {/if}
+
                             {@const perks      = selectedItem.perks ?? []}
                             {@const intrinsic  = perks.filter(p => p.isIntrinsic)}
                             {@const traits     = perks.filter(p => !p.isIntrinsic && !p.isMasterwork && p.itemTypeDisplayName?.toLowerCase().includes('trait'))}
