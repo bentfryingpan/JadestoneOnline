@@ -92,15 +92,9 @@ export async function load({ params, parent, url, setHeaders }) {
     const characters   = profile?.characters?.data ?? {};
     const progressions = profile?.characterProgressions?.data ?? {};
     const clan         = clanData?.Response?.results?.[0]?.group ?? null;
-    // Bungie GetHistoricalStatsForAccount nests mode stats under
-    // mergedAllCharacters.results.{mode}.allTime (not at Response.{mode} directly).
-    // Also try pvecomp_gambit as a fallback key name Bungie has used historically.
+    // _statsResults holds all mode keys from GetHistoricalStatsForAccount.
+    // The actual key for Gambit varies by Bungie API version — resolved below.
     const _statsResults = acctStats?.Response?.mergedAllCharacters?.results ?? {};
-    const lifetimeStats =
-        _statsResults?.gambit?.allTime ??
-        _statsResults?.pvecomp_gambit?.allTime ??
-        acctStats?.Response?.gambit?.allTime ??          // legacy fallback
-        null;
 
     const sortedCharIds = [...charIds].sort((a, b) =>
         new Date(characters[b]?.dateLastPlayed ?? 0) - new Date(characters[a]?.dateLastPlayed ?? 0)
@@ -120,6 +114,87 @@ export async function load({ params, parent, url, setHeaders }) {
         );
         recentMatches = matchData?.Response?.activities ?? [];
     }
+
+    // ── 3b. Resolve lifetime Gambit stats ─────────────────────────────────────
+    // Bungie uses different key names in different API versions. We try every
+    // known variant, fall back to the character-level endpoint, and finally
+    // synthesise approximate values from the 25 recent matches if all else fails.
+    let lifetimeStats = _statsResults?.gambit?.allTime
+        ?? _statsResults?.pvecomp_gambit?.allTime
+        ?? _statsResults?.allPveCompetitive?.allTime
+        ?? _statsResults?.allPvECompetitive?.allTime
+        // Nuclear: first key that actually has activitiesEntered data
+        ?? Object.values(_statsResults).find(
+               r => (r?.allTime?.activitiesEntered?.basic?.value ?? 0) > 0
+           )?.allTime
+        ?? null;
+
+    // Tier-2 fallback: character-level GetHistoricalStats endpoint
+    // Structure is Response.{modeKey}.allTime (no mergedAllCharacters wrapper)
+    if (!lifetimeStats && mainCharId) {
+        try {
+            const charStatsKey = `charstats:${membershipId}:${mainCharId}`;
+            const charStats = await cacheWrap(charStatsKey, PROFILE_TTL, () =>
+                bungieGet(
+                    `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${mainCharId}/Stats/?modes=63`
+                )
+            );
+            const cr = charStats?.Response ?? {};
+            lifetimeStats = cr?.gambit?.allTime
+                ?? cr?.pvecomp_gambit?.allTime
+                ?? cr?.allPveCompetitive?.allTime
+                ?? cr?.allPvECompetitive?.allTime
+                ?? Object.values(cr).find(
+                       r => (r?.allTime?.activitiesEntered?.basic?.value ?? 0) > 0
+                   )?.allTime
+                ?? null;
+        } catch { /* ignore */ }
+    }
+
+    // Tier-3 fallback: synthesise from the 25 recent matches we already have.
+    // Better than showing nothing — lets the overview render with approximate data.
+    if (!lifetimeStats && recentMatches.length > 0) {
+        let entered = 0, won = 0, kills = 0, deaths = 0, assists = 0;
+        let invasions = 0, invasionKills = 0, invasionsDefeated = 0;
+        let motesBanked = 0, motesLost = 0;
+        function _n(obj, key) { return obj?.[key]?.basic?.value ?? 0; }
+        for (const m of recentMatches) {
+            const v = m.values ?? {}, ext = m.extended?.values ?? {};
+            if (!_n(v, 'completed')) continue;
+            entered++;
+            if (_n(v, 'standing') === 0) won++;
+            kills   += _n(v, 'kills');
+            deaths  += _n(v, 'deaths');
+            assists += _n(v, 'assists');
+            invasions         += _n(ext, 'invasions');
+            invasionKills     += _n(ext, 'invasionKills');
+            invasionsDefeated += _n(ext, 'invasionsDefeated');
+            motesBanked += _n(ext, 'motesDeposited');
+            motesLost   += _n(ext, 'motesLost');
+        }
+        if (entered > 0) {
+            lifetimeStats = {
+                activitiesEntered:  { basic: { value: entered } },
+                activitiesWon:      { basic: { value: won     } },
+                kills:              { basic: { value: kills   } },
+                deaths:             { basic: { value: deaths  } },
+                assists:            { basic: { value: assists } },
+                invasions:          { basic: { value: invasions         } },
+                invasionKills:      { basic: { value: invasionKills     } },
+                invasionsDefeated:  { basic: { value: invasionsDefeated } },
+                motesBanked:        { basic: { value: motesBanked       } },
+                motesLost:          { basic: { value: motesLost         } },
+                _synthetic: true,   // flag: computed from recent matches only
+            };
+        }
+    }
+
+    // Mark the stats source so the UI can show a notice when data is approximate
+    const statsSource = !lifetimeStats
+        ? 'none'
+        : lifetimeStats._synthetic
+            ? 'recent'   // synthesized from last 25 matches
+            : 'bungie';  // full lifetime data from Bungie API
 
     // ── 4. Claim / ownership ──────────────────────────────────────────────────
     const isClaimed = !!dbPlayer?.claimed_by;
@@ -174,6 +249,7 @@ export async function load({ params, parent, url, setHeaders }) {
         membershipType, membershipId,
         recentMatches,
         lifetimeStats,
+        statsSource,
         clan,
         emblemBg,
         gambitProgression,
