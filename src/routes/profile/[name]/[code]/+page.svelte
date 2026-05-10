@@ -105,13 +105,51 @@
     const ltInvasions  = $derived(sv('invasions'));
     const ltInvKills   = $derived(sv('invasionKills'));
     const ltInvDef     = $derived(sv('invasionsDefeated'));
-    const ltMotes      = $derived(sv('motesBanked'));
+    const ltMotes      = $derived(sv('motesBanked') || sv('motesDeposited'));
     const ltMotesLost  = $derived(sv('motesLost'));
+    const ltMotesDenied  = $derived(sv('motesDenied'));
+    const ltMotesPickedUp = $derived(sv('motesPickedUp'));
+    const ltPrimevalDmg  = $derived(sv('primevalDamage'));
+    const ltSuperKills   = $derived(sv('superKills'));
 
-    // EGO rating formula
-    const egoRating = $derived(
-        Math.floor(ltWon * 15 + ltKills * 0.3 + ltInvKills * 5 + ltMotes * 0.1)
+    // ── Seasonal aggregate: sum all seasons for accurate Gambit-specific totals ─
+    // Bungie's lifetime API often misses extended Gambit stats (motes, invasions,
+    // wins). When seasonal data is loaded, we use it as the source of truth.
+    const seasonalTotal = $derived(
+        seasonal?.seasons?.length
+            ? seasonal.seasons.reduce((acc, s) => {
+                acc.activitiesEntered += s.activitiesEntered ?? 0;
+                acc.wins              += s.wins              ?? 0;
+                acc.kills             += s.kills             ?? 0;
+                acc.deaths            += s.deaths            ?? 0;
+                acc.assists           += s.assists           ?? 0;
+                acc.invasions         += s.invasions         ?? 0;
+                acc.invasionKills     += s.invasionKills     ?? 0;
+                acc.invasionsDefeated += s.invasionsDefeated ?? 0;
+                acc.motesDeposited    += s.motesDeposited    ?? 0;
+                acc.motesLost         += s.motesLost         ?? 0;
+                acc.motesDenied       += s.motesDenied       ?? 0;
+                acc.motesPickedUp     += s.motesPickedUp     ?? 0;
+                acc.primevalDamage    += s.primevalDamage    ?? 0;
+                acc.durationSeconds   += s.durationSeconds   ?? 0;
+                return acc;
+            }, {
+                activitiesEntered: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+                invasions: 0, invasionKills: 0, invasionsDefeated: 0,
+                motesDeposited: 0, motesLost: 0, motesDenied: 0, motesPickedUp: 0,
+                primevalDamage: 0, durationSeconds: 0,
+            })
+            : null
     );
+
+    // EGO rating formula (use seasonal totals if available for accuracy)
+    const egoRating = $derived((() => {
+        const wins   = seasonalTotal?.wins    ?? ltWon;
+        const kills  = seasonalTotal?.kills   ?? ltKills;
+        const inv    = seasonalTotal?.invasionKills ?? ltInvKills;
+        const motes  = seasonalTotal?.motesDeposited ?? ltMotes;
+        return Math.floor(wins * 15 + kills * 0.3 + inv * 5 + motes * 0.1);
+    })());
 
     // ── Filtered display stats (season or lifetime) ────────────────────────────
     const displaySeason = $derived(
@@ -120,15 +158,29 @@
             : (seasonal.seasons ?? []).find(s => s.season === seasonFilter) ?? null
     );
 
-    const dEntered    = $derived(displaySeason ? displaySeason.activitiesEntered : ltEntered);
-    const dWon        = $derived(displaySeason ? displaySeason.wins              : ltWon);
-    const dKills      = $derived(displaySeason ? displaySeason.kills             : ltKills);
-    const dDeaths     = $derived(displaySeason ? displaySeason.deaths            : ltDeaths);
-    const dInvasions  = $derived(displaySeason ? displaySeason.invasions         : ltInvasions);
-    const dInvKills   = $derived(displaySeason ? displaySeason.invasionKills     : ltInvKills);
-    const dInvDef     = $derived(displaySeason ? (displaySeason.invasionsDefeated ?? 0) : ltInvDef);
-    const dMotes      = $derived(displaySeason ? displaySeason.motesDeposited    : ltMotes);
-    const dMotesLost  = $derived(displaySeason ? displaySeason.motesLost         : ltMotesLost);
+    // For "all-time": prefer seasonalTotal (accurate per-match aggregation)
+    // over Bungie API lifetime stats (which often miss Gambit-specific fields).
+    const allTimeBase = $derived(seasonalTotal ?? {
+        activitiesEntered: ltEntered, wins: ltWon, kills: ltKills, deaths: ltDeaths,
+        assists: ltAssists, invasions: ltInvasions, invasionKills: ltInvKills,
+        invasionsDefeated: ltInvDef, motesDeposited: ltMotes, motesLost: ltMotesLost,
+        motesDenied: ltMotesDenied, motesPickedUp: ltMotesPickedUp,
+        primevalDamage: ltPrimevalDmg, durationSeconds: 0,
+    });
+
+    const dEntered    = $derived(displaySeason ? displaySeason.activitiesEntered : allTimeBase.activitiesEntered);
+    const dWon        = $derived(displaySeason ? displaySeason.wins              : allTimeBase.wins);
+    const dKills      = $derived(displaySeason ? displaySeason.kills             : (seasonalTotal?.kills ?? ltKills));
+    const dDeaths     = $derived(displaySeason ? displaySeason.deaths            : (seasonalTotal?.deaths ?? ltDeaths));
+    const dInvasions  = $derived(displaySeason ? displaySeason.invasions         : allTimeBase.invasions);
+    const dInvKills   = $derived(displaySeason ? displaySeason.invasionKills     : allTimeBase.invasionKills);
+    const dInvDef     = $derived(displaySeason ? (displaySeason.invasionsDefeated ?? 0) : allTimeBase.invasionsDefeated);
+    const dMotes      = $derived(displaySeason ? displaySeason.motesDeposited    : allTimeBase.motesDeposited);
+    const dMotesLost  = $derived(displaySeason ? displaySeason.motesLost         : allTimeBase.motesLost);
+    const dMotesDenied  = $derived(displaySeason ? (displaySeason.motesDenied ?? 0) : allTimeBase.motesDenied);
+    const dMotesPickedUp = $derived(displaySeason ? (displaySeason.motesPickedUp ?? 0) : allTimeBase.motesPickedUp);
+    const dPrimevalDmg  = $derived(displaySeason ? (displaySeason.primevalDamage ?? 0) : allTimeBase.primevalDamage);
+    const dDuration     = $derived(displaySeason ? (displaySeason.durationSeconds ?? 0) : allTimeBase.durationSeconds);
 
     const dWinRate  = $derived(dEntered > 0 ? (dWon   / dEntered) * 100 : null);
     const dKD       = $derived(dDeaths  > 0 ? dKills  / dDeaths         : dKills > 0 ? dKills : null);
@@ -275,10 +327,10 @@
 </script>
 
 <!-- ── Full-height layout ──────────────────────────────────────────────────── -->
-<div class="flex bg-[#080808]">
+<div class="flex">
 
     <!-- ── Left sidebar ────────────────────────────────────────────────────── -->
-    <aside class="w-16 sticky top-0 h-screen border-r border-zinc-800 bg-[#0a0a0a] flex flex-col items-center py-4 shrink-0 z-40">
+    <aside class="w-16 sticky top-0 h-screen border-r border-white/[0.07] bg-black/30 backdrop-blur-md flex flex-col items-center py-4 shrink-0 z-40">
 
         <!-- J Diamond logo -->
         <div class="relative w-9 h-9 mb-5 shrink-0">
@@ -310,8 +362,8 @@
                     <span class="absolute inset-0 opacity-0 group-hover:opacity-100 bg-emerald-500/3 transition-opacity duration-200"></span>
                 {/if}
                 <!-- Slide-in tooltip -->
-                <span class="absolute left-full ml-3 px-2 py-1 bg-[#111] border border-zinc-700
-                             text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-300
+                <span class="absolute left-full ml-3 px-2 py-1 bg-black/80 backdrop-blur-sm border border-zinc-700
+                             text-xs font-sans text-zinc-300
                              opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0
                              transition-all duration-200 pointer-events-none whitespace-nowrap z-50
                              shadow-[0_0_12px_rgba(0,0,0,0.5)]">
@@ -341,12 +393,12 @@
                     <span class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"></span>
                 {/if}
                 <!-- Tooltip -->
-                <span class="absolute left-full ml-3 px-2 py-1.5 bg-[#111] border border-zinc-700
-                             text-[8px] font-mono text-zinc-300 leading-relaxed
+                <span class="absolute left-full ml-3 px-2 py-1.5 bg-black/80 backdrop-blur-sm border border-zinc-700
+                             text-xs font-sans text-zinc-300 leading-relaxed
                              opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0
                              transition-all duration-200 pointer-events-none whitespace-nowrap z-50
                              shadow-[0_0_12px_rgba(0,0,0,0.5)]">
-                    <span class="uppercase tracking-[0.2em] text-zinc-400 block">{cls}</span>
+                    <span class="text-zinc-400 block font-medium">{cls}</span>
                     {#if c?.light}<span class="text-emerald-400">{c.light} PL</span>{/if}
                 </span>
             </button>
@@ -434,7 +486,7 @@
                             <!-- Rank initial (counter-rotates to stay upright) -->
                             <div class="absolute inset-0 flex items-center justify-center
                                         transition-all duration-500 group-hover/rank:-rotate-[135deg]">
-                                <span class="text-[11px] font-mono font-black leading-none
+                                <span class="text-xs font-bold leading-none
                                              {gambitRank === 'Legend' ? 'text-amber-400' :
                                               gambitRank === 'Mythic' ? 'text-violet-400' :
                                               gambitRank === 'Fabled' ? 'text-emerald-400' :
@@ -448,12 +500,12 @@
                                     opacity-0 group-hover/rank:opacity-100
                                     translate-y-1 group-hover/rank:translate-y-0
                                     transition-all duration-200 pointer-events-none whitespace-nowrap">
-                            <div class="bg-[#111] border border-zinc-700 px-3 py-2 shadow-[0_0_16px_rgba(0,0,0,0.8)] text-right">
-                                <span class="text-[8px] font-mono font-bold text-emerald-400 block">{gambitRank}</span>
+                            <div class="bg-black/80 backdrop-blur-sm border border-zinc-700 px-3 py-2 shadow-[0_0_16px_rgba(0,0,0,0.8)] text-right">
+                                <span class="text-xs font-semibold text-emerald-400 block">{gambitRank}</span>
                                 <div class="w-16 h-px bg-zinc-800 mt-1.5 ml-auto">
                                     <div class="h-full bg-emerald-400/70" style="width:{gambitPct}%"></div>
                                 </div>
-                                <span class="text-[7px] font-mono text-zinc-600 mt-0.5 block">{gambitPct}% to next tier</span>
+                                <span class="text-[10px] text-zinc-600 mt-0.5 block">{gambitPct}% to next tier</span>
                             </div>
                         </div>
                     </div>
@@ -461,7 +513,7 @@
 
                 <!-- Identity block -->
                 <div class="flex-1 min-w-0 mb-1">
-                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-emerald-500/60 block mb-1">Guardian Profile</span>
+                    <span class="text-xs font-medium text-emerald-500/70 tracking-wide block mb-1">Guardian Profile</span>
                     <h1 class="font-serif text-6xl font-light italic tracking-tighter uppercase leading-none text-white
                                drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] mb-2 anim-in truncate">
                         {data.player.bungieGlobalDisplayName}<span class="font-mono text-xl text-zinc-600 not-italic tracking-normal ml-1">#{String(data.player.bungieGlobalDisplayNameCode).padStart(4,'0')}</span>
@@ -470,13 +522,12 @@
                     <div class="flex items-center gap-3 mb-6">
                         {#if data.clan}
                             <a href="/clan/{data.clan.groupId}"
-                               class="text-[11px] font-sans text-zinc-400 uppercase tracking-[0.2em] font-medium
-                                      hover:text-zinc-200 transition-colors">
+                               class="text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
                                 [{data.clan.name}]
                             </a>
                         {/if}
                         {#if classNames[char.classType]}
-                            <span class="text-[11px] font-sans uppercase tracking-[0.15em] text-zinc-600">
+                            <span class="text-sm text-zinc-500 font-light">
                                 {classNames[char.classType]}{raceNames[char.raceType] ? ' · ' + raceNames[char.raceType] : ''}
                             </span>
                         {/if}
@@ -510,7 +561,7 @@
                                         <div class="w-full h-px mb-1.5
                                             {badge.tier==='amber' ? 'bg-amber-500/50' : badge.tier==='emerald' ? 'bg-emerald-500/50' :
                                              badge.tier==='violet' ? 'bg-violet-500/50' : badge.tier==='zinc' ? 'bg-zinc-600/50' : 'bg-zinc-800'}"></div>
-                                        <span class="text-[9px] font-mono font-bold {ts.text} block">{badge.label}</span>
+                                        <span class="text-xs font-bold {ts.text} block">{badge.label}</span>
                                         <span class="text-[7px] font-sans text-zinc-600 block mt-0.5 max-w-[140px] whitespace-normal leading-relaxed">{badge.desc}</span>
                                     </div>
                                     <div class="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-l-transparent border-r-transparent border-t-zinc-700/80 mx-auto"></div>
@@ -522,26 +573,25 @@
 
                 <!-- Rating section -->
                 <div class="group/ego shrink-0 text-right mb-1 cursor-default select-none">
-                    <span class="text-[8px] font-sans uppercase tracking-[0.35em] text-zinc-500 block mb-1">Rating</span>
+                    <span class="text-xs font-medium text-zinc-500 block mb-1">Rating</span>
                     <span class="text-5xl font-sans font-light tracking-tighter text-white leading-none block
                                  transition-all duration-300 group-hover/ego:drop-shadow-[0_0_16px_rgba(255,255,255,0.2)]">
                         {egoRating.toLocaleString()}
                     </span>
-                    <span class="text-[10px] font-sans italic tracking-[0.3em] text-emerald-500 font-bold
-                                 uppercase block mt-2 drop-shadow-md">
-                        #{gambitRank.toUpperCase()}
+                    <span class="text-sm font-semibold italic text-emerald-500 block mt-2 drop-shadow-md">
+                        #{gambitRank}
                     </span>
                     <div class="w-24 h-px bg-zinc-800 mt-3 ml-auto">
                         <div class="h-full bg-emerald-400/70 transition-all" style="width:{gambitPct}%"></div>
                     </div>
-                    <span class="text-[7px] font-mono text-zinc-700 mt-1 block">{gambitPct}% TO NEXT TIER</span>
+                    <span class="text-[10px] text-zinc-600 mt-1 block">{gambitPct}% to next tier</span>
                     <!-- Formula tooltip -->
                     <div class="absolute top-1/2 -translate-y-1/2 right-full mr-4 z-30
                                 opacity-0 group-hover/ego:opacity-100
                                 translate-x-2 group-hover/ego:translate-x-0
                                 transition-all duration-200 pointer-events-none whitespace-nowrap">
-                        <div class="bg-[#111] border border-zinc-700 px-4 py-3 text-left shadow-[0_0_20px_rgba(0,0,0,0.7)]">
-                            <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-500 block mb-2">EGO Formula</span>
+                        <div class="bg-black/80 backdrop-blur-sm border border-zinc-700 px-4 py-3 text-left shadow-[0_0_20px_rgba(0,0,0,0.7)]">
+                            <span class="text-xs font-medium text-zinc-500 block mb-2">EGO Formula</span>
                             {#each [
                                 { label: 'Wins × 15',      value: fmt(ltWon * 15)              },
                                 { label: 'Kills × 0.3',    value: fmt(Math.floor(ltKills*0.3)) },
@@ -568,15 +618,15 @@
         </header>
 
         <!-- ── Tab nav strip ────────────────────────────────────────────────── -->
-        <div class="h-14 bg-[#0d0d0d] border-b border-zinc-800 flex items-end shrink-0 sticky top-0 z-30">
+        <div class="h-14 bg-black/30 backdrop-blur-md border-b border-white/[0.07] flex items-end shrink-0 sticky top-0 z-30">
             {#each TABS as t}
                 <button onclick={() => tab = t.id}
-                    class="text-[10px] font-sans uppercase tracking-[0.3em] h-10 px-6 relative
-                           transition-all duration-300 font-bold border-t border-x border-transparent
+                    class="text-sm font-medium h-10 px-6 relative
+                           transition-all duration-300 border-t border-x border-transparent
                            flex-shrink-0 whitespace-nowrap
                            {tab === t.id
-                               ? 'text-white bg-[#151515] border-zinc-700/50 shadow-[inset_0_2px_5px_rgba(255,255,255,0.05)]'
-                               : 'text-zinc-600 hover:text-zinc-300'}">
+                               ? 'text-white bg-white/[0.05] border-white/[0.08] shadow-[inset_0_2px_5px_rgba(255,255,255,0.03)]'
+                               : 'text-zinc-500 hover:text-zinc-300'}">
                     {t.label}
                     {#if tab === t.id}
                         <!-- Emerald bottom line with glow -->
@@ -589,7 +639,7 @@
         </div>
 
         <!-- ── Tab content ───────────────────────────────────────────────────── -->
-        <main class="bg-[#080808]">
+        <main>
 
         {#key tab}
         <div in:fly={{ y: 16, duration: 320, opacity: 0 }}>
@@ -597,13 +647,13 @@
             <!-- ── DetailRow snippet (label | value | rank badge) ───────────── -->
             {#snippet DetailRow(label, value, rank)}
                 <div class="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/40 last:border-0">
-                    <span class="text-[8px] font-mono uppercase tracking-[0.15em] text-zinc-600 shrink-0">{label}</span>
+                    <span class="text-xs font-medium text-zinc-500 shrink-0">{label}</span>
                     <div class="flex items-center gap-2 min-w-0">
-                        <span class="text-[13px] font-mono font-bold leading-none
+                        <span class="text-sm font-mono font-bold leading-none
                                      {rank ? rank.color : 'text-zinc-200'}">{value}</span>
                         {#if rank}
-                            <span class="text-[7px] font-mono font-bold uppercase tracking-wide shrink-0
-                                         {rank.color} border border-current/30 px-1.5 py-px">{rank.label}</span>
+                            <span class="text-[10px] font-semibold shrink-0
+                                         {rank.color} border border-current/30 px-1.5 py-px rounded">{rank.label}</span>
                         {/if}
                     </div>
                 </div>
@@ -613,7 +663,7 @@
             {#if tab === 'overview'}
                 {#if !data.lifetimeStats}
                     <div class="flex items-center justify-center h-full">
-                        <p class="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-600">
+                        <p class="text-sm font-medium text-zinc-500">
                             No Gambit stats found for this Guardian.
                         </p>
                     </div>
@@ -622,12 +672,12 @@
 
                         <!-- Notice when stats come from recent matches only -->
                         {#if data.statsSource === 'recent'}
-                            <div class="flex items-center gap-2 mb-4 px-3 py-2 bg-amber-500/5 border border-amber-500/20">
-                                <svg class="w-3 h-3 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <div class="flex items-center gap-2 mb-4 px-3 py-2 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                                <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                                 </svg>
-                                <span class="text-[8px] font-mono uppercase tracking-[0.2em] text-amber-500/80">
-                                    Lifetime API unavailable · showing last {data.recentMatches.length} matches only · full history loads below
+                                <span class="text-sm text-amber-500/80 font-light">
+                                    Lifetime API unavailable — showing last {data.recentMatches.length} matches only. Full history loads from seasonal data below.
                                 </span>
                             </div>
                         {/if}
@@ -635,20 +685,23 @@
                         <!-- ── SEASONAL HISTORY header + scrollable season pills ── -->
                         <div class="relative border-b border-zinc-800/50 pb-3 anim-in">
                             <div class="flex items-center gap-2 mb-3">
-                                <span class="text-[8px] font-mono uppercase tracking-[0.35em] text-zinc-600">Seasonal History</span>
+                                <span class="text-xs font-medium text-zinc-500">Seasonal History</span>
                                 {#if seasonalLoading}
                                     <div class="w-3 h-3 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
+                                {/if}
+                                {#if seasonal?.totalActivities}
+                                    <span class="text-xs text-zinc-600 font-light ml-1">· {seasonal.totalActivities.toLocaleString()} matches indexed</span>
                                 {/if}
                             </div>
                             <!-- Mouse-wheel-scrollable season tabs -->
                             <div class="flex overflow-x-auto gap-1 no-scrollbar scroll-smooth cursor-grab active:cursor-grabbing"
                                  onwheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }}>
                                 <button onclick={() => seasonFilter = 'all'}
-                                        class="flex-shrink-0 px-4 py-1.5 text-[9px] font-mono uppercase tracking-[0.2em]
-                                               transition-all border relative overflow-hidden
+                                        class="flex-shrink-0 px-4 py-1.5 text-xs font-medium
+                                               transition-all border rounded relative overflow-hidden
                                                {seasonFilter === 'all'
-                                                   ? 'text-emerald-400 bg-zinc-900/60 border-zinc-700 font-bold'
-                                                   : 'text-zinc-600 border-zinc-800/50 hover:text-zinc-400 hover:border-zinc-700'}">
+                                                   ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/40'
+                                                   : 'text-zinc-500 border-zinc-800/50 hover:text-zinc-300 hover:border-zinc-700'}">
                                     All-Time
                                     {#if seasonFilter === 'all'}
                                         <div class="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]"></div>
@@ -658,11 +711,11 @@
                                     {#each [...seasonal.seasons].sort((a,b) => b.seasonNumber - a.seasonNumber) as s}
                                         {@const sLabel = SEASON_NAMES[s.seasonNumber] ?? `S${s.seasonNumber}`}
                                         <button onclick={() => seasonFilter = s.season}
-                                                class="flex-shrink-0 px-4 py-1.5 text-[9px] font-mono uppercase tracking-[0.2em]
-                                                       transition-all border relative overflow-hidden
+                                                class="flex-shrink-0 px-4 py-1.5 text-xs font-medium
+                                                       transition-all border rounded relative overflow-hidden
                                                        {seasonFilter === s.season
-                                                           ? 'text-emerald-400 bg-zinc-900/60 border-zinc-700 font-bold'
-                                                           : 'text-zinc-600 border-zinc-800/50 hover:text-zinc-400 hover:border-zinc-700'}">
+                                                           ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/40'
+                                                           : 'text-zinc-500 border-zinc-800/50 hover:text-zinc-300 hover:border-zinc-700'}">
                                             {sLabel}
                                             {#if seasonFilter === s.season}
                                                 <div class="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]"></div>
@@ -677,15 +730,15 @@
                         <div class="grid grid-cols-4 gap-3">
 
                             <!-- Win Ratio -->
-                            <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in transition-all hover:border-zinc-600">
+                            <div class="relative bg-white/[0.03] backdrop-blur-sm border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in transition-all hover:border-zinc-600">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
-                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">Win Ratio</span>
+                                <span class="text-xs font-medium text-zinc-500 block mb-2">Win Ratio</span>
                                 <div class="flex items-baseline justify-between gap-1">
                                     <span class="text-[28px] font-mono font-bold leading-none text-zinc-100">
                                         {dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'}
                                     </span>
-                                    <span class="text-[9px] font-mono text-zinc-600 text-right shrink-0 leading-tight">
+                                    <span class="text-xs text-zinc-500 text-right shrink-0 leading-tight">
                                         {fmt(dWon)}<br/>wins
                                     </span>
                                 </div>
@@ -695,12 +748,12 @@
                             <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all hover:border-zinc-600">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
-                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">K/D/A</span>
+                                <span class="text-xs font-medium text-zinc-500 block mb-2">K/D/A</span>
                                 <div class="flex items-baseline justify-between gap-1">
                                     <span class="text-[28px] font-mono font-bold leading-none text-zinc-100">
                                         {dKD != null ? fmtF(dKD, 2) : '—'}
                                     </span>
-                                    <span class="text-[9px] font-mono text-zinc-600 text-right shrink-0 leading-tight">
+                                    <span class="text-xs text-zinc-500 text-right shrink-0 leading-tight">
                                         {fmt(dKills)}<br/>kills
                                     </span>
                                 </div>
@@ -710,16 +763,16 @@
                             <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all hover:border-zinc-600">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
-                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">Motes Avg</span>
+                                <span class="text-xs font-medium text-zinc-500 block mb-2">Motes Avg</span>
                                 <div class="flex items-baseline justify-between gap-1">
                                     <span class="text-[28px] font-mono font-bold leading-none
                                                  {motesRank(dAvgMotes) ? 'text-emerald-400' : 'text-zinc-100'}">
                                         {dEntered > 0 ? fmtF(dAvgMotes, 1) : '—'}
                                     </span>
                                     {#if motesRank(dAvgMotes)}
-                                        <span class="text-[9px] font-mono font-bold {motesRank(dAvgMotes).color} text-right shrink-0">{motesRank(dAvgMotes).label}</span>
+                                        <span class="text-xs font-bold {motesRank(dAvgMotes).color} text-right shrink-0">{motesRank(dAvgMotes).label}</span>
                                     {:else}
-                                        <span class="text-[9px] font-mono text-zinc-600 text-right shrink-0 leading-tight">
+                                        <span class="text-xs text-zinc-500 text-right shrink-0 leading-tight">
                                             {fmt(dMotes)}<br/>total
                                         </span>
                                     {/if}
@@ -730,7 +783,7 @@
                             <div class="relative bg-gradient-to-br from-[#111111] to-[#0a0a0a] border border-zinc-800 p-4 overflow-hidden anim-in anim-in-d3 transition-all hover:border-zinc-700">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-amber-500/20"></span>
-                                <span class="text-[8px] font-mono uppercase tracking-[0.25em] text-zinc-600 block mb-2">Avg Invasions</span>
+                                <span class="text-xs font-medium text-zinc-500 block mb-2">Avg Invasions</span>
                                 <div class="flex items-center gap-2">
                                     <span class="text-[28px] font-mono font-bold leading-none text-amber-500 italic">
                                         {dEntered > 0 ? fmtF(dAvgInv, 2) : '—'}
@@ -743,13 +796,13 @@
                             </div>
                         </div>
 
-                        <!-- ── 3 detail cards: Combat / Objectives / Invasion ── -->
+                        <!-- ── 3+1 detail cards: Combat / Objectives / Invasion / Extended ── -->
                         <div class="grid grid-cols-3 gap-4">
 
                             <!-- COMBAT -->
-                            <div class="bg-[#111111] border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all duration-300 hover:border-zinc-700">
+                            <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all duration-300 hover:border-zinc-700">
                                 <div class="px-4 py-3 border-b border-zinc-800/60">
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Combat</span>
+                                    <span class="text-xs font-medium text-zinc-500">Combat</span>
                                 </div>
                                 <div class="px-4 py-3">
                                     {@render DetailRow('Total Kills', fmt(dKills),   kdRank(dKD))}
@@ -764,44 +817,84 @@
                             </div>
 
                             <!-- OBJECTIVES -->
-                            <div class="bg-[#111111] border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all duration-300 hover:border-zinc-700">
+                            <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all duration-300 hover:border-zinc-700">
                                 <div class="px-4 py-3 border-b border-zinc-800/60">
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Objectives</span>
+                                    <span class="text-xs font-medium text-zinc-500">Objectives</span>
                                 </div>
                                 <div class="px-4 py-3">
-                                    {@render DetailRow('Deposited', fmt(dMotes),     winRateRank(dWinRate))}
-                                    {@render DetailRow('Lost',      fmt(dMotesLost), null)}
-                                    {@render DetailRow('Matches',   fmt(dEntered),   null)}
-                                    {@render DetailRow('Wins',      fmt(dWon),       null)}
+                                    {@render DetailRow('Deposited',   fmt(dMotes),         winRateRank(dWinRate))}
+                                    {@render DetailRow('Denied',      fmt(dMotesDenied),   null)}
+                                    {@render DetailRow('Picked Up',   fmt(dMotesPickedUp), null)}
+                                    {@render DetailRow('Lost',        fmt(dMotesLost),     null)}
+                                    {@render DetailRow('Matches',     fmt(dEntered),       null)}
+                                    {@render DetailRow('Wins',        fmt(dWon),           null)}
                                 </div>
                             </div>
 
                             <!-- INVASION -->
-                            <div class="bg-[#111111] border border-zinc-800/80 overflow-hidden stone-sheen anim-in anim-in-d3 transition-all duration-300 hover:border-zinc-700">
+                            <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800/80 overflow-hidden stone-sheen anim-in anim-in-d3 transition-all duration-300 hover:border-zinc-700">
                                 <div class="px-4 py-3 border-b border-zinc-800/60">
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.3em] text-zinc-500">Invasion</span>
+                                    <span class="text-xs font-medium text-zinc-500">Invasion</span>
                                 </div>
                                 <div class="px-4 py-3">
-                                    {@render DetailRow('Guardians',  fmt(dInvKills),  invRank(dAvgInv))}
-                                    {@render DetailRow('Army of One', fmt(dInvasions), null)}
-                                    {@render DetailRow('Stopped',    fmt(dInvDef),    null)}
-                                    {@render DetailRow('Per Game',   dEntered > 0 ? fmtF(dAvgInv, 2) : '—', null)}
+                                    {@render DetailRow('Guardians Killed', fmt(dInvKills),  invRank(dAvgInv))}
+                                    {@render DetailRow('Invasions',        fmt(dInvasions), null)}
+                                    {@render DetailRow('Stopped',         fmt(dInvDef),    null)}
+                                    {@render DetailRow('Per Game',        dEntered > 0 ? fmtF(dAvgInv, 2) : '—', null)}
+                                    {@render DetailRow('Efficiency',      dInvasions > 0 ? fmtF(dInvKills / dInvasions, 2) : '—', null)}
                                 </div>
                             </div>
                         </div>
+
+                        <!-- ── Extended stats row ──────────────────────────────── -->
+                        {#if dPrimevalDmg > 0 || dDuration > 0}
+                        <div class="grid grid-cols-3 gap-4">
+                            <!-- PRIMEVAL -->
+                            <div class="bg-white/[0.02] border border-zinc-800/60 overflow-hidden anim-in transition-all hover:border-zinc-700 rounded-lg">
+                                <div class="px-4 py-3 border-b border-zinc-800/40">
+                                    <span class="text-xs font-medium text-zinc-500">Primeval</span>
+                                </div>
+                                <div class="px-4 py-3">
+                                    {@render DetailRow('Total Damage', dPrimevalDmg > 0 ? fmt(Math.round(dPrimevalDmg)) : '—', null)}
+                                    {@render DetailRow('Per Match', dEntered > 0 && dPrimevalDmg > 0 ? fmt(Math.round(dPrimevalDmg / dEntered)) : '—', null)}
+                                </div>
+                            </div>
+                            <!-- TIME -->
+                            <div class="bg-white/[0.02] border border-zinc-800/60 overflow-hidden anim-in anim-in-d1 transition-all hover:border-zinc-700 rounded-lg">
+                                <div class="px-4 py-3 border-b border-zinc-800/40">
+                                    <span class="text-xs font-medium text-zinc-500">Time Played</span>
+                                </div>
+                                <div class="px-4 py-3">
+                                    {@render DetailRow('Total Hours', dDuration > 0 ? fmtF(dDuration / 3600, 1) + 'h' : '—', null)}
+                                    {@render DetailRow('Avg Match', dEntered > 0 && dDuration > 0 ? Math.round(dDuration / dEntered / 60) + 'm' : '—', null)}
+                                </div>
+                            </div>
+                            <!-- EFFICIENCY -->
+                            <div class="bg-white/[0.02] border border-zinc-800/60 overflow-hidden anim-in anim-in-d2 transition-all hover:border-zinc-700 rounded-lg">
+                                <div class="px-4 py-3 border-b border-zinc-800/40">
+                                    <span class="text-xs font-medium text-zinc-500">Efficiency</span>
+                                </div>
+                                <div class="px-4 py-3">
+                                    {@render DetailRow('Net Motes', dMotes > 0 ? fmt(dMotes - dMotesLost) : '—', null)}
+                                    {@render DetailRow('Mote Eff.', (dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '—', null)}
+                                    {@render DetailRow('Inv. Eff.', dInvasions > 0 ? fmtF((dInvKills / dInvasions), 2) + ' k/inv' : '—', null)}
+                                </div>
+                            </div>
+                        </div>
+                        {/if}
 
                         <!-- Recent matches preview -->
                         {#if data.recentMatches.length}
                             <div>
                                 <div class="flex items-center gap-4 mb-3">
                                     <div class="w-1 h-4 bg-emerald-500/50"></div>
-                                    <span class="text-[9px] font-mono uppercase tracking-[0.35em] text-zinc-500">Recent Matches</span>
+                                    <span class="text-xs font-medium text-zinc-500">Recent Matches</span>
                                     <button onclick={() => tab = 'matches'}
-                                        class="ml-auto text-[8px] font-mono uppercase tracking-[0.2em] text-emerald-500 hover:text-emerald-400 transition-colors">
+                                        class="ml-auto text-xs font-medium text-emerald-500 hover:text-emerald-400 transition-colors">
                                         View all →
                                     </button>
                                 </div>
-                                <div class="border border-zinc-800 bg-[#0a0a0a] divide-y divide-zinc-800/50">
+                                <div class="border border-zinc-800 bg-white/[0.02] divide-y divide-zinc-800/50 rounded-lg overflow-hidden">
                                     {#each data.recentMatches.slice(0, 5) as match}
                                         {@const result     = matchResult(match)}
                                         {@const instanceId = match.activityDetails?.instanceId}
@@ -809,14 +902,14 @@
                                         {@const inv        = match.extended?.values?.invasions?.basic?.value      ?? null}
                                         <a href={instanceId ? `/match/${instanceId}` : undefined}
                                            class="flex items-center gap-4 px-4 py-3 hover:bg-zinc-900/40 transition-colors group">
-                                            <span class="text-[9px] font-mono font-bold w-8 text-center py-1 border shrink-0
+                                            <span class="text-xs font-bold w-8 text-center py-1 border shrink-0
                                                          {result === 'win'  ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/5' :
                                                           result === 'loss' ? 'border-red-500/40 text-red-400 bg-red-500/5'            :
                                                                               'border-zinc-700 text-zinc-500'}">
                                                 {result === 'win' ? 'W' : result === 'loss' ? 'L' : 'DNF'}
                                             </span>
-                                            <span class="text-[9px] font-mono text-zinc-600 w-14 shrink-0">{timeAgo(match.period)}</span>
-                                            <span class="text-[11px] font-mono text-zinc-300 flex-1">
+                                            <span class="text-xs text-zinc-500 w-14 shrink-0">{timeAgo(match.period)}</span>
+                                            <span class="text-sm text-zinc-300 flex-1">
                                                 {match.values?.kills?.basic?.value ?? 0}K ·
                                                 {match.values?.deaths?.basic?.value ?? 0}D ·
                                                 {match.values?.assists?.basic?.value ?? 0}A
@@ -845,19 +938,19 @@
                 <div class="p-6">
                     <div class="flex items-center gap-4 mb-4">
                         <div class="w-1 h-4 bg-emerald-500/50"></div>
-                        <span class="text-[9px] font-mono uppercase tracking-[0.35em] text-zinc-500">Match History</span>
-                        <span class="ml-auto text-[9px] font-sans text-zinc-600">{data.recentMatches.length} recent matches</span>
+                        <span class="text-xs font-medium text-zinc-500">Match History</span>
+                        <span class="ml-auto text-xs text-zinc-600 font-light">{data.recentMatches.length} recent matches</span>
                     </div>
 
                     {#if !data.recentMatches.length}
                         <div class="flex flex-col items-center justify-center h-40 gap-3">
                             <div class="w-6 h-6 border border-zinc-700 rotate-45"></div>
-                            <span class="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-600">
+                            <span class="text-xs font-medium text-zinc-600">
                                 No recent Gambit matches found
                             </span>
                         </div>
                     {:else}
-                        <div class="border border-zinc-800 bg-[#0a0a0a] divide-y divide-zinc-800/50">
+                        <div class="border border-zinc-800 bg-white/[0.02] divide-y divide-zinc-800/50 rounded-lg overflow-hidden">
                             {#each data.recentMatches as match}
                                 {@const result     = matchResult(match)}
                                 {@const k          = match.values?.kills?.basic?.value                   ?? 0}
@@ -873,14 +966,14 @@
                                           {result === 'win'  ? 'border-l-emerald-500' :
                                            result === 'loss' ? 'border-l-red-500'     : 'border-l-zinc-800'}">
                                     <!-- Result badge -->
-                                    <span class="text-[9px] font-mono font-bold w-8 text-center py-1 border shrink-0
+                                    <span class="text-xs font-bold w-8 text-center py-1 border shrink-0
                                                  {result === 'win'  ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/5' :
                                                   result === 'loss' ? 'border-red-500/40 text-red-400 bg-red-500/5'            :
                                                                       'border-zinc-700 text-zinc-500'}">
                                         {result === 'win' ? 'W' : result === 'loss' ? 'L' : 'DNF'}
                                     </span>
                                     <!-- Date -->
-                                    <span class="text-[9px] font-mono text-zinc-600 w-14 shrink-0">{timeAgo(match.period)}</span>
+                                    <span class="text-xs text-zinc-500 w-14 shrink-0">{timeAgo(match.period)}</span>
                                     <!-- K/D/A -->
                                     <div class="flex items-center gap-1 text-[11px] font-mono flex-1">
                                         <span class="text-zinc-200">{k}</span>
@@ -922,7 +1015,7 @@
             {:else if tab === 'weaponry' || tab === 'synergy' || tab === 'maps' || tab === 'pursuits'}
                 <div class="flex flex-col items-center justify-center h-full gap-4 py-24">
                     <div class="w-8 h-8 border border-zinc-700 rotate-45 mb-2"></div>
-                    <span class="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-500">
+                    <span class="text-sm font-medium text-zinc-500">
                         {TABS.find(t => t.id === tab)?.label} — Coming Soon
                     </span>
                     <p class="text-[9px] font-sans text-zinc-700 max-w-xs text-center leading-relaxed">
@@ -935,11 +1028,11 @@
                 {#if loadoutLoading}
                     <div class="flex flex-col items-center justify-center h-64 gap-3">
                         <div class="w-5 h-5 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
-                        <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600">Loading loadout…</span>
+                        <span class="text-xs font-medium text-zinc-600">Loading loadout…</span>
                     </div>
                 {:else if !loadout}
                     <div class="flex items-center justify-center h-64">
-                        <span class="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-700">
+                        <span class="text-sm font-medium text-zinc-500">
                             Loadout data unavailable.
                         </span>
                     </div>
@@ -959,11 +1052,11 @@
                 {#if loadoutLoading}
                     <div class="flex flex-col items-center justify-center h-64 gap-3">
                         <div class="w-5 h-5 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
-                        <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-600">Loading subclass…</span>
+                        <span class="text-xs font-medium text-zinc-600">Loading subclass…</span>
                     </div>
                 {:else if !loadout}
                     <div class="flex items-center justify-center h-64">
-                        <span class="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-700">
+                        <span class="text-sm font-medium text-zinc-500">
                             Subclass data unavailable.
                         </span>
                     </div>

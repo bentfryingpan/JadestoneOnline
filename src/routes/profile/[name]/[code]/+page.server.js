@@ -66,9 +66,10 @@ export async function load({ params, parent, url, setHeaders }) {
             // Profile + clan + stats — cached as one bundle
             cacheWrap(profileKey, PROFILE_TTL, async () => {
                 const [profileData, clanData, acctStats] = await Promise.all([
-                    bungieGet(`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,200,205`),
+                    bungieGet(`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,104,200,202,205`),
                     bungieGet(`/Platform/GroupV2/User/${membershipType}/${membershipId}/0/1/`),
-                    bungieGet(`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Stats/?modes=63`),
+                    // groups=1 requests extended stat groups including Gambit-specific metrics
+                    bungieGet(`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Stats/?modes=63&groups=1,2`),
                 ]);
                 return { profileData, clanData, acctStats };
             }),
@@ -91,6 +92,7 @@ export async function load({ params, parent, url, setHeaders }) {
     const charIds      = profile?.profile?.data?.characterIds ?? [];
     const characters   = profile?.characters?.data ?? {};
     const progressions = profile?.characterProgressions?.data ?? {};
+    const profileCurrencies = profile?.profileCurrencies?.data?.items ?? [];
     const clan         = clanData?.Response?.results?.[0]?.group ?? null;
     // _statsResults holds all mode keys from GetHistoricalStatsForAccount.
     // The actual key for Gambit varies by Bungie API version — resolved below.
@@ -151,12 +153,19 @@ export async function load({ params, parent, url, setHeaders }) {
         } catch { /* ignore */ }
     }
 
+    // Normalise key: Bungie returns motes as 'motesDeposited' in extended stats
+    // but some API versions use 'motesBanked'. Mirror both so downstream code works.
+    if (lifetimeStats && !lifetimeStats.motesBanked && lifetimeStats.motesDeposited) {
+        lifetimeStats = { ...lifetimeStats, motesBanked: lifetimeStats.motesDeposited };
+    }
+
     // Tier-3 fallback: synthesise from the 25 recent matches we already have.
     // Better than showing nothing — lets the overview render with approximate data.
     if (!lifetimeStats && recentMatches.length > 0) {
         let entered = 0, won = 0, kills = 0, deaths = 0, assists = 0;
         let invasions = 0, invasionKills = 0, invasionsDefeated = 0;
-        let motesBanked = 0, motesLost = 0;
+        let motesDeposited = 0, motesDenied = 0, motesPickedUp = 0, motesLost = 0;
+        let primevalDamage = 0, superKills = 0, grenadeKills = 0, meleeKills = 0;
         function _n(obj, key) { return obj?.[key]?.basic?.value ?? 0; }
         for (const m of recentMatches) {
             const v = m.values ?? {}, ext = m.extended?.values ?? {};
@@ -169,8 +178,14 @@ export async function load({ params, parent, url, setHeaders }) {
             invasions         += _n(ext, 'invasions');
             invasionKills     += _n(ext, 'invasionKills');
             invasionsDefeated += _n(ext, 'invasionsDefeated');
-            motesBanked += _n(ext, 'motesDeposited');
-            motesLost   += _n(ext, 'motesLost');
+            motesDeposited    += _n(ext, 'motesDeposited');
+            motesDenied       += _n(ext, 'motesDenied');
+            motesPickedUp     += _n(ext, 'motesPickedUp');
+            motesLost         += _n(ext, 'motesLost');
+            primevalDamage    += _n(ext, 'primevalDamage');
+            superKills        += _n(ext, 'superKills');
+            grenadeKills      += _n(ext, 'grenadeKills');
+            meleeKills        += _n(ext, 'meleeKills');
         }
         if (entered > 0) {
             lifetimeStats = {
@@ -182,8 +197,15 @@ export async function load({ params, parent, url, setHeaders }) {
                 invasions:          { basic: { value: invasions         } },
                 invasionKills:      { basic: { value: invasionKills     } },
                 invasionsDefeated:  { basic: { value: invasionsDefeated } },
-                motesBanked:        { basic: { value: motesBanked       } },
+                motesBanked:        { basic: { value: motesDeposited    } },
+                motesDeposited:     { basic: { value: motesDeposited    } },
+                motesDenied:        { basic: { value: motesDenied       } },
+                motesPickedUp:      { basic: { value: motesPickedUp     } },
                 motesLost:          { basic: { value: motesLost         } },
+                primevalDamage:     { basic: { value: primevalDamage    } },
+                superKills:         { basic: { value: superKills        } },
+                grenadeKills:       { basic: { value: grenadeKills      } },
+                meleeKills:         { basic: { value: meleeKills        } },
                 _synthetic: true,   // flag: computed from recent matches only
             };
         }
