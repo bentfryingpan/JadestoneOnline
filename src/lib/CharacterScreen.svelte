@@ -164,7 +164,7 @@
 </div>
 
 {:else}
-<!-- ── Placeholder until screenshots are provided ── -->
+<!-- ── Placeholder until screenshots are in ── -->
 <div class="w-full rounded-lg bg-[#13161e] border border-white/8 overflow-hidden">
     <div class="aspect-[4/3] flex flex-col items-center justify-center gap-4 text-center px-8">
         <p class="text-gray-400 font-semibold text-sm">Character screen coming soon</p>
