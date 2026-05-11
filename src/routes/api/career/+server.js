@@ -91,8 +91,10 @@ async function careerFromSupabase(membershipId, count) {
         // Weapon synergy
         for (const w of stats.top_weapons ?? []) {
             const wn = w.name ?? 'Unknown';
-            if (!weaponsAgg[wn]) weaponsAgg[wn] = { games: 0, wins: 0, scoreSum: 0, icon: w.icon ?? null, hash: w.hash ?? null };
+            if (!weaponsAgg[wn]) weaponsAgg[wn] = { games: 0, wins: 0, kills: 0, precision: 0, scoreSum: 0, icon: w.icon ?? null, hash: w.hash ?? null };
             weaponsAgg[wn].games++;
+            weaponsAgg[wn].kills     += w.kills     ?? 0;
+            weaponsAgg[wn].precision += w.precision ?? 0;
             if (isWin) weaponsAgg[wn].wins++;
             weaponsAgg[wn].scoreSum += score;
         }
@@ -110,6 +112,28 @@ async function careerFromSupabase(membershipId, count) {
             if (isTeammate) playersAgg[key].as_ally++; else playersAgg[key].as_enemy++;
         }
 
+        // Medals
+        for (const [key, count] of Object.entries(medals)) {
+            medalsAgg[key] = (medalsAgg[key] ?? 0) + count;
+        }
+
+        // Class stats
+        const className = (row.stats?.className) ?? null;
+        if (className && className in classAgg) {
+            if (!classAgg[className]) classAgg[className] = { games: 0, wins: 0, scoreSum: 0 };
+            classAgg[className].games++;
+            if (isWin) classAgg[className].wins++;
+            classAgg[className].scoreSum += score;
+        }
+
+        // Hourly stats
+        if (row.period) {
+            const h = new Date(row.period).getHours();
+            hourlyAgg[h].games++;
+            if (isWin) hourlyAgg[h].wins++;
+            hourlyAgg[h].scoreSum += score;
+        }
+
         // Carry/carried flags already stored by pgcr-enrich in is_hard_carry / is_carried
     }
 
@@ -123,12 +147,13 @@ async function careerFromSupabase(membershipId, count) {
 
     const weapons = Object.entries(weaponsAgg)
         .map(([name, s]) => ({
-            name, games: s.games, wins: s.wins,
-            winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
+            name, games: s.games, wins: s.wins, kills: s.kills,
+            precRate: s.kills > 0 ? +((s.precision / s.kills) * 100).toFixed(1) : 0,
+            winRate:  s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
             avgScore: s.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0,
             icon: s.icon, hash: s.hash,
         }))
-        .sort((a, b) => b.games - a.games)
+        .sort((a, b) => b.kills - a.kills)   // sort by total kills
         .slice(0, 20);
 
     const allPlayers = Object.entries(playersAgg)
