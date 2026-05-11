@@ -1,21 +1,738 @@
 @import 'tailwindcss';
 
-/* ── Fonts ──────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   JADESTONE — Destiny 2 Design System
+   Faithfully replicates Destiny's UI language: dark panels, condensed type,
+   rarity borders, stat bars, damage-type color coding, corner notches.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tailwind theme overrides ─────────────────────────────────────────────── */
 @theme {
-  --font-family-sans:  'Outfit', ui-sans-serif, system-ui, sans-serif;
-  --font-family-mono:  'JetBrains Mono', ui-monospace, 'Courier New', monospace;
-  --font-family-serif: 'Playfair Display', ui-serif, Georgia, serif;
+  /* Typography — Barlow Condensed matches Bungie's Neue Haas Grotesk Display */
+  --font-family-sans:    'Barlow', ui-sans-serif, system-ui, sans-serif;
+  --font-family-display: 'Barlow Condensed', 'Barlow', ui-sans-serif, sans-serif;
+  --font-family-mono:    'JetBrains Mono', ui-monospace, 'Courier New', monospace;
 }
 
-/* ── Base typography ────────────────────────────────────────────────────────── */
+/* ── Destiny CSS Custom Properties ────────────────────────────────────────── */
+:root {
+  /* ── Backgrounds ── */
+  --d2-bg-base:        #0a0a0c;
+  --d2-bg-panel:       rgba(10, 10, 14, 0.88);
+  --d2-bg-panel-alt:   rgba(18, 18, 24, 0.92);
+  --d2-bg-card:        rgba(255, 255, 255, 0.04);
+  --d2-bg-card-hover:  rgba(255, 255, 255, 0.07);
+  --d2-bg-overlay:     rgba(0, 0, 0, 0.65);
+
+  /* ── Text ── */
+  --d2-text-primary:   #e8e8e0;
+  --d2-text-secondary: #b6bbb7;
+  --d2-text-muted:     #6b7280;
+  --d2-text-label:     #9ca3af;
+  --d2-text-cream:     #fcedd3;
+
+  /* ── Borders ── */
+  --d2-border-subtle:  rgba(255, 255, 255, 0.08);
+  --d2-border-default: rgba(255, 255, 255, 0.14);
+  --d2-border-strong:  rgba(255, 255, 255, 0.25);
+  --d2-border-accent:  rgba(255, 255, 255, 0.40);
+
+  /* ── Rarity colors (item tiers) ── */
+  --rarity-common:     #c2bbb2;
+  --rarity-uncommon:   #336b3e;
+  --rarity-rare:       #4a83b3;
+  --rarity-legendary:  #7854a1;
+  --rarity-exotic:     #ceae33;
+  --rarity-crafted:    #e04f2f;
+  --rarity-basic:      #c2bbb2;
+
+  /* Muted/dark backgrounds per rarity — for card fills */
+  --rarity-common-bg:    rgba(194, 187, 178, 0.08);
+  --rarity-uncommon-bg:  rgba(51, 107, 62,  0.10);
+  --rarity-rare-bg:      rgba(74, 131, 179, 0.10);
+  --rarity-legendary-bg: rgba(120, 84, 161, 0.12);
+  --rarity-exotic-bg:    rgba(206, 174, 51,  0.12);
+  --rarity-crafted-bg:   rgba(224, 79, 47,  0.10);
+
+  /* ── Damage / element types ── */
+  --dmg-kinetic:  #c2bbb2;
+  --dmg-solar:    #f0662a;
+  --dmg-arc:      #79c2f0;
+  --dmg-void:     #9370db;
+  --dmg-stasis:   #5988ff;
+  --dmg-strand:   #31c46f;
+
+  /* ── Gambit accent (primary brand color for this site) ── */
+  --gambit-green:       #3dae77;
+  --gambit-green-dark:  #2a7a54;
+  --gambit-green-glow:  rgba(61, 174, 119, 0.20);
+  --gambit-teal:        #2aae9d;
+
+  /* ── Activity / team colors ── */
+  --team-alpha:   #4a9fd4;
+  --team-bravo:   #d46a4a;
+  --crucible-red: #c0392b;
+  --vanguard-blue:#2d7dd2;
+  --strikes-blue: #3498db;
+
+  /* ── Ammo types ── */
+  --ammo-primary: #b6bbb7;
+  --ammo-special: #4a9e6b;
+  --ammo-heavy:   #c67d35;
+
+  /* ── Stat bar colors (matching DIM) ── */
+  --stat-bar-base:       rgba(200, 200, 200, 0.55);
+  --stat-bar-parts:      rgba(180, 200, 215, 0.70);
+  --stat-bar-mod:        #4a83b3;
+  --stat-bar-masterwork: #ceae33;
+  --stat-bar-bg:         rgba(255, 255, 255, 0.10);
+  --stat-bar-negative:   #e04f2f;
+
+  /* ── EGO score tier colors ── */
+  --ego-s:   #ceae33;
+  --ego-a:   #e08030;
+  --ego-b:   #4a9e6b;
+  --ego-c:   #4a83b3;
+  --ego-d:   #7854a1;
+  --ego-f:   #6b7280;
+
+  /* ── Spacing / geometry ── */
+  --d2-corner-clip: 10px;       /* polygon clip-path corner notch size */
+  --d2-corner-clip-sm: 6px;
+  --d2-corner-clip-lg: 16px;
+  --d2-border-radius: 2px;      /* Destiny uses nearly-square corners */
+  --d2-panel-padding: 1rem 1.25rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE TYPOGRAPHY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0.01em;
+  background-color: var(--d2-bg-base);
+  color: var(--d2-text-primary);
+  font-family: var(--font-family-sans);
 }
 
-/* ── Parallax background orbs ───────────────────────────────────────────────── */
+/* Destiny uses condensed all-caps for most labels and headings */
+.d2-label {
+  font-family: var(--font-family-display);
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--d2-text-label);
+}
+
+.d2-heading {
+  font-family: var(--font-family-display);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--d2-text-primary);
+}
+
+.d2-subheading {
+  font-family: var(--font-family-display);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--d2-text-secondary);
+  font-size: 0.85rem;
+}
+
+.d2-stat-value {
+  font-family: var(--font-family-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.d2-mono {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESTINY PANEL / CARD COMPONENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base panel — dark glass ── */
+.d2-panel {
+  background: var(--d2-bg-panel);
+  border: 1px solid var(--d2-border-default);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Corner-notched panel (Destiny's signature shape) ── */
+.d2-panel-notched {
+  background: var(--d2-bg-panel);
+  border: 1px solid var(--d2-border-default);
+  backdrop-filter: blur(12px);
+  clip-path: polygon(
+    var(--d2-corner-clip) 0%, 100% 0%,
+    100% 100%, 0% 100%,
+    0% var(--d2-corner-clip)
+  );
+}
+
+.d2-panel-notched-sm {
+  clip-path: polygon(
+    var(--d2-corner-clip-sm) 0%, 100% 0%,
+    100% 100%, 0% 100%,
+    0% var(--d2-corner-clip-sm)
+  );
+}
+
+.d2-panel-notched-lg {
+  clip-path: polygon(
+    var(--d2-corner-clip-lg) 0%, 100% 0%,
+    100% 100%, 0% 100%,
+    0% var(--d2-corner-clip-lg)
+  );
+}
+
+/* ── Item card: notch + rarity border on left ── */
+.d2-item-card {
+  background: var(--d2-bg-card);
+  border: 1px solid var(--d2-border-subtle);
+  border-left: 3px solid var(--rarity-color, var(--rarity-common));
+  clip-path: polygon(
+    var(--d2-corner-clip) 0%, 100% 0%,
+    100% 100%, 0% 100%,
+    0% var(--d2-corner-clip)
+  );
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.d2-item-card:hover {
+  background: var(--d2-bg-card-hover);
+  border-color: var(--d2-border-default);
+  border-left-color: var(--rarity-color, var(--rarity-common));
+}
+
+/* ── Rarity helpers: set --rarity-color on the element ── */
+.rarity-common    { --rarity-color: var(--rarity-common);    }
+.rarity-uncommon  { --rarity-color: var(--rarity-uncommon);  }
+.rarity-rare      { --rarity-color: var(--rarity-rare);      }
+.rarity-legendary { --rarity-color: var(--rarity-legendary); }
+.rarity-exotic    { --rarity-color: var(--rarity-exotic);    }
+.rarity-crafted   { --rarity-color: var(--rarity-crafted);   }
+
+/* ── Rarity border strip: top bar colored by tier ── */
+.d2-rarity-strip::before {
+  content: '';
+  display: block;
+  height: 2px;
+  background: var(--rarity-color, var(--rarity-common));
+  opacity: 0.85;
+}
+
+/* ── Weapon screenshot background tint ── */
+.d2-item-icon-wrapper {
+  position: relative;
+  background: var(--rarity-bg, var(--rarity-common-bg));
+  border: 1px solid var(--d2-border-subtle);
+  overflow: hidden;
+}
+.d2-item-icon-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WEAPON TOOLTIP SHELL (light.gg / DIM style)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-weapon-tooltip {
+  width: 360px;
+  background: rgba(8, 8, 12, 0.97);
+  border: 1px solid var(--d2-border-default);
+  border-top: 2px solid var(--rarity-color, var(--rarity-common));
+  clip-path: polygon(
+    var(--d2-corner-clip) 0%, 100% 0%,
+    100% calc(100% - var(--d2-corner-clip)), calc(100% - var(--d2-corner-clip)) 100%,
+    0% 100%, 0% var(--d2-corner-clip)
+  );
+  font-family: var(--font-family-display);
+  color: var(--d2-text-primary);
+  user-select: none;
+}
+
+.d2-weapon-tooltip__header {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--d2-border-subtle);
+}
+
+.d2-weapon-tooltip__icon {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--rarity-bg, var(--rarity-common-bg));
+  border: 1px solid var(--d2-border-subtle);
+}
+.d2-weapon-tooltip__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.d2-weapon-tooltip__meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.d2-weapon-tooltip__name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--d2-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.d2-weapon-tooltip__type {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--d2-text-muted);
+}
+
+.d2-weapon-tooltip__archetype {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--rarity-color, var(--rarity-common));
+  text-transform: uppercase;
+}
+
+.d2-weapon-tooltip__power {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--d2-text-cream);
+  letter-spacing: 0.02em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAT BARS (DIM-style segmented bars)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-stats {
+  padding: 0.625rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.d2-stat-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 28px;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.d2-stat-name {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d2-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.d2-stat-name.masterworked {
+  color: var(--rarity-exotic);
+}
+
+.d2-stat-bar-track {
+  height: 4px;
+  background: var(--stat-bar-bg);
+  border-radius: 0;
+  overflow: hidden;
+  display: flex;
+  gap: 1px;
+}
+
+.d2-stat-bar-segment {
+  height: 100%;
+  border-radius: 0;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.d2-stat-bar-segment.base       { background: var(--stat-bar-base); }
+.d2-stat-bar-segment.parts      { background: var(--stat-bar-parts); }
+.d2-stat-bar-segment.mod        { background: var(--stat-bar-mod); }
+.d2-stat-bar-segment.masterwork { background: var(--stat-bar-masterwork); }
+.d2-stat-bar-segment.negative   { background: var(--stat-bar-negative); }
+
+.d2-stat-val {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--d2-text-primary);
+  letter-spacing: 0;
+}
+.d2-stat-val.masterworked {
+  color: var(--rarity-exotic);
+}
+.d2-stat-val.buffed {
+  color: #7ec8a8;
+}
+.d2-stat-val.debuffed {
+  color: var(--stat-bar-negative);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PERK COLUMNS (columns of perk icons with selection state)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-perks {
+  padding: 0.625rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--d2-border-subtle);
+}
+
+.d2-perk-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--d2-border-subtle);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.d2-perk-row:last-child { border-bottom: none; }
+.d2-perk-row:hover { background: rgba(255,255,255,0.04); margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }
+
+.d2-perk-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: rgba(255,255,255,0.08);
+  transition: border-color 0.15s ease;
+  position: relative;
+}
+.d2-perk-icon.selected {
+  border-color: var(--d2-border-accent);
+  box-shadow: 0 0 8px rgba(255,255,255,0.15);
+}
+.d2-perk-icon.unselected {
+  filter: brightness(0.5) saturate(0.4);
+}
+.d2-perk-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.d2-perk-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.d2-perk-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--d2-text-primary);
+}
+.d2-perk-desc {
+  font-size: 0.70rem;
+  color: var(--d2-text-secondary);
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  font-family: var(--font-family-sans);
+  text-transform: none;
+}
+.d2-perk-enhanced {
+  font-size: 0.60rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rarity-exotic);
+  margin-top: 0.1rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAMAGE TYPE / ELEMENT INDICATORS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-element {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+.d2-element--kinetic { color: var(--dmg-kinetic); }
+.d2-element--solar   { color: var(--dmg-solar);   }
+.d2-element--arc     { color: var(--dmg-arc);     }
+.d2-element--void    { color: var(--dmg-void);     }
+.d2-element--stasis  { color: var(--dmg-stasis);   }
+.d2-element--strand  { color: var(--dmg-strand);   }
+
+.d2-element-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GAMBIT-SPECIFIC SCOREBOARD / MATCH PANELS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-match-panel {
+  background: rgba(6, 14, 10, 0.92);
+  border: 1px solid rgba(61, 174, 119, 0.20);
+  border-top: 2px solid var(--gambit-green);
+  clip-path: polygon(
+    var(--d2-corner-clip) 0%, 100% 0%,
+    100% 100%, 0% 100%,
+    0% var(--d2-corner-clip)
+  );
+}
+
+.d2-team-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--d2-border-subtle);
+}
+
+.d2-team-name {
+  font-family: var(--font-family-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--d2-text-cream);
+}
+
+/* Player row in a match scoreboard */
+.d2-player-row {
+  display: grid;
+  align-items: center;
+  padding: 0.45rem 1rem;
+  gap: 0;
+  border-bottom: 1px solid var(--d2-border-subtle);
+  transition: background 0.12s ease;
+  cursor: pointer;
+}
+.d2-player-row:hover { background: rgba(255,255,255,0.04); }
+.d2-player-row.is-self {
+  background: var(--gambit-green-glow);
+  border-left: 2px solid var(--gambit-green);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EGO SCORE BADGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ego-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  font-family: var(--font-family-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ego-badge__score {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.ego-badge__tier {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+/* Tier colors */
+.ego-tier-S { color: var(--ego-s); }
+.ego-tier-A { color: var(--ego-a); }
+.ego-tier-B { color: var(--ego-b); }
+.ego-tier-C { color: var(--ego-c); }
+.ego-tier-D { color: var(--ego-d); }
+.ego-tier-F { color: var(--ego-f); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MEDAL BADGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-medal {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  position: relative;
+}
+.d2-medal__icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.15));
+}
+.d2-medal__count {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: rgba(0,0,0,0.85);
+  border: 1px solid var(--d2-border-default);
+  border-radius: 0;
+  font-family: var(--font-family-display);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0 3px;
+  min-width: 16px;
+  text-align: center;
+  color: var(--d2-text-cream);
+  letter-spacing: 0.02em;
+}
+.d2-medal__label {
+  font-family: var(--font-family-display);
+  font-size: 0.60rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--d2-text-muted);
+  text-align: center;
+  max-width: 56px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROGRESS / WIN-RATE BARS (career maps/stats pages)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-progress-track {
+  height: 6px;
+  background: var(--stat-bar-bg);
+  position: relative;
+  overflow: hidden;
+}
+.d2-progress-fill {
+  height: 100%;
+  background: var(--gambit-green);
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.d2-progress-fill.loss {
+  background: rgba(180, 60, 40, 0.75);
+}
+
+/* Dual-fill win/loss bar */
+.d2-winloss-bar {
+  display: flex;
+  height: 5px;
+  gap: 1px;
+  overflow: hidden;
+}
+.d2-winloss-bar__win {
+  background: var(--gambit-green);
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  height: 100%;
+}
+.d2-winloss-bar__loss {
+  background: rgba(192, 57, 43, 0.70);
+  flex: 1;
+  height: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUNGIE ICON HELPER — renders icons from Bungie CDN
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.bungie-icon {
+  display: inline-block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB BAR — Destiny-style horizontal navigation
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--d2-border-subtle);
+  position: relative;
+}
+
+.d2-tab {
+  padding: 0.55rem 1.1rem;
+  font-family: var(--font-family-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--d2-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+.d2-tab:hover { color: var(--d2-text-secondary); }
+.d2-tab.active {
+  color: var(--d2-text-primary);
+  border-bottom-color: var(--gambit-green);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIVIDERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.d2-divider {
+  height: 1px;
+  background: var(--d2-border-subtle);
+  margin: 0.75rem 0;
+}
+.d2-divider--accent {
+  background: linear-gradient(90deg, var(--gambit-green) 0%, transparent 100%);
+  height: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @keyframes orb-drift-1 {
   0%   { transform: translate(0px, 0px)    scale(1);    }
   33%  { transform: translate(40px, -30px) scale(1.08); }
@@ -34,12 +751,20 @@ html {
   100% { transform: translate(0px, 0px)    scale(1);    }
 }
 
-/* ── Scrollbar suppression ──────────────────────────────────────────────────── */
-.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-.scrollbar-hide::-webkit-scrollbar { display: none; }
-.no-scrollbar::-webkit-scrollbar  { display: none; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.anim-in {
+  animation: fadeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-in-d1 { animation-delay: 0.05s; }
+.anim-in-d2 { animation-delay: 0.10s; }
+.anim-in-d3 { animation-delay: 0.15s; }
+.anim-in-d4 { animation-delay: 0.20s; }
+.anim-in-d5 { animation-delay: 0.25s; }
+.anim-in-d6 { animation-delay: 0.30s; }
 
-/* ── Stone card sheen animation ─────────────────────────────────────────────── */
 @keyframes stone-sheen {
   from { left: -100%; }
   to   { left: 200%;  }
@@ -61,20 +786,35 @@ html {
   animation: stone-sheen 1.2s forwards;
 }
 
-/* ── Fade-slide-in for tab content & cards ──────────────────────────────────── */
-@keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0);    }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(61, 174, 119, 0.3); }
+  50%       { box-shadow: 0 0 18px rgba(61, 174, 119, 0.6); }
 }
-.anim-in {
-  animation: fadeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+.gambit-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
 }
-.anim-in-d1 { animation-delay: 0.05s; }
-.anim-in-d2 { animation-delay: 0.10s; }
-.anim-in-d3 { animation-delay: 0.15s; }
-.anim-in-d4 { animation-delay: 0.20s; }
-.anim-in-d5 { animation-delay: 0.25s; }
-.anim-in-d6 { animation-delay: 0.30s; }
 
-/* ── Custom selection colour ────────────────────────────────────────────────── */
-::selection { background: rgba(16,185,129,0.15); }
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBAR UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* Destiny-styled thin scrollbar for panels that should scroll */
+.d2-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.d2-scrollbar::-webkit-scrollbar { width: 4px; }
+.d2-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.d2-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECTION
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+::selection { background: rgba(61, 174, 119, 0.20); }

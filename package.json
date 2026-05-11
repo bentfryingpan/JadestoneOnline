@@ -9,7 +9,8 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"lint": "prettier --check .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"sync-manifest": "node scripts/sync-manifest.js"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.1",
@@ -25,6 +26,10 @@
 		"vite": "^8.0.7"
 	},
 	"dependencies": {
-		"@supabase/supabase-js": "^2.105.3"
+		"@supabase/supabase-js": "^2.105.3",
+		"adm-zip": "^0.5.16"
+	},
+	"optionalDependencies": {
+		"better-sqlite3": "^11.7.0"
 	}
 }
