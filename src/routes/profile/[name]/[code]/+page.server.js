@@ -1,7 +1,11 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 import { error } from '@sveltejs/kit';
-import { cacheWrap, SEARCH_TTL, PROFILE_TTL } from '$lib/server/cache.js';
+import { cacheWrap, cacheGet, cacheSet, SEARCH_TTL, PROFILE_TTL } from '$lib/server/cache.js';
+import { computeSeasonal } from '$lib/server/seasonal.js';
+
+// 5-minute cache for Supabase claim status (rarely changes)
+const CLAIM_TTL = 300_000;
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
@@ -77,10 +81,21 @@ export async function load({ params, parent, url, setHeaders }) {
             // placeholder slot (match key resolved below after we have mainCharId)
             cacheWrap(matchKey, PROFILE_TTL, async () => null),
 
-            // Supabase claim check
-            supabaseAdmin.from('players').select('claimed_by').eq('id', membershipId).single()
-                .then(r => r.data)
-                .catch(() => null),
+            // Supabase claim check (cached 5 min — rarely changes)
+            (async () => {
+                const claimKey    = `claim:${membershipId}`;
+                const cachedClaim = cacheGet(claimKey);
+                if (cachedClaim !== undefined) return cachedClaim;
+                const r = await supabaseAdmin
+                    .from('players')
+                    .select('claimed_by')
+                    .eq('id', membershipId)
+                    .single()
+                    .then(r => r.data)
+                    .catch(() => null);
+                cacheSet(claimKey, r, CLAIM_TTL);
+                return r;
+            })(),
         ]);
     } catch (e) {
         if (e?.status) throw e;
@@ -250,8 +265,23 @@ export async function load({ params, parent, url, setHeaders }) {
         }, { onConflict: 'player_id' }).then(() => {});
     }
 
-    // ── 6. Tell Vercel CDN it can reuse this SSR response for 30 seconds ─────
-    setHeaders({ 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' });
+    // ── 6. CDN caching + streamed seasonal data ───────────────────────────────
+    // Give Vercel's CDN 60 s of fresh + 5 min stale-while-revalidate.
+    setHeaders({ 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' });
+
+    // ── 7. Stream seasonal stats in parallel with SSR ─────────────────────────
+    // computeSeasonal checks the in-process cache first — on warm hits it
+    // returns instantly and the value is inlined in the initial HTML response.
+    // On cold hits it starts the Bungie pagination in parallel with the rest of
+    // the SSR and streams the result to the client once ready, eliminating the
+    // client-side waterfall (old approach: hydrate → JS runs → fetch → wait).
+    const seasonalCacheKey = `seasonal:${membershipId}:${[...sortedCharIds].sort().join(',')}`;
+    const cachedSeasonal   = cacheGet(seasonalCacheKey);
+    const seasonalStream   = cachedSeasonal != null
+        ? cachedSeasonal   // cache hit → inline in initial HTML, no streaming needed
+        : sortedCharIds.length > 0
+            ? computeSeasonal(membershipType, membershipId, sortedCharIds, 25).catch(() => null)
+            : null;         // no characters → null immediately
 
     const mainChar = characters[mainCharId];
     const emblemBg = mainChar?.emblemBackgroundPath ? BUNGIE_ROOT + mainChar.emblemBackgroundPath : null;
@@ -275,6 +305,7 @@ export async function load({ params, parent, url, setHeaders }) {
         clan,
         emblemBg,
         gambitProgression,
-        isClaimed, isOwner, canClaim
+        isClaimed, isOwner, canClaim,
+        seasonal: seasonalStream,   // Promise (streamed) or resolved value (cache hit)
     };
 }

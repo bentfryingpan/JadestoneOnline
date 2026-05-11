@@ -45,22 +45,30 @@
         finally { loadoutLoading = false; }
     }
 
-    // ── Lazy seasonal ──────────────────────────────────────────────────────────
+    // ── Seasonal stats (server-streamed) ──────────────────────────────────────
+    // The server load kicks off computeSeasonal() in parallel with SSR and
+    // returns either the resolved value (in-process cache hit → included in
+    // initial HTML, zero extra latency) or a Promise (SvelteKit streams it).
+    // We never need a client-side fetch anymore — no waterfall, one fewer
+    // network round-trip from the browser.
     let seasonal        = $state(null);
-    let seasonalLoading = $state(false);
+    let seasonalLoading = $state(true);
 
-    async function fetchSeasonal() {
-        if (seasonalLoading || seasonal) return;
-        seasonalLoading = true;
-        try {
-            const charIds = data.characterIds.join(',');
-            const res = await fetch(
-                `/api/seasonal?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&maxPages=25`
-            );
-            seasonal = await res.json();
-        } catch (e) { console.error('Seasonal fetch failed', e); }
-        finally { seasonalLoading = false; }
-    }
+    $effect(() => {
+        const s = data.seasonal;
+        // null / undefined means no data available (e.g. player has no characters)
+        if (s == null) { seasonalLoading = false; return; }
+        // SvelteKit passes a Promise when data is streaming, or the plain object
+        // when it was already in the in-process cache.
+        if (typeof s.then === 'function') {
+            seasonalLoading = true;
+            s.then(result => { seasonal = result; seasonalLoading = false; })
+             .catch(()     => {                   seasonalLoading = false; });
+        } else {
+            seasonal        = s;
+            seasonalLoading = false;
+        }
+    });
 
     // ── Lazy career analytics ──────────────────────────────────────────────────
     let career        = $state(null);
@@ -89,9 +97,7 @@
             fetchLoadout();
         }
     });
-    $effect(() => {
-        if (tab === 'overview' && !seasonal && !seasonalLoading) fetchSeasonal();
-    });
+    // (seasonal is now server-streamed — no client fetch needed)
     $effect(() => {
         if ((tab === 'weaponry' || tab === 'maps' || tab === 'synergy') && !career && !careerLoading) {
             fetchCareer();

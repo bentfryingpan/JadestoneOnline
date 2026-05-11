@@ -13,10 +13,11 @@
  *   MANIFEST_TTL  3600s  — definitions change only on patch days
  */
 
-export const AUTH_TTL     =   60_000;
-export const PROFILE_TTL  =   60_000;
-export const SEARCH_TTL   =  300_000;
-export const MANIFEST_TTL = 3_600_000;
+export const AUTH_TTL     =    60_000;  // 1 min  — tokens re-validated periodically
+export const PROFILE_TTL  =   120_000;  // 2 min  — character stats change per play session
+export const SEARCH_TTL   =   300_000;  // 5 min  — name → membershipId is stable
+export const MANIFEST_TTL = 3_600_000;  // 1 hr   — definitions only change on patch days
+export const PGCR_TTL     = 86_400_000; // 24 hr  — PGCRs are immutable historical records
 
 const store = new Map(); // key → { value, expiresAt }
 

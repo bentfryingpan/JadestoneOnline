@@ -1,6 +1,9 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { error } from '@sveltejs/kit';
+import { cacheGet, cacheSet } from '$lib/server/cache.js';
 import { getItemDef, getActivityDef, getAllMedals } from '$lib/server/manifest.js';
+
+const PGCR_TTL = 86_400_000; // 24 h — PGCRs are immutable historical records
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
@@ -325,14 +328,31 @@ function buildPlayer(entry) {
     };
 }
 
-export async function load({ params }) {
+export async function load({ params, setHeaders }) {
     const { instanceId } = params;
 
-    // ── Fetch PGCR from stats.bungie.net ─────────────────────────────────────
-    const pgcrData = await bungieGet(
-        `/Platform/Destiny2/Stats/PostGameCarnageReport/${instanceId}/`,
-        PGCR_ROOT
-    );
+    // PGCRs never change — tell Vercel CDN to serve from cache for up to 1 hour,
+    // with a 24-hour stale-while-revalidate window.
+    setHeaders({ 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' });
+
+    // ── Fetch PGCR (in-process cache: 24 h) ──────────────────────────────────
+    // PGCRs are immutable historical records; cache aggressively.
+    const pgcrKey    = `pgcr:${instanceId}`;
+    let   pgcrCached = cacheGet(pgcrKey);
+    let   pgcrData;
+
+    if (pgcrCached) {
+        pgcrData = pgcrCached;
+    } else {
+        pgcrData = await bungieGet(
+            `/Platform/Destiny2/Stats/PostGameCarnageReport/${instanceId}/`,
+            PGCR_ROOT
+        );
+        if (pgcrData.ErrorCode === 1 && pgcrData.Response) {
+            cacheSet(pgcrKey, pgcrData, PGCR_TTL);
+        }
+    }
+
     if (pgcrData.ErrorCode !== 1 || !pgcrData.Response) {
         throw error(404, 'Match not found');
     }
