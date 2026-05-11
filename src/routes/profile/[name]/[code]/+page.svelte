@@ -551,16 +551,15 @@
 
 <!-- ── Left sidebar ────────────────────────────────────────────────────────── -->
 <aside class="w-16 sticky top-0 h-screen border-r border-white/[0.07] bg-black/30 backdrop-blur-md flex flex-col items-center py-4 shrink-0 z-40">
-    <div class="relative w-9 h-9 mb-5 shrink-0">
-        <div class="absolute inset-0 rotate-45 border border-emerald-500/50 bg-emerald-500/5"></div>
-        <span class="absolute inset-0 flex items-center justify-center text-[11px] font-mono font-black text-emerald-400 select-none">J</span>
-    </div>
-
         <!-- J Diamond logo -->
         <div style="position:relative;width:2.25rem;height:2.25rem;margin-bottom:1.25rem;flex-shrink:0;">
             <div style="position:absolute;inset:0;transform:rotate(45deg);border:1px solid rgba(61,174,119,0.50);background:rgba(61,174,119,0.07);box-shadow:0 0 10px rgba(61,174,119,0.20);"></div>
             <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-family-display);font-size:0.78rem;font-weight:900;color:var(--gambit-green);user-select:none;">J</span>
         </div>
+</aside><!-- end left sidebar -->
+
+<!-- ── Main content panel ────────────────────────────────────────────────────── -->
+<div class="flex-1 min-w-0 flex flex-col overflow-y-auto">
 
         <!-- Primary stat cards -->
         <div class="flex gap-3 mb-4 [&>*]:flex-1">
@@ -903,12 +902,14 @@
                                class="text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
                                 [{data.clan.name}]
                             </a>
-                            <div class="text-[10px] text-zinc-500 mt-0.5">
-                                {career.bestAlly.as_ally} matches · {career.bestAlly.winRate}% WR together
-                            </div>
-                        </div>
-                    {/if}
-                    {#if career.nemesis}
+                            {#if career?.bestAlly}
+                                <div class="text-[10px] text-zinc-500 mt-0.5">
+                                    {career.bestAlly.as_ally} matches · {career.bestAlly.winRate}% WR together
+                                </div>
+                            {/if}
+                        {/if}
+                    </div>
+                    {#if career?.nemesis}
                         <div class="bg-red-900/10 border border-red-800/40 p-3">
                             <div class="text-[9px] font-semibold text-red-600 tracking-widest uppercase mb-1">Nemesis</div>
                             <a href="/profile/{career.nemesis.name.replace('#','/')}"
@@ -1925,5 +1926,5 @@
     {/key}
     </main>
 
-</div><!-- end right panel -->
+</div><!-- end main content panel -->
 </div><!-- end flex layout -->
