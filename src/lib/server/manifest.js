@@ -216,12 +216,15 @@ async function fetchHistoricalStats() {
 }
 
 // ---------------------------------------------------------------------------
-// Generic lookup factory
+// Generic lookup factory (bulk table — works for small/medium tables)
 // ---------------------------------------------------------------------------
 
 /**
  * Returns a lookup function: (hash) => definition | null
  * The hash can be a number or numeric string; Bungie JSON uses signed-int keys.
+ *
+ * Use this only for tables small enough to download in one shot (<~10 MB).
+ * For large tables (InventoryItem, Record, Collectible, …) use makeHashLookup.
  */
 function makeLookup(componentName) {
     return async function lookup(hash) {
@@ -236,10 +239,53 @@ function makeLookup(componentName) {
 }
 
 // ---------------------------------------------------------------------------
+// Per-hash individual lookup (for large tables like DestinyInventoryItemDefinition)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a lookup function that calls the single-hash Bungie endpoint:
+ *   /Platform/Destiny2/Manifest/{componentName}/{hash}/
+ *
+ * Each result is cached individually (TABLE_TTL). This is far more reliable
+ * than downloading the 50 MB+ bulk InventoryItemDefinition table on serverless,
+ * and is already how the loadout API works internally.
+ */
+function makeHashLookup(componentName) {
+    return async function lookup(hash) {
+        if (hash == null) return null;
+        // Normalise to unsigned 32-bit integer (Bungie's canonical form for URLs)
+        const unsigned = hash >>> 0;
+        const cacheKey = `manifest:hash:${componentName}:${unsigned}`;
+
+        const cached = cacheGet(cacheKey);
+        if (cached !== undefined) return cached;
+
+        try {
+            const data = await bungieGet(
+                `/Platform/Destiny2/Manifest/${componentName}/${unsigned}/`
+            );
+            const def = data?.Response ?? null;
+            // Cache both hits and misses so we don't hammer Bungie on unknown hashes
+            cacheSet(cacheKey, def, TABLE_TTL);
+            return def;
+        } catch (err) {
+            console.warn(`[manifest] Hash lookup failed ${componentName}/${unsigned}:`, err.message);
+            return null;
+        }
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Public lookup functions
 // ---------------------------------------------------------------------------
 
-export const getItemDef             = makeLookup('DestinyInventoryItemDefinition');
+// ── Large tables → per-hash individual lookups ────────────────────────────
+// DestinyInventoryItemDefinition is 50 MB+ compressed; downloading the whole
+// table on serverless is unreliable (timeouts, OOM). Individual hash lookups
+// are fast, cached, and never fail the whole request.
+export const getItemDef             = makeHashLookup('DestinyInventoryItemDefinition');
+
+// ── Small/medium tables → bulk download ──────────────────────────────────
 export const getStatDef             = makeLookup('DestinyStatDefinition');
 export const getDamageTypeDef       = makeLookup('DestinyDamageTypeDefinition');
 export const getEnergyTypeDef       = makeLookup('DestinyEnergyTypeDefinition');
@@ -261,15 +307,16 @@ export const getMetricDef           = makeLookup('DestinyMetricDefinition');
 export const getObjectiveDef        = makeLookup('DestinyObjectiveDefinition');
 export const getBucketDef           = makeLookup('DestinyInventoryBucketDefinition');
 export const getLoreBookDef         = makeLookup('DestinyLoreDefinition');
-export const getRecordDef           = makeLookup('DestinyRecordDefinition');
-export const getCollectibleDef      = makeLookup('DestinyCollectibleDefinition');
-export const getPresentationNodeDef = makeLookup('DestinyPresentationNodeDefinition');
-export const getTalentGridDef       = makeLookup('DestinyTalentGridDefinition');
-export const getSandboxPerkDef      = makeLookup('DestinySandboxPerkDefinition');
-export const getMaterialRequirement = makeLookup('DestinyMaterialRequirementSetDefinition');
-export const getVendorDef           = makeLookup('DestinyVendorDefinition');
-export const getArtifactDef         = makeLookup('DestinyArtifactDefinition');
-export const getPowerCapDef         = makeLookup('DestinyPowerCapDefinition');
+// Also large — per-hash lookups
+export const getRecordDef           = makeHashLookup('DestinyRecordDefinition');
+export const getCollectibleDef      = makeHashLookup('DestinyCollectibleDefinition');
+export const getPresentationNodeDef = makeHashLookup('DestinyPresentationNodeDefinition');
+export const getTalentGridDef       = makeHashLookup('DestinyTalentGridDefinition');
+export const getSandboxPerkDef      = makeHashLookup('DestinySandboxPerkDefinition');
+export const getMaterialRequirement = makeHashLookup('DestinyMaterialRequirementSetDefinition');
+export const getVendorDef           = makeHashLookup('DestinyVendorDefinition');
+export const getArtifactDef         = makeHashLookup('DestinyArtifactDefinition');
+export const getPowerCapDef         = makeHashLookup('DestinyPowerCapDefinition');
 
 // DestinyHistoricalStatsDefinition uses string keys, not numeric hashes.
 export async function getMedalDef(statId) {
@@ -381,12 +428,28 @@ export async function getEnrichedItemDef(itemHash) {
  *
  * @param {boolean} [silent=false] - suppress console output
  */
+// Tables that use per-hash individual lookups (makeHashLookup) — skip bulk download.
+// Downloading these in warmManifest would waste memory and time for no benefit.
+const BULK_SKIP = new Set([
+    'DestinyInventoryItemDefinition',   // ~50 MB+ — largest table by far
+    'DestinyRecordDefinition',
+    'DestinyCollectibleDefinition',
+    'DestinyPresentationNodeDefinition',
+    'DestinyTalentGridDefinition',
+    'DestinySandboxPerkDefinition',
+    'DestinyMaterialRequirementSetDefinition',
+    'DestinyVendorDefinition',
+    'DestinyArtifactDefinition',
+    'DestinyPowerCapDefinition',
+]);
+
 export async function warmManifest(silent = false) {
     if (!silent) console.log('[manifest] Starting warm-up…');
     const start = Date.now();
 
-    // Fetch all world-component tables in parallel (max 10 concurrent)
-    const componentNames = Object.values(COMPONENTS);
+    // Only bulk-download the small/medium tables.
+    // Large tables use per-hash lookups (makeHashLookup) and don't benefit from pre-fetching.
+    const componentNames = Object.values(COMPONENTS).filter(n => !BULK_SKIP.has(n));
     const CONCURRENCY    = 10;
 
     for (let i = 0; i < componentNames.length; i += CONCURRENCY) {
@@ -394,7 +457,7 @@ export async function warmManifest(silent = false) {
         await Promise.allSettled(batch.map(name => fetchTable(name)));
     }
 
-    // Also fetch historical stats
+    // Also fetch historical stats (medals / PGCR stat definitions)
     await fetchHistoricalStats().catch(err =>
         console.error('[manifest] historical stats warm-up failed:', err.message)
     );
