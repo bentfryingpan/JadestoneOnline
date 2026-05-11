@@ -1,7 +1,11 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
+import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
+
+// 10-minute in-process cache for full career history (expensive multi-page fetch)
+const SEASONAL_TTL = 600_000;
 
 // Known Destiny 2 Gambit season date ranges (UTC)
 // Seasons are inclusive of start, exclusive of end
@@ -93,12 +97,15 @@ async function paginateChar(membershipType, membershipId, charId, maxPages) {
 }
 
 export async function GET({ url, setHeaders }) {
-    setHeaders({ 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=120' });
+    // Tell Vercel CDN to cache 5 min; also use in-process cache for same-instance hits
+    setHeaders({ 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' });
+
     const membershipType = url.searchParams.get('membershipType');
     const membershipId   = url.searchParams.get('membershipId');
     // Accept comma-separated charIds to aggregate across all characters
     const charIdsParam   = url.searchParams.get('charIds') ?? url.searchParams.get('charId') ?? '';
-    const maxPages       = parseInt(url.searchParams.get('maxPages') ?? '10', 10);
+    // Default 25 pages × 250 activities = up to 6 250 activities per character (full career for most players)
+    const maxPages       = parseInt(url.searchParams.get('maxPages') ?? '25', 10);
 
     if (!membershipType || !membershipId || !charIdsParam) {
         return json({ error: 'Missing params' }, { status: 400 });
@@ -106,7 +113,14 @@ export async function GET({ url, setHeaders }) {
 
     const charIds = charIdsParam.split(',').map(s => s.trim()).filter(Boolean);
 
-    // Fetch all characters in parallel — each character has independent match history
+    // ── In-process cache (10 min) ─────────────────────────────────────────────
+    // Key includes charIds so a character switch gets fresh data, but the same
+    // player viewed twice within the window skips all the Bungie pagination.
+    const cacheKey = `seasonal:${membershipId}:${charIds.sort().join(',')}`;
+    const cached   = cacheGet(cacheKey);
+    if (cached) return json(cached);
+
+    // ── Fetch all characters in parallel ──────────────────────────────────────
     const perCharActivities = await Promise.all(
         charIds.map(cid => paginateChar(membershipType, membershipId, cid, maxPages))
     );
@@ -156,5 +170,10 @@ export async function GET({ url, setHeaders }) {
                 : 0,
         }));
 
-    return json({ seasons, totalActivities, charsScanned: charIds.length });
+    const result = { seasons, totalActivities, charsScanned: charIds.length };
+
+    // Store in process cache — skip if the fetch returned nothing (Bungie might be down)
+    if (totalActivities > 0) cacheSet(cacheKey, result, SEASONAL_TTL);
+
+    return json(result);
 }

@@ -55,7 +55,7 @@
         try {
             const charIds = data.characterIds.join(',');
             const res = await fetch(
-                `/api/seasonal?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&maxPages=10`
+                `/api/seasonal?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&maxPages=25`
             );
             seasonal = await res.json();
         } catch (e) { console.error('Seasonal fetch failed', e); }
@@ -123,6 +123,15 @@
     const ls = $derived(data.lifetimeStats ?? {});
     function sv(key)  { return ls[key]?.basic?.value        ?? 0; }
     function sdv(key) { return ls[key]?.basic?.displayValue ?? '—'; }
+
+    // Returns true when a stat has real data to show.
+    // When showing a season filter, the seasonal bucket always covers all fields.
+    // For all-time: the key is in the Bungie lifetime stats OR seasonal data is loaded.
+    function hasKey(key) {
+        if (displaySeason !== null) return true;   // seasonal buckets always have all fields
+        if (seasonalTotal !== null) return true;    // seasonal aggregate loaded = we have full data
+        return ls[key]?.basic?.value != null;       // fall back to Bungie API key presence
+    }
 
     const ltEntered    = $derived(sv('activitiesEntered'));
     const ltWon        = $derived(sv('activitiesWon'));
@@ -753,10 +762,11 @@
                             </div>
                         </div>
 
-                        <!-- ── 4 primary metric cards ───────────────────────── -->
-                        <div class="grid grid-cols-4 gap-3">
+                        <!-- ── Primary metric cards (flex so they adapt when some are hidden) ── -->
+                        <div class="flex gap-3 [&>*]:flex-1">
 
-                            <!-- Win Ratio -->
+                            <!-- Win Ratio — show whenever we have match data -->
+                            {#if hasKey('activitiesEntered') || dEntered > 0}
                             <div class="relative bg-white/[0.03] backdrop-blur-sm border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in transition-all hover:border-zinc-600">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
@@ -770,8 +780,10 @@
                                     </span>
                                 </div>
                             </div>
+                            {/if}
 
-                            <!-- K/D/A -->
+                            <!-- K/D/A — show whenever kill data exists -->
+                            {#if hasKey('kills') || dKills > 0 || dDeaths > 0}
                             <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all hover:border-zinc-600">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
@@ -785,8 +797,10 @@
                                     </span>
                                 </div>
                             </div>
+                            {/if}
 
-                            <!-- Motes Avg -->
+                            <!-- Motes Avg — only show when motes data is available -->
+                            {#if hasKey('motesBanked') || dMotes > 0}
                             <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all hover:border-zinc-600">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
@@ -805,8 +819,10 @@
                                     {/if}
                                 </div>
                             </div>
+                            {/if}
 
-                            <!-- Avg Invasions — amber italic + bar (like Primeval DPS) -->
+                            <!-- Avg Invasions — only show when invasion data is available -->
+                            {#if hasKey('invasions') || dInvasions > 0}
                             <div class="relative bg-gradient-to-br from-[#111111] to-[#0a0a0a] border border-zinc-800 p-4 overflow-hidden anim-in anim-in-d3 transition-all hover:border-zinc-700">
                                 <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500/20"></span>
                                 <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-amber-500/20"></span>
@@ -821,10 +837,11 @@
                                     </div>
                                 </div>
                             </div>
+                            {/if}
                         </div>
 
                         <!-- ── 3+1 detail cards: Combat / Objectives / Invasion / Extended ── -->
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="flex gap-4 [&>*]:flex-1">
 
                             <!-- COMBAT -->
                             <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all duration-300 hover:border-zinc-700">
@@ -858,19 +875,31 @@
                                 </div>
                             </div>
 
-                            <!-- INVASION -->
+                            <!-- INVASION — only when any invasion data exists -->
+                            {#if hasKey('invasionKills') || hasKey('invasions') || dInvKills > 0 || dInvasions > 0}
                             <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800/80 overflow-hidden stone-sheen anim-in anim-in-d3 transition-all duration-300 hover:border-zinc-700">
                                 <div class="px-4 py-3 border-b border-zinc-800/60">
                                     <span class="text-xs font-medium text-zinc-500">Invasion</span>
                                 </div>
                                 <div class="px-4 py-3">
-                                    {@render DetailRow('Guardians Killed', fmt(dInvKills),  invRank(dAvgInv))}
-                                    {@render DetailRow('Invasions',        fmt(dInvasions), null)}
-                                    {@render DetailRow('Stopped',         fmt(dInvDef),    null)}
-                                    {@render DetailRow('Per Game',        dEntered > 0 ? fmtF(dAvgInv, 2) : '—', null)}
-                                    {@render DetailRow('Efficiency',      dInvasions > 0 ? fmtF(dInvKills / dInvasions, 2) : '—', null)}
+                                    {#if hasKey('invasionKills') || dInvKills > 0}
+                                        {@render DetailRow('Guardians Killed', fmt(dInvKills), invRank(dAvgInv))}
+                                    {/if}
+                                    {#if hasKey('invasions') || dInvasions > 0}
+                                        {@render DetailRow('Invasions', fmt(dInvasions), null)}
+                                    {/if}
+                                    {#if hasKey('invasionsDefeated') || dInvDef > 0}
+                                        {@render DetailRow('Stopped', fmt(dInvDef), null)}
+                                    {/if}
+                                    {#if dEntered > 0}
+                                        {@render DetailRow('Per Game', fmtF(dAvgInv, 2), null)}
+                                    {/if}
+                                    {#if dInvasions > 0}
+                                        {@render DetailRow('Efficiency', fmtF(dInvKills / dInvasions, 2), null)}
+                                    {/if}
                                 </div>
                             </div>
+                            {/if}
                         </div>
 
                         <!-- ── Extended stats row ──────────────────────────────── -->

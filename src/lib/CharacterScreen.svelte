@@ -459,7 +459,7 @@
                                         <span class="text-zinc-500"> · {selectedItem.itemTypeDisplayName}</span>
                                     {/if}
                                 </span>
-                                <p class="text-[1.6rem] font-bold text-white leading-tight mt-0.5 truncate drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                                <p class="font-serif text-xl font-light italic text-white leading-tight mt-0.5 truncate drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                                     {selectedItem.name}
                                 </p>
                                 {#if selectedType === 'weapon'}
