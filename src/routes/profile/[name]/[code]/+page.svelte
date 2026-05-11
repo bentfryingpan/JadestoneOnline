@@ -62,6 +62,28 @@
         finally { seasonalLoading = false; }
     }
 
+    // ── Lazy career analytics ──────────────────────────────────────────────────
+    let career        = $state(null);
+    let careerLoading = $state(false);
+    let careerError   = $state(null);
+
+    async function fetchCareer() {
+        if (careerLoading || career) return;
+        careerLoading = true;
+        careerError   = null;
+        try {
+            const res = await fetch(
+                `/api/career?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${activeChar}&count=50`
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            career = await res.json();
+        } catch (e) {
+            console.error('Career fetch failed', e);
+            careerError = 'Could not load career analytics. Please try again.';
+        }
+        finally { careerLoading = false; }
+    }
+
     $effect(() => {
         if ((tab === 'loadout' || tab === 'subclass') && activeChar && activeChar !== loadoutCharId) {
             fetchLoadout();
@@ -69,6 +91,11 @@
     });
     $effect(() => {
         if (tab === 'overview' && !seasonal && !seasonalLoading) fetchSeasonal();
+    });
+    $effect(() => {
+        if ((tab === 'weaponry' || tab === 'maps' || tab === 'synergy') && !career && !careerLoading) {
+            fetchCareer();
+        }
     });
 
     // ── Derived: character + loadout ───────────────────────────────────────────
@@ -1011,15 +1038,297 @@
                     {/if}
                 </div>
 
-            <!-- ══ COMING SOON TABS ══════════════════════════════════════════════ -->
-            {:else if tab === 'weaponry' || tab === 'synergy' || tab === 'maps' || tab === 'pursuits'}
+            <!-- ══ WEAPONRY ═════════════════════════════════════════════════════ -->
+            {:else if tab === 'weaponry'}
+                {#if careerLoading}
+                    <div class="flex flex-col items-center justify-center h-64 gap-3">
+                        <div class="w-5 h-5 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
+                        <span class="text-xs font-medium text-zinc-600">Analyzing {50} recent matches…</span>
+                    </div>
+                {:else if careerError}
+                    <div class="flex items-center justify-center h-64">
+                        <span class="text-sm text-red-400">{careerError}</span>
+                    </div>
+                {:else if !career?.weapons?.length}
+                    <div class="flex flex-col items-center justify-center h-64 gap-3">
+                        <div class="w-6 h-6 border border-zinc-700 rotate-45"></div>
+                        <span class="text-xs font-medium text-zinc-600">No weapon data found in recent matches.</span>
+                    </div>
+                {:else}
+                    <div class="p-6 space-y-5">
+                        <!-- Summary strip -->
+                        <div class="grid grid-cols-4 gap-3">
+                            {#each [
+                                { label: 'Matches Analyzed', value: fmt(career.matchesAnalyzed) },
+                                { label: 'Win Rate',         value: career.winRate != null ? fmtF(career.winRate, 1) + '%' : '—' },
+                                { label: 'Hard Carries',     value: fmt(career.totalCarries) },
+                                { label: 'Carried',          value: fmt(career.totalCarried) },
+                            ] as card}
+                                <div class="bg-white/[0.03] border border-zinc-800 p-4 relative overflow-hidden">
+                                    <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
+                                    <span class="text-xs font-medium text-zinc-500 block mb-2">{card.label}</span>
+                                    <span class="text-2xl font-mono font-bold text-zinc-100">{card.value}</span>
+                                </div>
+                            {/each}
+                        </div>
+
+                        <!-- Weapon table -->
+                        <div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-1 h-4 bg-emerald-500/50"></div>
+                                <span class="text-xs font-medium text-zinc-500">Top Weapons · Last {career.matchesAnalyzed} Matches</span>
+                            </div>
+                            <div class="border border-zinc-800 overflow-hidden">
+                                <!-- Header -->
+                                <div class="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-0 bg-zinc-900/60 px-4 py-2 border-b border-zinc-800">
+                                    {#each ['Weapon', 'Kills', 'Precision %', 'Matches', 'Win Rate'] as col}
+                                        <span class="text-[9px] font-medium text-zinc-600 uppercase tracking-wider {col === 'Weapon' ? '' : 'text-center'}">{col}</span>
+                                    {/each}
+                                </div>
+                                <!-- Rows -->
+                                {#each career.weapons as w, i}
+                                    {@const maxKills = career.weapons[0]?.kills ?? 1}
+                                    <div class="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-0 px-4 py-3
+                                                border-b border-zinc-800/40 last:border-0
+                                                hover:bg-zinc-900/30 transition-colors relative group">
+                                        <!-- Kill bar -->
+                                        <div class="absolute left-0 bottom-0 h-[2px] bg-emerald-500/20 transition-all"
+                                             style="width:{(w.kills/maxKills)*100}%"></div>
+                                        <!-- Rank + icon + name -->
+                                        <div class="flex items-center gap-3 min-w-0">
+                                            <span class="text-[10px] font-mono text-zinc-700 w-4 shrink-0">{i + 1}</span>
+                                            {#if w.icon}
+                                                <img src={w.icon} alt="" class="w-8 h-8 shrink-0 object-cover" />
+                                            {:else}
+                                                <div class="w-8 h-8 bg-zinc-800 shrink-0 flex items-center justify-center">
+                                                    <div class="w-3 h-3 border border-zinc-600 rotate-45"></div>
+                                                </div>
+                                            {/if}
+                                            <span class="text-sm font-medium text-zinc-200 truncate">{w.name}</span>
+                                        </div>
+                                        <!-- Kills -->
+                                        <div class="flex items-center justify-center">
+                                            <span class="text-sm font-mono font-bold {i === 0 ? 'text-emerald-400' : 'text-zinc-200'}">{fmt(w.kills)}</span>
+                                        </div>
+                                        <!-- Precision % -->
+                                        <div class="flex items-center justify-center">
+                                            <span class="text-sm font-mono {w.precRate >= 50 ? 'text-amber-400' : 'text-zinc-400'}">{fmtF(w.precRate, 1)}%</span>
+                                        </div>
+                                        <!-- Matches -->
+                                        <div class="flex items-center justify-center">
+                                            <span class="text-xs font-mono text-zinc-500">{w.games}</span>
+                                        </div>
+                                        <!-- Win rate -->
+                                        <div class="flex items-center justify-center">
+                                            <span class="text-sm font-mono {w.winRate >= 60 ? 'text-emerald-400' : w.winRate >= 50 ? 'text-zinc-300' : 'text-red-400'}">{fmtF(w.winRate, 1)}%</span>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    </div>
+                {/if}
+
+            <!-- ══ MAPS ══════════════════════════════════════════════════════════ -->
+            {:else if tab === 'maps'}
+                {#if careerLoading}
+                    <div class="flex flex-col items-center justify-center h-64 gap-3">
+                        <div class="w-5 h-5 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
+                        <span class="text-xs font-medium text-zinc-600">Loading map stats…</span>
+                    </div>
+                {:else if careerError}
+                    <div class="flex items-center justify-center h-64">
+                        <span class="text-sm text-red-400">{careerError}</span>
+                    </div>
+                {:else if !career?.maps?.length}
+                    <div class="flex flex-col items-center justify-center h-64 gap-3">
+                        <div class="w-6 h-6 border border-zinc-700 rotate-45"></div>
+                        <span class="text-xs font-medium text-zinc-600">No map data found.</span>
+                    </div>
+                {:else}
+                    <div class="p-6 space-y-5">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-1 h-4 bg-emerald-500/50"></div>
+                            <span class="text-xs font-medium text-zinc-500">Map Performance · Last {career.matchesAnalyzed} Matches</span>
+                        </div>
+
+                        <!-- Win rate bar chart -->
+                        <div class="space-y-2">
+                            {#each career.maps as m}
+                                {@const wr = m.winRate}
+                                <div class="bg-white/[0.02] border border-zinc-800 px-4 py-3 relative overflow-hidden hover:border-zinc-700 transition-colors group">
+                                    <!-- Background win-rate bar -->
+                                    <div class="absolute inset-y-0 left-0 transition-all duration-500"
+                                         style="width:{wr}%; background: {wr >= 60 ? 'rgba(16,185,129,0.06)' : wr >= 45 ? 'rgba(255,255,255,0.02)' : 'rgba(239,68,68,0.04)'}"></div>
+                                    <div class="relative flex items-center gap-6">
+                                        <!-- Map name -->
+                                        <span class="text-sm font-medium text-zinc-200 w-48 shrink-0 truncate">{m.name}</span>
+                                        <!-- Win rate bar -->
+                                        <div class="flex-1 h-1.5 bg-zinc-800 relative overflow-hidden">
+                                            <div class="h-full transition-all duration-500
+                                                         {wr >= 60 ? 'bg-emerald-500' : wr >= 45 ? 'bg-zinc-500' : 'bg-red-500'}"
+                                                 style="width:{wr}%"></div>
+                                        </div>
+                                        <!-- Stats -->
+                                        <div class="flex items-center gap-6 shrink-0">
+                                            <div class="text-right">
+                                                <span class="text-lg font-mono font-bold {wr >= 60 ? 'text-emerald-400' : wr >= 45 ? 'text-zinc-200' : 'text-red-400'}">
+                                                    {fmtF(wr, 1)}%
+                                                </span>
+                                                <span class="text-[9px] text-zinc-600 block">win rate</span>
+                                            </div>
+                                            <div class="text-right w-16">
+                                                <span class="text-sm font-mono text-zinc-300">{m.games}</span>
+                                                <span class="text-[9px] text-zinc-600 block">matches</span>
+                                            </div>
+                                            <div class="text-right w-12">
+                                                <span class="text-xs font-mono text-emerald-400">{m.wins}W</span>
+                                                <span class="text-xs font-mono text-zinc-600"> / </span>
+                                                <span class="text-xs font-mono text-red-400">{m.losses}L</span>
+                                            </div>
+                                            <div class="text-right w-16">
+                                                <span class="text-sm font-mono {m.kd >= 1.5 ? 'text-emerald-400' : m.kd >= 1.0 ? 'text-zinc-300' : 'text-zinc-500'}">{fmtF(m.kd, 2)}</span>
+                                                <span class="text-[9px] text-zinc-600 block">K/D</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+
+                        <!-- Best/worst map callout -->
+                        {#if career.maps.length >= 2}
+                            {@const sorted = [...career.maps].filter(m => m.games >= 3).sort((a,b) => b.winRate - a.winRate)}
+                            {#if sorted.length >= 2}
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="bg-emerald-500/5 border border-emerald-500/20 p-4">
+                                        <span class="text-[9px] font-medium text-emerald-500 uppercase tracking-wider block mb-1">Best Map</span>
+                                        <span class="text-base font-semibold text-zinc-200">{sorted[0].name}</span>
+                                        <span class="text-2xl font-mono font-bold text-emerald-400 block">{fmtF(sorted[0].winRate, 1)}%</span>
+                                        <span class="text-xs text-zinc-600">{sorted[0].games} matches played</span>
+                                    </div>
+                                    <div class="bg-red-500/5 border border-red-500/20 p-4">
+                                        <span class="text-[9px] font-medium text-red-500 uppercase tracking-wider block mb-1">Worst Map</span>
+                                        <span class="text-base font-semibold text-zinc-200">{sorted[sorted.length-1].name}</span>
+                                        <span class="text-2xl font-mono font-bold text-red-400 block">{fmtF(sorted[sorted.length-1].winRate, 1)}%</span>
+                                        <span class="text-xs text-zinc-600">{sorted[sorted.length-1].games} matches played</span>
+                                    </div>
+                                </div>
+                            {/if}
+                        {/if}
+                    </div>
+                {/if}
+
+            <!-- ══ SYNERGY ════════════════════════════════════════════════════════ -->
+            {:else if tab === 'synergy'}
+                {#if careerLoading}
+                    <div class="flex flex-col items-center justify-center h-64 gap-3">
+                        <div class="w-5 h-5 border border-zinc-700 border-t-emerald-400 animate-spin"></div>
+                        <span class="text-xs font-medium text-zinc-600">Scanning rosters…</span>
+                    </div>
+                {:else if careerError}
+                    <div class="flex items-center justify-center h-64">
+                        <span class="text-sm text-red-400">{careerError}</span>
+                    </div>
+                {:else if !career}
+                    <div class="flex flex-col items-center justify-center h-64 gap-3">
+                        <div class="w-6 h-6 border border-zinc-700 rotate-45"></div>
+                        <span class="text-xs font-medium text-zinc-600">No synergy data available.</span>
+                    </div>
+                {:else}
+                    <div class="p-6 space-y-6">
+                        <div class="grid grid-cols-2 gap-6">
+
+                            <!-- Best Allies -->
+                            <div>
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="w-1 h-4 bg-emerald-500/50"></div>
+                                    <span class="text-xs font-medium text-zinc-500">Best Allies</span>
+                                    <span class="text-[9px] text-zinc-700 font-light">· seen as teammate</span>
+                                </div>
+                                {#if !career.allies?.length}
+                                    <p class="text-xs text-zinc-600 italic">Not enough repeated teammate encounters yet.</p>
+                                {:else}
+                                    <div class="space-y-2">
+                                        {#each career.allies as p, i}
+                                            <a href="/profile/{p.name.split('#')[0]}/{p.name.split('#')[1] ?? '0'}"
+                                               class="flex items-center gap-3 px-3 py-2.5 bg-white/[0.02] border border-zinc-800
+                                                      hover:border-emerald-500/30 hover:bg-emerald-500/3 transition-colors group">
+                                                <!-- Rank -->
+                                                <span class="text-[10px] font-mono text-zinc-700 w-4 shrink-0">{i + 1}</span>
+                                                <!-- Avatar placeholder -->
+                                                <div class="w-7 h-7 bg-zinc-900 border border-zinc-700 flex items-center justify-center shrink-0 text-[9px] font-bold text-zinc-500 group-hover:border-emerald-500/40 transition-colors">
+                                                    {(p.name ?? '??').slice(0, 2).toUpperCase()}
+                                                </div>
+                                                <!-- Name -->
+                                                <div class="flex-1 min-w-0">
+                                                    <span class="text-sm font-medium text-zinc-300 group-hover:text-white truncate block transition-colors">{p.name}</span>
+                                                    <span class="text-[9px] text-zinc-600">{p.as_ally} matches together · {fmtF(p.winRate, 0)}% WR</span>
+                                                </div>
+                                                <!-- Win rate badge -->
+                                                <span class="text-xs font-mono shrink-0
+                                                             {p.winRate >= 60 ? 'text-emerald-400' : p.winRate >= 50 ? 'text-zinc-300' : 'text-zinc-500'}">
+                                                    {fmtF(p.winRate, 1)}%
+                                                </span>
+                                            </a>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+
+                            <!-- Rivals -->
+                            <div>
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="w-1 h-4 bg-red-500/50"></div>
+                                    <span class="text-xs font-medium text-zinc-500">Frequent Rivals</span>
+                                    <span class="text-[9px] text-zinc-700 font-light">· seen as enemy</span>
+                                </div>
+                                {#if !career.rivals?.length}
+                                    <p class="text-xs text-zinc-600 italic">Not enough repeated enemy encounters yet.</p>
+                                {:else}
+                                    <div class="space-y-2">
+                                        {#each career.rivals as p, i}
+                                            <a href="/profile/{p.name.split('#')[0]}/{p.name.split('#')[1] ?? '0'}"
+                                               class="flex items-center gap-3 px-3 py-2.5 bg-white/[0.02] border border-zinc-800
+                                                      hover:border-red-500/20 hover:bg-red-500/3 transition-colors group">
+                                                <!-- Rank -->
+                                                <span class="text-[10px] font-mono text-zinc-700 w-4 shrink-0">{i + 1}</span>
+                                                <!-- Avatar placeholder -->
+                                                <div class="w-7 h-7 bg-zinc-900 border border-zinc-700 flex items-center justify-center shrink-0 text-[9px] font-bold text-zinc-500 group-hover:border-red-500/30 transition-colors">
+                                                    {(p.name ?? '??').slice(0, 2).toUpperCase()}
+                                                </div>
+                                                <!-- Name -->
+                                                <div class="flex-1 min-w-0">
+                                                    <span class="text-sm font-medium text-zinc-300 group-hover:text-white truncate block transition-colors">{p.name}</span>
+                                                    <span class="text-[9px] text-zinc-600">{p.as_enemy} enemy encounters · {fmtF(p.winRate, 0)}% WR when meeting</span>
+                                                </div>
+                                                <!-- WR with this rival -->
+                                                <span class="text-xs font-mono shrink-0
+                                                             {p.winRate >= 60 ? 'text-emerald-400' : p.winRate >= 50 ? 'text-zinc-300' : 'text-red-400'}">
+                                                    {fmtF(p.winRate, 1)}%
+                                                </span>
+                                            </a>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+
+                        </div>
+
+                        <!-- Note about data freshness -->
+                        <p class="text-[9px] text-zinc-700 text-center">
+                            Based on last {career.matchesAnalyzed} analyzed matches. Players listed twice or more.
+                        </p>
+                    </div>
+                {/if}
+
+            <!-- ══ PURSUITS ════════════════════════════════════════════════════ -->
+            {:else if tab === 'pursuits'}
                 <div class="flex flex-col items-center justify-center h-full gap-4 py-24">
                     <div class="w-8 h-8 border border-zinc-700 rotate-45 mb-2"></div>
-                    <span class="text-sm font-medium text-zinc-500">
-                        {TABS.find(t => t.id === tab)?.label} — Coming Soon
-                    </span>
+                    <span class="text-sm font-medium text-zinc-500">Pursuits — Coming Soon</span>
                     <p class="text-[9px] font-sans text-zinc-700 max-w-xs text-center leading-relaxed">
-                        This section is under construction. Check back in a future update.
+                        Achievement tracking coming in a future update.
                     </p>
                 </div>
 
