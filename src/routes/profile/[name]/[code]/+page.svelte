@@ -917,7 +917,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
         {/if}<!-- end career classStats block -->
 
         <!-- Bottom accent line -->
