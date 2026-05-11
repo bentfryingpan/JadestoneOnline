@@ -437,6 +437,14 @@
         return 'text-red-400';
     }
 
+    // ── Match result helper ────────────────────────────────────────────────────
+    function matchResult(match) {
+        const completed = match?.values?.completed?.basic?.value ?? 0;
+        if (!completed) return 'dnf';
+        const standing = match?.values?.standing?.basic?.value ?? 1;
+        return standing === 0 ? 'win' : 'loss';
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
     function fmt(n) {
         const num = Number(n);
