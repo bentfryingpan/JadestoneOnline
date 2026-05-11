@@ -561,6 +561,9 @@
 <!-- ── Main content panel ────────────────────────────────────────────────────── -->
 <div class="flex-1 min-w-0 flex flex-col overflow-y-auto">
 
+    <!-- ── Hero header ──────────────────────────────────────────────────────── -->
+    <header style="position:relative;overflow:hidden;padding:1.5rem;">
+
         <!-- Primary stat cards -->
         <div class="flex gap-3 mb-4 [&>*]:flex-1">
             {#if hasKey('activitiesEntered') || dEntered > 0}
@@ -718,45 +721,10 @@
             {/if}
         </div>
 
-        <!-- Season breakdown -->
-        {#if seasonal?.seasons?.length}
-        <div class="border border-zinc-800/60 bg-zinc-900/20">
-            <div class="flex items-center justify-between px-4 py-2 border-b border-zinc-800/40">
-                <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Season Breakdown</span>
-                <span class="text-[10px] text-zinc-700">{seasonal.seasons.length} seasons</span>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-xs">
-                    <thead>
-                        <tr class="border-b border-zinc-800/40">
-                            <th class="text-left px-4 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Season</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Games</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Win%</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">K/D</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Motes</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Invasions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {#each [...seasonal.seasons].sort((a,b)=>b.seasonNumber-a.seasonNumber) as s}
-                        <tr class="border-b border-zinc-800/20 hover:bg-zinc-800/20 transition-colors">
-                            <td class="px-4 py-2 text-zinc-300 font-medium">{SEASON_NAMES[s.seasonNumber] ?? s.season}</td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-400">{s.activitiesEntered}</td>
-                            <td class="px-3 py-2 text-right font-mono {s.winRate >= 55 ? 'text-emerald-400' : s.winRate >= 45 ? 'text-zinc-300' : 'text-red-400'}">{s.winRate}%</td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-300">{s.kd}</td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-400">{s.avgMotes}</td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-400">{s.avgInvasions}</td>
-                        </tr>
-                        {/each}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {/if}
+    <!-- ══════════════════════════════════ MAIN CONTENT ══ -->
+    <!-- Note: seasonal breakdown table is rendered inside the overview tab panel below -->
 
-    <!-- ══════════════════════════════════ MATCHES ══ -->
-    {:else if tab === 'matches'}
-
+    {#if tab === 'matches'}<!-- Match history controls — only when on matches tab -->
         <!-- Top controls row -->
         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
             <!-- Count selector -->
@@ -838,91 +806,54 @@
             </div>
         {/if}
 
-        <!-- Loading skeleton -->
+        <!-- Loading skeleton / empty state — matches tab only -->
         {#if historyLoading}
             <div class="space-y-1">
                 {#each Array(12) as _}
                     <div class="h-9 bg-zinc-900/50 border border-zinc-800/30 animate-pulse"></div>
                 {/each}
             </div>
-
         {:else if !filteredMatches.length}
-            <div class="text-sm text-zinc-600 text-center py-16">
+            <div class="text-sm text-zinc-600 text-center py-8">
                 {stackFilter === 'favs' ? 'No favorited matches yet.' : 'No Gambit matches found.'}
             </div>
+        {/if}
+    {/if}<!-- end matches tab controls -->
 
-                <!-- Avatar box + rank medallion -->
-                <div class="group/avatar relative shrink-0 cursor-default">
-                    <div class="w-32 h-32 bg-[#0c0c0c] border border-zinc-700 p-1.5 relative shadow-2xl overflow-hidden
-                                transition-all duration-300
-                                group-hover/avatar:border-zinc-500
-                                group-hover/avatar:shadow-[0_0_24px_rgba(255,255,255,0.06)]">
-                        <!-- Grid texture -->
-                        <div class="absolute inset-0 opacity-[0.06]"
-                             style="background-image:linear-gradient(rgba(255,255,255,0.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.15) 1px,transparent 1px);background-size:16px 16px"></div>
-                        <!-- Corner accents -->
-                        <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-zinc-400/60 z-10"></div>
-                        <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-zinc-400/60 z-10"></div>
-                        <!-- Monogram -->
-                        <div class="w-full h-full flex items-center justify-center relative z-0">
-                            <span style="font-family:var(--font-family-display);font-size:3rem;font-weight:800;letter-spacing:0.06em;color:rgba(255,255,255,0.12);user-select:none;transition:color 0.3s;" class="group-hover/avatar:!text-zinc-400">
-                                {monogram}
-                            </span>
-                        </div>
+    <!-- ── Identity block — always visible ─────────────────────────────────── -->
+    <div class="flex-1 min-w-0 mb-1">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.5rem;">
+            <div style="height:1px;width:32px;background:linear-gradient(to right,transparent,var(--gambit-green));opacity:0.7;"></div>
+            <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--gambit-green);">Guardian Profile</span>
+        </div>
+        <h1 style="font-family:var(--font-family-display);font-size:clamp(2rem,6vw,3.5rem);font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--d2-text-primary);line-height:0.95;margin:0 0 0.5rem;text-shadow:0 2px 10px rgba(0,0,0,0.5);" class="anim-in truncate">
+            {data.player.bungieGlobalDisplayName}<span style="font-family:var(--font-family-mono);font-size:0.45em;font-weight:400;color:rgba(255,255,255,0.28);margin-left:0.25rem;">#{String(data.player.bungieGlobalDisplayNameCode).padStart(4,'0')}</span>
+        </h1>
+        <!-- Clan + bestAlly -->
+        <div class="flex items-center gap-3 mb-2">
+            {#if data.clan}
+                <a href="/clan/{data.clan.groupId}"
+                   class="text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
+                    [{data.clan.name}]
+                </a>
+                {#if career?.bestAlly}
+                    <div class="text-[10px] text-zinc-500">
+                        Best ally: {career.bestAlly.name} · {career.bestAlly.as_ally} games · {career.bestAlly.winRate}% WR
                     </div>
-                    <div class="space-y-2">
-                        {#each ps.breakdown as role}
-                            {@const colors = PLAYSTYLE_COLORS[role.label] ?? { bar:'bg-zinc-600', text:'text-zinc-400' }}
-                            <div class="flex items-center gap-3">
-                                <span class="w-16 text-[10px] font-semibold {colors.text}">{role.label}</span>
-                                <div class="flex-1 h-1.5 bg-zinc-800">
-                                    <div class="h-full {colors.bar} transition-all duration-500"
-                                         style="width:{role.pct}%"></div>
-                                </div>
-                                <span class="w-8 text-right text-[10px] font-mono {colors.text}">{role.pct}%</span>
-                            </div>
-                        {/each}
-                    </div>
-                </div>
+                {/if}
             {/if}
-
-                <!-- Identity block -->
-                <div class="flex-1 min-w-0 mb-1">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.5rem;">
-                        <div style="height:1px;width:32px;background:linear-gradient(to right,transparent,var(--gambit-green));opacity:0.7;"></div>
-                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--gambit-green);">Guardian Profile</span>
-                    </div>
-                    <h1 style="font-family:var(--font-family-display);font-size:clamp(2rem,6vw,3.5rem);font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--d2-text-primary);line-height:0.95;margin:0 0 0.5rem;text-shadow:0 2px 10px rgba(0,0,0,0.5);" class="anim-in truncate">
-                        {data.player.bungieGlobalDisplayName}<span style="font-family:var(--font-family-mono);font-size:0.45em;font-weight:400;color:rgba(255,255,255,0.28);margin-left:0.25rem;">#{String(data.player.bungieGlobalDisplayNameCode).padStart(4,'0')}</span>
-                    </h1>
-                    <!-- Clan + class -->
-                    <div class="flex items-center gap-3 mb-6">
-                        {#if data.clan}
-                            <a href="/clan/{data.clan.groupId}"
-                               class="text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
-                                [{data.clan.name}]
-                            </a>
-                            {#if career?.bestAlly}
-                                <div class="text-[10px] text-zinc-500 mt-0.5">
-                                    {career.bestAlly.as_ally} matches · {career.bestAlly.winRate}% WR together
-                                </div>
-                            {/if}
-                        {/if}
-                    </div>
-                    {#if career?.nemesis}
-                        <div class="bg-red-900/10 border border-red-800/40 p-3">
-                            <div class="text-[9px] font-semibold text-red-600 tracking-widest uppercase mb-1">Nemesis</div>
-                            <a href="/profile/{career.nemesis.name.replace('#','/')}"
-                               class="text-sm font-semibold text-red-300 hover:text-red-200 transition-colors truncate block">
-                                {career.nemesis.name}
-                            </a>
-                            <div class="text-[10px] text-zinc-500 mt-0.5">
-                                {career.nemesis.as_enemy} matches · {career.nemesis.winRate}% WR vs you
-                            </div>
-                        </div>
-                    {/if}
-                </div>
-            {/if}
+        </div>
+        {#if career?.nemesis}
+            <div class="bg-red-900/10 border border-red-800/40 px-3 py-2 inline-flex items-center gap-3">
+                <span class="text-[9px] font-semibold text-red-600 tracking-widest uppercase">Nemesis</span>
+                <a href="/profile/{career.nemesis.name.replace('#','/')}"
+                   class="text-sm font-semibold text-red-300 hover:text-red-200 transition-colors truncate">
+                    {career.nemesis.name}
+                </a>
+                <span class="text-[10px] text-zinc-500">{career.nemesis.as_enemy} matches · {career.nemesis.winRate}% WR vs you</span>
+            </div>
+        {/if}
+    </div>
 
             <!-- ── Class compare ─────────────────────────────────────────────── -->
             {#if career?.classStats?.some(c => c.games > 0)}
@@ -987,10 +918,11 @@
                     </div>
                 </div>
             </div>
+        {/if}<!-- end career classStats block -->
 
-            <!-- Bottom accent line -->
-            <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gambit-green),rgba(61,174,119,0.3) 30%,transparent 60%);opacity:0.5;z-index:20;"></div>
-        </header>
+        <!-- Bottom accent line -->
+        <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gambit-green),rgba(61,174,119,0.3) 30%,transparent 60%);opacity:0.5;z-index:20;"></div>
+    </header>
 
         <!-- ── Tab nav strip ────────────────────────────────────────────────── -->
         <div style="height:48px;background:rgba(6,8,10,0.85);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:stretch;flex-shrink:0;position:sticky;top:0;z-index:30;">
@@ -1722,206 +1654,6 @@
                 {/if}
             {/if}
 
-            <!-- ── Allies + Rivals tables ──────────────────────────────────────── -->
-            <div class="grid grid-cols-2 gap-6">
-                <!-- Allies -->
-                <div>
-                    <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-2">Frequent Allies</div>
-                    {#if !career?.allies?.length}
-                        <p class="text-xs text-zinc-600 py-8 text-center">Not enough data yet.</p>
-                    {:else}
-                        <div class="border border-zinc-800/60 overflow-hidden">
-                            {#each career.allies as p}
-                            <a href="/profile/{p.name.replace('#','/')}"
-                               class="flex items-center justify-between px-3 py-2 border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
-                                <div class="min-w-0">
-                                    <span class="text-zinc-300 text-xs font-medium truncate block">{p.name}</span>
-                                    <span class="text-[9px] text-zinc-600">{p.className}</span>
-                                </div>
-                                <div class="flex items-center gap-3 shrink-0 ml-2">
-                                    <span class="text-[10px] text-zinc-600">{p.as_ally} together</span>
-                                    <span class="text-[10px] font-mono {p.winRate >= 55 ? 'text-emerald-400' : 'text-zinc-400'}">{p.winRate}% WR</span>
-                                </div>
-                            </a>
-                            {/each}
-                        </div>
-                    {/if}
-                </div>
-
-                <!-- Rivals -->
-                <div>
-                    <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-2">Frequent Rivals</div>
-                    {#if !career?.rivals?.length}
-                        <p class="text-xs text-zinc-600 py-8 text-center">Not enough data yet.</p>
-                    {:else}
-                        <div class="border border-zinc-800/60 overflow-hidden">
-                            {#each career.rivals as p}
-                            <a href="/profile/{p.name.replace('#','/')}"
-                               class="flex items-center justify-between px-3 py-2 border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
-                                <div class="min-w-0">
-                                    <span class="text-zinc-300 text-xs font-medium truncate block">{p.name}</span>
-                                    <span class="text-[9px] text-zinc-600">{p.className}</span>
-                                </div>
-                                <div class="flex items-center gap-3 shrink-0 ml-2">
-                                    <span class="text-[10px] text-zinc-600">{p.as_enemy} vs</span>
-                                    <span class="text-[10px] font-mono {p.winRate >= 55 ? 'text-emerald-400' : p.winRate >= 45 ? 'text-zinc-400' : 'text-red-400'}">{p.winRate}% WR</span>
-                                </div>
-                            </a>
-                            {/each}
-                        </div>
-                    {/if}
-                </div>
-            </div>
-        {/if}
-
-    <!-- ══════════════════════════════════ MAPS ══ -->
-    {:else if tab === 'maps'}
-        {#if careerLoading}
-            <div class="space-y-1">{#each Array(6) as _}<div class="h-10 bg-zinc-900/50 border border-zinc-800/30 animate-pulse"></div>{/each}</div>
-        {:else if careerError}
-            <p class="text-sm text-red-400 text-center py-16">{careerError}</p>
-        {:else if !career?.maps?.length}
-            <div class="text-center py-16">
-                <p class="text-sm text-zinc-600 mb-2">No map data available yet.</p>
-                <p class="text-[10px] text-zinc-700">Switch to Matches tab to trigger PGCR enrichment.</p>
-            </div>
-        {:else}
-            <div class="border border-zinc-800/60 overflow-hidden mb-6">
-                <table class="w-full text-xs">
-                    <thead class="border-b border-zinc-800">
-                        <tr>
-                            <th class="text-left px-4 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Map</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Games</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Wins</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Win%</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Avg EGO</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {#each career.maps as m}
-                        <tr class="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
-                            <td class="px-4 py-2.5 text-zinc-200 font-medium">{m.name}</td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-400">{m.games}</td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-400">{m.wins}</td>
-                            <td class="px-3 py-2 text-right font-mono {m.winRate >= 55 ? 'text-emerald-400' : m.winRate >= 45 ? 'text-zinc-300' : 'text-red-400'}">{m.winRate}%</td>
-                            <td class="px-3 py-2 text-right font-mono {egoColor(m.avgScore)}">{m.avgScore > 0 ? m.avgScore : '—'}</td>
-                        </tr>
-                        {/each}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- ── Hourly performance chart ──────────────────────────────────── -->
-            {#if career?.hourlyStats?.some(h => h.games > 0)}
-                <div class="bg-zinc-900/40 border border-zinc-800/60 p-4">
-                    <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-3">Best Time to Play (UTC)</div>
-                    <div class="flex items-end gap-px h-16">
-                        {#each career.hourlyStats as h}
-                            {@const maxGames = Math.max(...career.hourlyStats.map(x => x.games))}
-                            {@const heightPct = maxGames > 0 ? (h.games / maxGames) * 100 : 0}
-                            <div class="flex-1 flex flex-col items-center justify-end gap-0.5 group relative cursor-default"
-                                 title="{h.hour}:00 — {h.games} games, {h.winRate}% WR">
-                                <div class="w-full transition-all duration-300 {h.winRate >= 55 ? 'bg-emerald-600/70 group-hover:bg-emerald-500' : h.winRate >= 45 ? 'bg-zinc-600/70 group-hover:bg-zinc-500' : 'bg-red-900/60 group-hover:bg-red-800'}"
-                                     style="height:{Math.max(heightPct, h.games > 0 ? 5 : 0)}%"></div>
-                                <!-- tooltip -->
-                                {#if h.games > 0}
-                                    <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black/90 border border-zinc-700 px-2 py-1 text-[9px] text-zinc-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
-                                        {h.hour}:00 · {h.games}g · {h.winRate}% WR
-                                    </div>
-                                {/if}
-                            </div>
-                        {/each}
-                    </div>
-                    <div class="flex justify-between text-[8px] text-zinc-700 mt-1">
-                        <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span>
-                    </div>
-                </div>
-            {/if}
-        {/if}
-
-    <!-- ══════════════════════════════════ TROPHIES ══ -->
-    {:else if tab === 'trophies'}
-        {#if careerLoading}
-            <div class="space-y-1">{#each Array(8) as _}<div class="h-10 bg-zinc-900/50 border border-zinc-800/30 animate-pulse"></div>{/each}</div>
-        {:else if careerError}
-            <p class="text-sm text-red-400 text-center py-16">{careerError}</p>
-        {:else if !career?.medals?.length}
-            <div class="text-center py-16">
-                <div class="text-zinc-700 text-4xl mb-3">◈</div>
-                <p class="text-zinc-600 text-sm mb-2">No medals collected yet.</p>
-                <p class="text-[10px] text-zinc-700">Switch to Matches tab to trigger PGCR enrichment.</p>
-            </div>
-        {:else}
-            <!-- Carry summary -->
-            {#if career.carryPct > 0 || career.carriedPct > 0}
-                <div class="flex gap-3 mb-6">
-                    <div class="flex-1 bg-amber-900/10 border border-amber-800/30 p-3 text-center">
-                        <div class="text-[10px] text-amber-600/80 uppercase tracking-widest mb-1">Hard Carry</div>
-                        <div class="text-3xl font-mono font-light text-amber-400">{career.carryPct}%</div>
-                        <div class="text-[10px] text-zinc-600 mt-0.5">{career.carries} of {career.matchesAnalyzed} matches</div>
-                    </div>
-                    <div class="flex-1 bg-zinc-900/40 border border-zinc-800/60 p-3 text-center">
-                        <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Carried</div>
-                        <div class="text-3xl font-mono font-light text-zinc-400">{career.carriedPct}%</div>
-                        <div class="text-[10px] text-zinc-600 mt-0.5">{career.carried} of {career.matchesAnalyzed} matches</div>
-                    </div>
-                    <div class="flex-1 bg-zinc-900/40 border border-zinc-800/60 p-3 text-center">
-                        <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Avg EGO</div>
-                        <div class="text-3xl font-mono font-light {egoColor(career.avgScore)}">{career.avgScore}</div>
-                        <div class="text-[10px] text-zinc-600 mt-0.5">{career.matchesAnalyzed} matches analyzed</div>
-                    </div>
-                </div>
-            {/if}
-
-            <!-- Medal wall -->
-            <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-3">Medal Wall</div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {#each career.medals as medal}
-                    {@const label = MEDAL_LABELS[medal.key] ?? medal.key}
-                    <div class="bg-zinc-900/40 border border-zinc-800/60 px-3 py-2.5 flex items-center justify-between gap-2 hover:border-zinc-700 transition-colors">
-                        <span class="text-xs text-zinc-300 truncate">{label}</span>
-                        <span class="text-sm font-mono font-bold text-amber-400 shrink-0">{medal.count.toLocaleString()}</span>
-                    </div>
-                {/each}
-            </div>
-        {/if}
-
-    <!-- ══════════════════════════════════ PURSUITS ══ -->
-    {:else if tab === 'pursuits'}
-        <div class="flex items-center justify-center h-64">
-            <div class="text-center">
-                <div class="text-zinc-700 text-4xl mb-3">◆</div>
-                <p class="text-zinc-500 text-sm">Pursuits & triumphs coming soon.</p>
-            </div>
-        </div>
-
-    <!-- ══════════════════════════════════ LOADOUT ══ -->
-    {:else if tab === 'loadout'}
-        {#if loadoutLoading}
-            <div class="space-y-1">{#each Array(8) as _}<div class="h-12 bg-zinc-900/50 border border-zinc-800/30 animate-pulse"></div>{/each}</div>
-        {:else if !loadout}
-            <p class="text-sm text-zinc-600 text-center py-16">Loading loadout…</p>
-        {:else}
-            <CharacterScreen
-                equipment={loadout.equipment}
-                artifact={loadout.artifact}
-                armorStatMeta={loadout.armorStatMeta}
-            />
-        {/if}
-
-    <!-- ══════════════════════════════════ SUBCLASS ══ -->
-    {:else if tab === 'subclass'}
-        {#if loadoutLoading}
-            <div class="space-y-1">{#each Array(6) as _}<div class="h-12 bg-zinc-900/50 border border-zinc-800/30 animate-pulse"></div>{/each}</div>
-        {:else if !loadout}
-            <p class="text-sm text-zinc-600 text-center py-16">Loading subclass…</p>
-        {:else}
-            <SubclassScreen
-                subclassSockets={loadout.equipment?.subclassSockets}
-            />
-        {/if}
-
-    {/if}
     </div>
     {/key}
     </main>
