@@ -1,9 +1,9 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { error } from '@sveltejs/kit';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
-import { calcEgo } from '$lib/server/ego.js';
 import { getItemDef, getActivityDef, getAllMedals } from '$lib/server/manifest.js';
-import { calculateEgoScore, extractMedals, detectRole } from '$lib/ego.js';
+import { calculateEgoScore, extractMedals, detectRole, ngrTier } from '$lib/ego.js';
+import { supabaseAdmin } from '$lib/supabase-server.js';
 
 const PGCR_TTL = 86_400_000; // 24 h — PGCRs are immutable historical records
 
@@ -384,11 +384,48 @@ export async function load({ params, setHeaders }) {
     const pgcrImage = activityDef?.pgcrImage
                         ? BUNGIE_ROOT + activityDef.pgcrImage : null;
 
+    // ── NGR lookup for lobby difficulty ──────────────────────────────────────
+    // Collect all membershipIds, query NGR cache in one round-trip
+    let lobbyTier = null, lobbyModifier = '';
+    try {
+        const allPlayers = [...teamA, ...teamB];
+        const mIds = allPlayers.map(p => p.membershipId).filter(Boolean);
+        if (mIds.length > 0) {
+            const { data: ngrRows } = await supabaseAdmin
+                .from('player_ngr_cache')
+                .select('player_id,ngr')
+                .in('player_id', mIds.map(Number));
+            if (ngrRows?.length) {
+                const ngrMap = new Map(ngrRows.map(r => [String(r.player_id), r.ngr]));
+                // Annotate players with their NGR
+                for (const p of allPlayers) {
+                    p.ngr = ngrMap.get(String(p.membershipId)) ?? null;
+                }
+                // Compute team average NGRs from whichever team is "opponent"
+                // For each team we'll compute avg NGR of players with known NGR
+                function teamAvgNgr(players) {
+                    const known = players.filter(p => p.ngr != null);
+                    return known.length > 0 ? known.reduce((s, p) => s + p.ngr, 0) / known.length : null;
+                }
+                const avgA = teamAvgNgr(teamA);
+                const avgB = teamAvgNgr(teamB);
+                const oppKnown = avgA != null && avgB != null;
+                // Use the higher-NGR team as "opponent" for difficulty display
+                const oppNgr = oppKnown ? Math.max(avgA, avgB) : null;
+                const tmNgr  = oppKnown ? Math.min(avgA, avgB) : null;
+                const tierResult = ngrTier(oppNgr, tmNgr, oppKnown);
+                lobbyTier     = tierResult.tier;
+                lobbyModifier = tierResult.modifier;
+            }
+        }
+    } catch { /* non-fatal */ }
+
     return {
         instanceId, period, duration,
         mapName, mapIcon, pgcrImage,
         teamA, teamB,
         teamAWon: teamWon(teamA),
         teamBWon: teamWon(teamB),
+        lobbyTier, lobbyModifier,
     };
 }

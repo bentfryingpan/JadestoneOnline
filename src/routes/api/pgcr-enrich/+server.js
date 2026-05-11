@@ -17,7 +17,7 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
-import { calcEgo, MEDAL_VALUES } from '$lib/server/ego.js';
+import { calcEgo, extractMedals as _extractMedals } from '$lib/server/ego.js';
 import { getItemDef, getActivityDef } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
@@ -25,55 +25,7 @@ const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
 const PGCR_TTL    = 86_400_000; // 24 h in-process
 
-// ── Medal aliases — exact match from desktop app MEDAL_ALIASES ──────────────
-const MEDAL_KEY_MAP = {
-    medalgambitsaviour:                 'notOnMyWatch',
-    medalgambitnotonmywatch:            'notOnMyWatch',
-    medalspvecompmedaldenied:           'notOnMyWatch',
-    medalspvecompmedalinvasionshutdown: 'notOnMyWatch',
-    medaldenied:                        'notOnMyWatch',
-    medalgambitinvaderkillfour:         'armyOfOne',
-    medalspvecompmedalinvaderkillfour:  'armyOfOne',
-    medalinvaderkillfour:               'armyOfOne',
-    medalspvecompmedallocksmith:        'locksmith',
-    medallocksmith:                     'locksmith',
-    medalspvecompmedalblockbuster:      'blockbuster',
-    medalspvecompmedalblockparty:       'blockbuster',
-    medalblockparty:                    'blockbuster',
-    medalspvecompmedalrapidpayback:     'rapidPayback',
-    medalrapidpayback:                  'rapidPayback',
-    medalspvecompmedalmassacre:         'massacre',
-    medalgambitmotesdrained:            'motesHaveBeen',
-    medalmotesdrained:                  'motesHaveBeen',
-    medalspvecompmedaltagsdenied15:     'motesHaveBeen',
-    medalspvecompmedalhalfbanked:       'halfBanked',
-    medalhalfbanked:                    'halfBanked',
-    medalspvecompmedalfirsttoblock:     'firstToBlock',
-    medalgambitpayback:                 'payback',
-    medalpayback:                       'payback',
-    medalspvecompmedalrevenge:          'payback',
-    medalgambitoverkillmonger:          'overkillmonger',
-    medaloverkillmonger:                'overkillmonger',
-    medalspvecompmedaloverkillmonger:   'overkillmonger',
-    medalgambitkillmonger:              'killmonger',
-    medalkillmonger:                    'killmonger',
-    medalspvecompmedalkillmonger:       'killmonger',
-    medalgambitthrillmonger:            'thrillmonger',
-    medalthrillmonger:                  'thrillmonger',
-    medalspvecompmedalthrillmonger:     'thrillmonger',
-    medalspvecompmedalfastfill:         'fastFill',
-    medalfastfill:                      'fastFill',
-    medalspvecompmedalkillafterinvasion:'killAfterInvasion',
-    medalkillafterinvasion:             'killAfterInvasion',
-    medalgambithunter:                  'bigGameHunter',
-    medalhunter:                        'bigGameHunter',
-    medalspvecompmedalbiggamehunter:    'bigGameHunter',
-    medalgambitlastmanstanding:         'lastGuardianStanding',
-    medallastmanstanding:               'lastGuardianStanding',
-    medalspvecompmedalbankkill:         'noEscape',
-    medalspvecompmedalnoescape:         'noEscape',
-    medalnoescape:                      'noEscape',
-};
+// Medal extraction now handled by the canonical ego.js implementation
 
 async function fetchPgcr(instanceId) {
     const key = `pgcr:${instanceId}`;
@@ -96,17 +48,9 @@ function sv(entry, key) {
         ?? 0;
 }
 
+// Delegate to canonical ego.js extractMedals (imported as _extractMedals)
 function extractMedals(entry) {
-    const medals = {};
-    const extVals = entry.extended?.values ?? {};
-    for (const [rawKey, valObj] of Object.entries(extVals)) {
-        const count = valObj?.basic?.value ?? 0;
-        if (count <= 0) continue;
-        const normKey = rawKey.toLowerCase().replace(/[_\s]/g, '');
-        const canonical = MEDAL_KEY_MAP[normKey];
-        if (canonical) medals[canonical] = (medals[canonical] ?? 0) + count;
-    }
-    return medals;
+    return _extractMedals(entry.extended?.values ?? {});
 }
 
 function processPgcr(pgcr, targetMembershipId) {
@@ -308,6 +252,29 @@ export async function POST({ request }) {
                 roster:          result.roster,
                 updated_at:      new Date().toISOString(),
             }, { onConflict: 'pgcr_id,player_id' });
+
+            // ── Update NGR (running-mean EGO) for this player ─────────────────
+            // Uses the same incremental formula as the desktop app:
+            // new_ngr = (old_ngr * old_games + new_score) / (old_games + 1)
+            try {
+                const { data: ngrRow } = await supabaseAdmin
+                    .from('player_ngr_cache')
+                    .select('ngr,games')
+                    .eq('player_id', parseInt(membershipId))
+                    .single();
+                const prevNgr   = ngrRow?.ngr   ?? 0;
+                const prevGames = ngrRow?.games  ?? 0;
+                const newGames  = prevGames + 1;
+                const newNgr    = (prevNgr * prevGames + result.ego.finalScore) / newGames;
+                await supabaseAdmin.from('player_ngr_cache').upsert({
+                    player_id:   parseInt(membershipId),
+                    bungie_name: bungieDisplayName ?? null,
+                    bungie_code: bungieDisplayCode ? String(bungieDisplayCode) : null,
+                    ngr:         Math.round(newNgr * 10) / 10,
+                    games:       newGames,
+                    updated_at:  new Date().toISOString(),
+                }, { onConflict: 'player_id' });
+            } catch { /* non-fatal: NGR table may not exist yet */ }
 
             stored++;
         } catch (e) {

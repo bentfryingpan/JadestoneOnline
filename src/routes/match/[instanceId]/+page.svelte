@@ -1,4 +1,6 @@
 <script>
+    import { egoColor, ngrTier, ngrTierColor } from '$lib/ego.js';
+
     let { data } = $props();
 
     function timeAgo(iso) {
@@ -29,25 +31,10 @@
         return done.reduce((s, p) => s + p.ego.finalScore, 0) / done.length;
     }
 
-    const roleLabel = { carry: 'Hard Carry', carried: 'Carried', solid: '' };
-    const roleColor = { carry: 'text-amber-400', carried: 'text-red-400', solid: '' };
 
-    // Score color thresholds (from desktop app)
-    function egoColor(score) {
-        if (!score) return 'text-zinc-600';
-        if (score >= 110) return 'text-purple-400';
-        if (score >= 80)  return 'text-emerald-400';
-        if (score >= 50)  return 'text-zinc-200';
-        return 'text-red-400';
-    }
     function pemColor(pem) {
-        if (!pem) return 'text-zinc-600';
-        return pem >= 1.0 ? 'text-emerald-400' : 'text-red-400';
-    }
-    function tierBorder(tier) {
-        if (tier === 6) return 'border-amber-500/60';
-        if (tier === 5) return 'border-violet-500/50';
-        return 'border-zinc-700/60';
+        if (!pem) return 'rgba(255,255,255,0.20)';
+        return pem >= 1.0 ? 'var(--gambit-green)' : '#f87171';
     }
 
     let expandedPlayer = $state(null);
@@ -111,10 +98,19 @@
                     <span style="font-family:var(--font-family-display);font-size:0.65rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--gambit-green);display:block;margin-bottom:0.35rem;">Gambit Match</span>
                     <h1 style="font-family:var(--font-family-display);font-size:clamp(1.8rem,5vw,2.8rem);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--d2-text-primary);line-height:1;margin:0;">{data.mapName}</h1>
                     <div style="height:2px;width:64px;background:linear-gradient(90deg,var(--gambit-green),transparent);margin:0.6rem 0 0.5rem;"></div>
-                    <div style="display:flex;align-items:center;gap:1rem;font-family:var(--font-family-display);font-size:0.72rem;font-weight:500;letter-spacing:0.06em;color:var(--d2-text-muted);">
+                    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;font-family:var(--font-family-display);font-size:0.72rem;font-weight:500;letter-spacing:0.06em;color:var(--d2-text-muted);">
                         <span>{timeAgo(data.period)}</span>
                         <span style="color:rgba(255,255,255,0.15);">·</span>
                         <span>{fmtDuration(data.duration)}</span>
+                        {#if data.lobbyTier && data.lobbyTier !== 'Unranked'}
+                            <span style="color:rgba(255,255,255,0.15);">·</span>
+                            <span style="
+                                font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;
+                                color:{ngrTierColor(data.lobbyTier)};
+                                border:1px solid {ngrTierColor(data.lobbyTier)};
+                                padding:1px 6px;opacity:0.85;
+                            ">{data.lobbyTier}{data.lobbyModifier ? ' · ' + data.lobbyModifier : ''}</span>
+                        {/if}
                         <span style="color:rgba(255,255,255,0.15);">·</span>
                         <span style="font-family:var(--font-family-mono);font-size:0.62rem;color:rgba(255,255,255,0.18);">{data.instanceId}</span>
                     </div>
@@ -146,7 +142,7 @@
                     <span>{teamTotal(data.teamA, 'kills')}K/{teamTotal(data.teamA, 'deaths')}D</span>
                 </div>
                 <p style="font-size:0.70rem;color:var(--d2-text-muted);margin-top:0.3rem;">
-                    Avg EGO: <span style="font-weight:700;color:{egoColor(teamAvgEgo(data.teamA)).replace('text-','').replace('-400','').replace('emerald','#34d399').replace('purple','#c084fc').replace('red','#f87171').replace('zinc-200','#e4e4e7').replace('zinc-600','#52525b')}">{teamAvgEgo(data.teamA).toFixed(1)}</span>
+                    Avg EGO: <span style="font-weight:700;color:{egoColor(teamAvgEgo(data.teamA))}">{teamAvgEgo(data.teamA).toFixed(1)}</span>
                 </p>
             </div>
 
@@ -267,7 +263,7 @@
                                 <!-- EGO Score badge -->
                                 <div style="flex-shrink:0;text-align:right;margin-right:8px;padding-right:10px;border-right:1px solid rgba(255,255,255,0.08);">
                                     {#if player.ego}
-                                        <p class="ego-badge__score {egoColor(player.ego.finalScore)}" style="font-family:var(--font-family-display);font-size:1.1rem;font-weight:800;line-height:1;letter-spacing:-0.01em;">
+                                        <p style="font-family:var(--font-family-display);font-size:1.1rem;font-weight:800;line-height:1;letter-spacing:-0.01em;color:{egoColor(player.ego.finalScore)};">
                                             {player.ego.finalScore}
                                         </p>
                                         <p style="font-family:var(--font-family-display);font-size:0.55rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-top:1px;">EGO</p>

@@ -10,17 +10,12 @@
  */
 
 import { json } from '@sveltejs/kit';
-import { getActivityDef, getItemDef, getAllMedals } from '$lib/server/manifest.js';
-import { calculateEgoScore, extractMedals, detectRole } from '$lib/ego.js';
-
-const BUNGIE_ROOT = 'https://www.bungie.net';
-const PGCR_ROOT   = 'https://stats.bungie.net';
-
 import { BUNGIE_API_KEY } from '$env/static/private';
+import { getActivityDef } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
+import { supabaseAdmin } from '$lib/supabase-server.js';
 
-const BUNGIE_ROOT = 'https://www.bungie.net';
-const CAREER_TTL  = 120_000; // 2 min — refreshes as new matches are enriched
+const CAREER_TTL = 120_000; // 2 min — refreshes as new matches are enriched
 
 // ── Playstyle scoring — exact from desktop app get_dominant_playstyle() ─────
 function computePlaystyle(matches) {
@@ -115,43 +110,7 @@ async function careerFromSupabase(membershipId, count) {
             if (isTeammate) playersAgg[key].as_ally++; else playersAgg[key].as_enemy++;
         }
 
-        // ── Carry / carried detection (Python algorithm via ego.js) ─────────
-        const myTeamEntries = pgcr.entries?.filter(e => gv(e.values, 'team') === myTeamId) ?? [];
-        // Score each teammate using EGO for accurate carry detection
-        const teamScores = myTeamEntries.map(e => {
-            const mobK = Math.max(0, gv(e.values, 'kills') - (e.extended?.values?.invasionKills?.basic?.value ?? 0));
-            const result = calculateEgoScore({
-                mobKills:       mobK,
-                invasionKills:  e.extended?.values?.invasionKills?.basic?.value ?? 0,
-                motesDenied:    e.extended?.values?.motesDenied?.basic?.value ?? 0,
-                motesDeposited: e.extended?.values?.motesDeposited?.basic?.value ?? 0,
-                motesPickedUp:  e.extended?.values?.motesPickedUp?.basic?.value ?? 0,
-                primevalDamage: e.extended?.values?.primevalDamage?.basic?.value ?? 0,
-                deaths:         gv(e.values, 'deaths'),
-                assists:        gv(e.values, 'assists'),
-                medals:         extractMedals(e.extended?.values ?? {}),
-                fireteam_size:  myTeamEntries.length,
-            });
-            return result.finalScore;
-        });
-        const myScore = (() => {
-            const mobK = Math.max(0, gv(myEntry.values, 'kills') - (myEntry.extended?.values?.invasionKills?.basic?.value ?? 0));
-            return calculateEgoScore({
-                mobKills:       mobK,
-                invasionKills:  myEntry.extended?.values?.invasionKills?.basic?.value ?? 0,
-                motesDenied:    myEntry.extended?.values?.motesDenied?.basic?.value ?? 0,
-                motesDeposited: myEntry.extended?.values?.motesDeposited?.basic?.value ?? 0,
-                motesPickedUp:  myEntry.extended?.values?.motesPickedUp?.basic?.value ?? 0,
-                primevalDamage: myEntry.extended?.values?.primevalDamage?.basic?.value ?? 0,
-                deaths:         gv(myEntry.values, 'deaths'),
-                assists:        gv(myEntry.values, 'assists'),
-                medals:         extractMedals(myEntry.extended?.values ?? {}),
-                fireteam_size:  myTeamEntries.length,
-            }).finalScore;
-        })();
-        const { isCarry, isCarried } = detectRole(myScore, teamScores);
-        if (isCarry) totalCarries++;
-        if (isCarried) totalCarried++;
+        // Carry/carried flags already stored by pgcr-enrich in is_hard_carry / is_carried
     }
 
     const maps = Object.entries(mapsAgg)
