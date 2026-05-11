@@ -1,3 +1,14 @@
+/**
+ * /api/career — Career stats from Supabase player_matches (PGCR-enriched data).
+ *
+ * When player_matches has data it's used directly — fast and complete.
+ * Falls back to activity-history + PGCR path for new users who haven't enriched yet.
+ *
+ * Query params: membershipType, membershipId, charIds (comma-sep), count (default 250)
+ * Returns: { maps, weapons, allies, rivals, totalMatches, totalWins, carries, carried,
+ *            playstyle, medals, hourlyStats, classStats }
+ */
+
 import { json } from '@sveltejs/kit';
 import { getActivityDef, getItemDef, getAllMedals } from '$lib/server/manifest.js';
 import { calculateEgoScore, extractMedals, detectRole } from '$lib/ego.js';
@@ -8,189 +19,100 @@ const PGCR_ROOT   = 'https://stats.bungie.net';
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
-// ── Low-level Bungie GET ──────────────────────────────────────────────────────
-async function bungieGet(url, root = BUNGIE_ROOT) {
-    const res = await fetch(root + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
-    return res.json();
+const BUNGIE_ROOT = 'https://www.bungie.net';
+const CAREER_TTL  = 120_000; // 2 min — refreshes as new matches are enriched
+
+// ── Playstyle scoring — exact from desktop app get_dominant_playstyle() ─────
+function computePlaystyle(matches) {
+    let reaper = 0, collector = 0, invader = 0, sentry = 0;
+    for (const m of matches) {
+        const s = m.stats ?? {};
+        const med = s.medals ?? {};
+        reaper    += (s.mobKills ?? 0) * 0.5
+            + (med.massacre ?? 0) * 10 + (med.overkillmonger ?? 0) * 8
+            + (med.killmonger ?? 0) * 4 + (med.thrillmonger ?? 0) * 2
+            + (med.bigGameHunter ?? 0) * 3;
+        collector += (s.motesDeposited ?? 0) * 1.0
+            + (med.halfBanked ?? 0) * 15 + (med.fastFill ?? 0) * 5
+            + (med.firstToBlock ?? 0) * 5;
+        invader   += (s.invasionKills ?? 0) * 4.0 + (s.motesDenied ?? 0) * 2.0
+            + (med.armyOfOne ?? 0) * 15 + (med.motesHaveBeen ?? 0) * 10;
+        sentry    += (med.noEscape ?? 0) * 5
+            + (med.notOnMyWatch ?? 0) * 15 + (med.locksmith ?? 0) * 8
+            + (med.blockbuster ?? 0) * 8 + (med.rapidPayback ?? 0) * 10
+            + (med.payback ?? 0) * 5;
+    }
+    const total = Math.max(1, reaper + collector + invader + sentry);
+    const scores = [
+        { label: 'Reaper',    score: reaper    / total, color: 'text-red-400' },
+        { label: 'Collector', score: collector / total, color: 'text-amber-400' },
+        { label: 'Invader',   score: invader   / total, color: 'text-purple-400' },
+        { label: 'Sentry',    score: sentry    / total, color: 'text-blue-400' },
+    ];
+    const dominant = scores.reduce((a, b) => a.score > b.score ? a : b);
+    return { dominant: dominant.label, color: dominant.color, breakdown: scores.map(s => ({ ...s, pct: +(s.score * 100).toFixed(1) })) };
 }
 
-// ── PGCR fetch (cached 24h — PGCRs are immutable) ────────────────────────────
-async function fetchPgcr(instanceId) {
-    const key    = `pgcr:${instanceId}`;
-    const cached = cacheGet(key);
-    if (cached !== undefined) return cached;
-    try {
-        const d = await bungieGet(
-            `/Platform/Destiny2/Stats/PostGameCarnageReport/${instanceId}/`,
-            PGCR_ROOT
-        );
-        const pgcr = d.Response ?? null;
-        if (pgcr) cacheSet(key, pgcr, 86_400_000); // 24h — PGCRs never change
-        return pgcr;
-    } catch { return null; }
-}
+// ── Supabase career computation ───────────────────────────────────────────────
+async function careerFromSupabase(membershipId, count) {
+    const { data: rows, error } = await supabaseAdmin
+        .from('player_matches')
+        .select('pgcr_id,map_name,period,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats,components,roster')
+        .eq('player_id', parseInt(membershipId))
+        .not('outcome', 'eq', 'DNF')
+        .order('period', { ascending: false })
+        .limit(count);
 
-function gv(obj, key) {
-    return obj?.[key]?.basic?.value ?? 0;
-}
+    if (error || !rows?.length) return null;
 
-export async function GET({ url, setHeaders }) {
-    setHeaders({ 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=60' });
+    const mapsAgg    = {};
+    const weaponsAgg = {};
+    const playersAgg = {};
+    const medalsAgg  = {};
+    const hourlyAgg  = Array.from({ length: 24 }, (_, h) => ({ hour: h, games: 0, wins: 0, scoreSum: 0 }));
+    const classAgg   = { Titan: null, Hunter: null, Warlock: null };
 
-    const membershipType = url.searchParams.get('membershipType');
-    const membershipId   = url.searchParams.get('membershipId');
-    const charId         = url.searchParams.get('charId');
-    const count          = Math.min(parseInt(url.searchParams.get('count') ?? '50', 10), 250);
+    let totalMatches = 0, totalWins = 0, carries = 0, carried = 0;
+    let totalScore = 0;
 
-    if (!membershipType || !membershipId || !charId) {
-        return json({ error: 'Missing params' }, { status: 400 });
-    }
-
-    // ── 1. Activity history ───────────────────────────────────────────────────
-    // mode=63 = Gambit.  Fetch up to `count` completed matches.
-    let activities = [];
-    for (let page = 0; page < Math.ceil(count / 250); page++) {
-        const data = await bungieGet(
-            `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=${Math.min(count, 250)}&page=${page}`
-        );
-        if (data.ErrorCode !== 1) break;
-        const batch = data.Response?.activities ?? [];
-        activities.push(...batch);
-        if (batch.length < 250 || activities.length >= count) break;
-    }
-    activities = activities.slice(0, count);
-
-    if (!activities.length) {
-        return json({ maps: [], weapons: [], allies: [], rivals: [], totalMatches: 0, matchesAnalyzed: 0 });
-    }
-
-    // ── 2. Resolve map names via manifest service (bulk, cached 24h) ──────────
-    const uniqueRefIds = [...new Set(
-        activities.map(a => a.activityDetails?.referenceId).filter(Boolean)
-    )];
-    // Warm the activity table once, then all lookups are in-memory
-    await Promise.all(uniqueRefIds.map(h => getActivityDef(h)));
-
-    // ── 3. Fetch PGCRs in parallel (batches of 10) ───────────────────────────
-    const instanceIds = activities
-        .map(a => a.activityDetails?.instanceId)
-        .filter(Boolean);
-
-    const BATCH_SIZE = 10;
-    const pgcrResults = [];
-    for (let i = 0; i < instanceIds.length; i += BATCH_SIZE) {
-        const batch = instanceIds.slice(i, i + BATCH_SIZE);
-        const results = await Promise.all(batch.map(id => fetchPgcr(id)));
-        pgcrResults.push(...results);
-    }
-    const pgcrMap = new Map(instanceIds.map((id, i) => [id, pgcrResults[i]]));
-
-    // ── 4. Collect all unique weapon hashes, warm manifest in one shot ────────
-    const allWeaponHashes = new Set();
-    for (const pgcr of pgcrMap.values()) {
-        if (!pgcr) continue;
-        const entry = pgcr.entries?.find(e =>
-            String(e.player?.destinyUserInfo?.membershipId) === String(membershipId)
-        );
-        for (const w of entry?.extended?.weapons ?? []) {
-            if (w.referenceId) allWeaponHashes.add(w.referenceId);
-        }
-    }
-    // Pre-warm item defs — getItemDef uses bulk-cached table internally
-    await Promise.all([...allWeaponHashes].map(h => getItemDef(h)));
-
-    // ── 5. Aggregate career stats ─────────────────────────────────────────────
-    const mapsAgg    = {}; // mapName → { games, wins, losses, kills, deaths }
-    const weaponsAgg = {}; // weaponName → { kills, precision, games, wins, icon, hash }
-    const playersAgg = {}; // playerName → { games, wins, as_ally, as_enemy }
-
-    let totalMatches = 0;
-    let totalWins    = 0;
-    let totalCarries = 0;
-    let totalCarried = 0;
-
-    for (const act of activities) {
-        const instanceId = act.activityDetails?.instanceId;
-        const refId      = act.activityDetails?.referenceId;
-        const completed  = gv(act.values, 'completed');
-        if (!completed) continue; // skip DNF
-
-        const standing = gv(act.values, 'standing'); // 0 = win, 1 = loss
-        const isWin    = standing === 0;
-
-        // Map name from manifest (bulk table already cached)
-        const actDef  = await getActivityDef(refId);
-        let mapName   = actDef?.displayProperties?.name ?? 'Unknown';
-        // Strip "Gambit: " / "Gambit - " prefix Bungie sometimes includes
-        mapName = mapName.replace(/^Gambit[:\-]\s*/i, '').trim() || 'Gambit';
-
-        // ── Map aggregation ──────────────────────────────────────────────────
-        if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0, losses: 0, kills: 0, deaths: 0 };
-        mapsAgg[mapName].games++;
-        if (isWin) mapsAgg[mapName].wins++; else mapsAgg[mapName].losses++;
-        mapsAgg[mapName].kills  += gv(act.values, 'kills');
-        mapsAgg[mapName].deaths += gv(act.values, 'deaths');
-
+    for (const row of rows) {
+        const isWin = row.outcome === 'Win';
+        const stats = row.stats ?? {};
+        const medals = stats.medals ?? {};
+        const mapName = row.map_name ?? 'Gambit';
+        const score = row.ego_score ?? 0;
         totalMatches++;
         if (isWin) totalWins++;
+        if (row.is_hard_carry) carries++;
+        if (row.is_carried) carried++;
+        totalScore += score;
 
-        // ── PGCR-derived data ────────────────────────────────────────────────
-        const pgcr = pgcrMap.get(instanceId);
-        if (!pgcr) continue;
+        // Map stats
+        if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0, scoreSum: 0 };
+        mapsAgg[mapName].games++;
+        if (isWin) mapsAgg[mapName].wins++;
+        mapsAgg[mapName].scoreSum += score;
 
-        // Find our entry in the PGCR
-        const myEntry = pgcr.entries?.find(e =>
-            String(e.player?.destinyUserInfo?.membershipId) === String(membershipId)
-        );
-        if (!myEntry) continue;
-
-        const myTeamId = gv(myEntry.values, 'team');
-
-        // ── Weapon aggregation (extended stats from PGCR) ────────────────────
-        for (const w of myEntry.extended?.weapons ?? []) {
-            const kills     = gv(w.values, 'uniqueWeaponKills');
-            const precision = gv(w.values, 'uniqueWeaponPrecisionKills');
-            if (kills <= 0) continue;
-
-            // Manifest service returns from in-memory bulk table — no extra HTTP
-            const wDef = await getItemDef(w.referenceId);
-            const name = wDef?.displayProperties?.name ?? `Unknown (${w.referenceId})`;
-            const icon = wDef?.displayProperties?.icon
-                ? BUNGIE_ROOT + wDef.displayProperties.icon
-                : null;
-            const hash = w.referenceId;
-
-            if (!weaponsAgg[name]) weaponsAgg[name] = { kills: 0, precision: 0, games: 0, wins: 0, icon, hash };
-            weaponsAgg[name].kills     += kills;
-            weaponsAgg[name].precision += precision;
-            weaponsAgg[name].games++;
-            if (isWin) weaponsAgg[name].wins++;
+        // Weapon synergy
+        for (const w of stats.top_weapons ?? []) {
+            const wn = w.name ?? 'Unknown';
+            if (!weaponsAgg[wn]) weaponsAgg[wn] = { games: 0, wins: 0, scoreSum: 0, icon: w.icon ?? null, hash: w.hash ?? null };
+            weaponsAgg[wn].games++;
+            if (isWin) weaponsAgg[wn].wins++;
+            weaponsAgg[wn].scoreSum += score;
         }
 
-        // ── Player / synergy aggregation ─────────────────────────────────────
-        for (const e of pgcr.entries ?? []) {
-            const eId = String(e.player?.destinyUserInfo?.membershipId ?? '');
-            if (eId === String(membershipId)) continue; // skip self
-
-            const eName    = e.player?.destinyUserInfo?.bungieGlobalDisplayName ?? '';
-            const eCode    = e.player?.destinyUserInfo?.bungieGlobalDisplayNameCode ?? '';
-            const fullName = eCode ? `${eName}#${String(eCode).padStart(4, '0')}` : eName;
-            if (!fullName || fullName === '#0000') continue;
-
-            const eTeamId    = gv(e.values, 'team');
-            const isTeammate = eTeamId === myTeamId;
-
-            if (!playersAgg[fullName]) {
-                playersAgg[fullName] = {
-                    games: 0, wins: 0, as_ally: 0, as_enemy: 0,
-                    membershipId: eId,
-                    membershipType: e.player?.destinyUserInfo?.membershipType ?? 0,
-                };
-            }
-            playersAgg[fullName].games++;
-            if (isWin) playersAgg[fullName].wins++;
-            if (isTeammate) playersAgg[fullName].as_ally++;
-            else            playersAgg[fullName].as_enemy++;
+        // Teammates & rivals
+        const myTeam = (row.roster ?? []).find(r => r.is_target)?.team;
+        for (const p of row.roster ?? []) {
+            if (p.is_target) continue;
+            const key = p.code ? `${p.name}#${p.code}` : p.name;
+            if (!key || key === 'Unknown') continue;
+            const isTeammate = p.team === myTeam;
+            if (!playersAgg[key]) playersAgg[key] = { games: 0, wins: 0, as_ally: 0, as_enemy: 0, className: p.className ?? 'Unknown' };
+            playersAgg[key].games++;
+            if (isWin) playersAgg[key].wins++;
+            if (isTeammate) playersAgg[key].as_ally++; else playersAgg[key].as_enemy++;
         }
 
         // ── Carry / carried detection (Python algorithm via ego.js) ─────────
@@ -232,75 +154,184 @@ export async function GET({ url, setHeaders }) {
         if (isCarried) totalCarried++;
     }
 
-    // ── 6. Sort and serialize ─────────────────────────────────────────────────
-
-    // Maps: sort by games played desc
     const maps = Object.entries(mapsAgg)
         .map(([name, s]) => ({
-            name,
-            games:   s.games,
-            wins:    s.wins,
-            losses:  s.losses,
+            name, games: s.games, wins: s.wins,
             winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
-            kd:      s.deaths > 0 ? +(s.kills / s.deaths).toFixed(2) : (s.kills || 0),
+            avgScore: s.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0,
         }))
         .sort((a, b) => b.games - a.games);
 
-    // Weapons: top 20 by kills
     const weapons = Object.entries(weaponsAgg)
         .map(([name, s]) => ({
-            name,
-            kills:    s.kills,
-            precision: s.precision,
-            games:    s.games,
-            wins:     s.wins,
-            winRate:  s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
-            precRate: s.kills > 0 ? +((s.precision / s.kills) * 100).toFixed(1) : 0,
-            icon:     s.icon,
-            hash:     s.hash,
+            name, games: s.games, wins: s.wins,
+            winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
+            avgScore: s.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0,
+            icon: s.icon, hash: s.hash,
         }))
-        .sort((a, b) => b.kills - a.kills)
+        .sort((a, b) => b.games - a.games)
         .slice(0, 20);
 
-    // Players: minimum 2 encounters; split allies vs rivals
     const allPlayers = Object.entries(playersAgg)
         .filter(([, s]) => s.games >= 2)
         .map(([name, s]) => ({
-            name,
-            games:         s.games,
-            wins:          s.wins,
-            winRate:       s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
-            as_ally:       s.as_ally,
-            as_enemy:      s.as_enemy,
-            membershipId:  s.membershipId,
-            membershipType: s.membershipType,
-        }))
-        .sort((a, b) => b.games - a.games);
+            name, games: s.games, wins: s.wins,
+            winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
+            as_ally: s.as_ally, as_enemy: s.as_enemy, className: s.className,
+        }));
 
-    // Best allies: appeared most as teammate
-    const allies = allPlayers
-        .filter(p => p.as_ally > p.as_enemy)
-        .sort((a, b) => b.as_ally - a.as_ally)
-        .slice(0, 10);
+    const allies = allPlayers.filter(p => p.as_ally > p.as_enemy)
+        .sort((a, b) => b.as_ally - a.as_ally).slice(0, 15);
+    const rivals = allPlayers.filter(p => p.as_enemy >= p.as_ally && p.as_enemy > 0)
+        .sort((a, b) => b.as_enemy - a.as_enemy).slice(0, 15);
 
-    // Frequent rivals: appeared most as enemy
-    const rivals = allPlayers
-        .filter(p => p.as_enemy > 0)
-        .sort((a, b) => b.as_enemy - a.as_enemy)
-        .slice(0, 10);
+    const bestAlly = allies.find(p => p.winRate >= 50) ?? allies[0] ?? null;
+    const nemesis  = rivals.sort((a, b) => a.winRate - b.winRate)[0] ?? null;
 
-    const matchesAnalyzed = activities.filter(a => gv(a.values, 'completed')).length;
+    const medals = Object.entries(medalsAgg)
+        .map(([key, count]) => ({ key, count }))
+        .sort((a, b) => b.count - a.count);
 
-    return json({
-        totalMatches,
-        totalWins,
-        totalCarries,
-        totalCarried,
-        winRate:         totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
-        maps,
-        weapons,
-        allies,
-        rivals,
-        matchesAnalyzed,
-    });
+    const hourlyStats = hourlyAgg.map(h => ({
+        ...h,
+        winRate: h.games > 0 ? +((h.wins / h.games) * 100).toFixed(1) : 0,
+        avgScore: h.games > 0 ? +(h.scoreSum / h.games).toFixed(1) : 0,
+    }));
+
+    const classStats = Object.entries(classAgg).map(([cls, s]) => ({
+        className: cls,
+        games: s?.games ?? 0,
+        wins: s?.wins ?? 0,
+        winRate: s?.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
+        avgScore: s?.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0,
+    }));
+
+    const playstyle = computePlaystyle(rows);
+
+    return {
+        source: 'supabase',
+        totalMatches, totalWins, carries, carried,
+        avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
+        winRate: totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
+        carryPct: totalMatches > 0 ? +((carries / totalMatches) * 100).toFixed(1) : 0,
+        carriedPct: totalMatches > 0 ? +((carried / totalMatches) * 100).toFixed(1) : 0,
+        maps, weapons, allies, rivals, bestAlly, nemesis,
+        medals, hourlyStats, classStats, playstyle,
+        matchesAnalyzed: totalMatches,
+    };
+}
+
+export async function GET({ url, setHeaders }) {
+    setHeaders({ 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' });
+
+    const membershipId   = url.searchParams.get('membershipId');
+    const membershipType = url.searchParams.get('membershipType');
+    const charIdsParam   = url.searchParams.get('charIds') ?? '';
+    const count          = Math.min(parseInt(url.searchParams.get('count') ?? '250', 10), 10_000);
+
+    if (!membershipId) return json({ error: 'Missing membershipId' }, { status: 400 });
+
+    const cacheKey = `career:${membershipId}:${count}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) return json(cached);
+
+    // ── Try Supabase first ────────────────────────────────────────────────────
+    try {
+        const result = await careerFromSupabase(membershipId, count);
+        if (result && result.totalMatches > 0) {
+            cacheSet(cacheKey, result, CAREER_TTL);
+            return json(result);
+        }
+    } catch (e) {
+        console.warn('Career Supabase error:', e.message);
+    }
+
+    // ── Fallback: light career from activity history (no PGCRs) ──────────────
+    // This runs for new users who haven't triggered PGCR enrichment yet.
+    const charIds = charIdsParam.split(',').map(s => s.trim()).filter(Boolean);
+    if (!membershipType || !charIds.length) {
+        return json({ source: 'none', totalMatches: 0, maps: [], weapons: [], allies: [], rivals: [], medals: [], hourlyStats: [], classStats: [], playstyle: null, matchesAnalyzed: 0 });
+    }
+
+    try {
+        // Pull 250 matches from activity history across all chars
+        const perChar = await Promise.all(charIds.map(async charId => {
+            const res = await fetch(
+                `https://www.bungie.net/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=0`,
+                { headers: { 'X-API-Key': BUNGIE_API_KEY } }
+            );
+            const d = await res.json();
+            return d.ErrorCode === 1 ? (d.Response?.activities ?? []) : [];
+        }));
+
+        const seen = new Set();
+        const activities = [];
+        for (const acts of perChar) {
+            for (const a of acts) {
+                const id = a.activityDetails?.instanceId;
+                if (id && seen.has(id)) continue;
+                if (id) seen.add(id);
+                activities.push(a);
+            }
+        }
+        activities.sort((a, b) => new Date(b.period ?? 0) - new Date(a.period ?? 0));
+        const slice = activities.slice(0, count);
+
+        // Build lightweight career stats from activity history only
+        function nv(entry, key) {
+            return entry?.extended?.values?.[key]?.basic?.value
+                ?? entry?.values?.[key]?.basic?.value ?? 0;
+        }
+
+        const mapsAgg = {};
+        const hourlyAgg = Array.from({ length: 24 }, (_, h) => ({ hour: h, games: 0, wins: 0, scoreSum: 0 }));
+        let totalMatches = 0, totalWins = 0;
+
+        for (const act of slice) {
+            if (nv(act, 'completed') !== 1) continue;
+            const isWin = nv(act, 'standing') === 0;
+            totalMatches++;
+            if (isWin) totalWins++;
+
+            const refId = act.activityDetails?.referenceId;
+            let mapName = 'Gambit';
+            if (refId) {
+                const def = await getActivityDef(refId);
+                mapName = (def?.displayProperties?.name ?? 'Gambit')
+                    .replace(/^Gambit[:\-]\s*/i, '').trim() || 'Gambit';
+            }
+            if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0 };
+            mapsAgg[mapName].games++;
+            if (isWin) mapsAgg[mapName].wins++;
+
+            if (act.period) {
+                const h = new Date(act.period).getHours();
+                hourlyAgg[h].games++;
+                if (isWin) hourlyAgg[h].wins++;
+            }
+        }
+
+        const maps = Object.entries(mapsAgg)
+            .map(([name, s]) => ({ name, games: s.games, wins: s.wins, winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0, avgScore: 0 }))
+            .sort((a, b) => b.games - a.games);
+
+        const hourlyStats = hourlyAgg.map(h => ({
+            ...h, winRate: h.games > 0 ? +((h.wins / h.games) * 100).toFixed(1) : 0, avgScore: 0,
+        }));
+
+        const result = {
+            source: 'activity',
+            totalMatches, totalWins, carries: 0, carried: 0,
+            winRate: totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
+            avgScore: 0, carryPct: 0, carriedPct: 0,
+            maps, weapons: [], allies: [], rivals: [], bestAlly: null, nemesis: null,
+            medals: [], hourlyStats, classStats: [], playstyle: null,
+            matchesAnalyzed: totalMatches,
+            needsEnrichment: true, // tells client to trigger pgcr-enrich
+        };
+        if (result.totalMatches > 0) cacheSet(cacheKey, result, CAREER_TTL);
+        return json(result);
+    } catch (e) {
+        return json({ error: e.message, source: 'error', totalMatches: 0, maps: [], weapons: [], allies: [], rivals: [], medals: [], hourlyStats: [], classStats: [], playstyle: null, matchesAnalyzed: 0 });
+    }
 }

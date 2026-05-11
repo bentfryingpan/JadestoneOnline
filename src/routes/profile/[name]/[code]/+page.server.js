@@ -1,7 +1,11 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 import { error } from '@sveltejs/kit';
-import { cacheWrap, SEARCH_TTL, PROFILE_TTL } from '$lib/server/cache.js';
+import { cacheWrap, cacheGet, cacheSet, SEARCH_TTL, PROFILE_TTL } from '$lib/server/cache.js';
+import { computeSeasonal } from '$lib/server/seasonal.js';
+
+// 5-minute cache for Supabase claim status (rarely changes)
+const CLAIM_TTL = 300_000;
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
@@ -55,13 +59,12 @@ export async function load({ params, parent, url, setHeaders }) {
         }
     }
 
-    // ── 2. Profile data (cached 60s) + match history fired in parallel ────────
+    // ── 2. Profile data + Supabase check in parallel ─────────────────────────
     const profileKey = `profile:${membershipId}`;
-    const matchKey   = `matches:${membershipId}`;
 
     let profileBundle, dbPlayer;
     try {
-        [profileBundle, , dbPlayer] = await Promise.all([
+        [profileBundle, dbPlayer] = await Promise.all([
 
             // Profile + clan + stats — cached as one bundle
             cacheWrap(profileKey, PROFILE_TTL, async () => {
@@ -74,13 +77,21 @@ export async function load({ params, parent, url, setHeaders }) {
                 return { profileData, clanData, acctStats };
             }),
 
-            // placeholder slot (match key resolved below after we have mainCharId)
-            cacheWrap(matchKey, PROFILE_TTL, async () => null),
-
-            // Supabase claim check
-            supabaseAdmin.from('players').select('claimed_by').eq('id', membershipId).single()
-                .then(r => r.data)
-                .catch(() => null),
+            // Supabase claim check (cached 5 min — rarely changes)
+            (async () => {
+                const claimKey    = `claim:${membershipId}`;
+                const cachedClaim = cacheGet(claimKey);
+                if (cachedClaim !== undefined) return cachedClaim;
+                const r = await supabaseAdmin
+                    .from('players')
+                    .select('claimed_by')
+                    .eq('id', membershipId)
+                    .single()
+                    .then(r => r.data)
+                    .catch(() => null);
+                cacheSet(claimKey, r, CLAIM_TTL);
+                return r;
+            })(),
         ]);
     } catch (e) {
         if (e?.status) throw e;
@@ -103,18 +114,41 @@ export async function load({ params, parent, url, setHeaders }) {
     );
     const mainCharId = sortedCharIds[0];
 
-    // ── 3. Match history (cached 60s per membershipId+char) ──────────────────
-    // Now that we have mainCharId we can fetch properly. Use a char-specific key
-    // so switching characters fetches fresh data.
+    // ── 3. Match history — fetch ALL characters in parallel ──────────────────
+    // We cannot rely on mainCharId alone: dateLastPlayed tracks ANY activity,
+    // not just Gambit.  A player who runs Crucible daily on their Hunter but
+    // only plays Gambit on their Titan would always show the Hunter as
+    // mainCharId, making us miss all recent Gambit matches on the Titan.
+    // Fix: pull the last 25 Gambit matches for every character simultaneously,
+    // deduplicate by instanceId (same match can't appear on two chars), and
+    // merge into one recency-sorted list.
     let recentMatches = [];
-    if (mainCharId) {
-        const key = `matches:${membershipId}:${mainCharId}`;
-        const matchData = await cacheWrap(key, PROFILE_TTL, () =>
-            bungieGet(
-                `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${mainCharId}/Stats/Activities/?mode=63&count=25&page=0`
-            )
+    if (sortedCharIds.length > 0) {
+        const perCharData = await Promise.all(
+            sortedCharIds.map(charId => {
+                const key = `matches:${membershipId}:${charId}`;
+                return cacheWrap(key, PROFILE_TTL, () =>
+                    bungieGet(
+                        `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=25&page=0`
+                    )
+                ).then(d => d?.Response?.activities ?? []);
+            })
         );
-        recentMatches = matchData?.Response?.activities ?? [];
+
+        const seen   = new Set();
+        const merged = [];
+        for (const charMatches of perCharData) {
+            for (const m of charMatches) {
+                const id = m.activityDetails?.instanceId;
+                if (id && seen.has(id)) continue;
+                if (id) seen.add(id);
+                merged.push(m);
+            }
+        }
+        // Sort newest-first, cap at 25
+        recentMatches = merged
+            .sort((a, b) => new Date(b.period ?? 0) - new Date(a.period ?? 0))
+            .slice(0, 25);
     }
 
     // ── 3b. Resolve lifetime Gambit stats ─────────────────────────────────────
@@ -250,8 +284,23 @@ export async function load({ params, parent, url, setHeaders }) {
         }, { onConflict: 'player_id' }).then(() => {});
     }
 
-    // ── 6. Tell Vercel CDN it can reuse this SSR response for 30 seconds ─────
-    setHeaders({ 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' });
+    // ── 6. CDN caching + streamed seasonal data ───────────────────────────────
+    // Give Vercel's CDN 60 s of fresh + 5 min stale-while-revalidate.
+    setHeaders({ 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' });
+
+    // ── 7. Stream seasonal stats in parallel with SSR ─────────────────────────
+    // computeSeasonal checks the in-process cache first — on warm hits it
+    // returns instantly and the value is inlined in the initial HTML response.
+    // On cold hits it starts the Bungie pagination in parallel with the rest of
+    // the SSR and streams the result to the client once ready, eliminating the
+    // client-side waterfall (old approach: hydrate → JS runs → fetch → wait).
+    const seasonalCacheKey = `seasonal:${membershipId}:${[...sortedCharIds].sort().join(',')}`;
+    const cachedSeasonal   = cacheGet(seasonalCacheKey);
+    const seasonalStream   = cachedSeasonal != null
+        ? cachedSeasonal   // cache hit → inline in initial HTML, no streaming needed
+        : sortedCharIds.length > 0
+            ? computeSeasonal(membershipType, membershipId, sortedCharIds, 25).catch(() => null)
+            : null;         // no characters → null immediately
 
     const mainChar = characters[mainCharId];
     const emblemBg = mainChar?.emblemBackgroundPath ? BUNGIE_ROOT + mainChar.emblemBackgroundPath : null;
@@ -275,6 +324,7 @@ export async function load({ params, parent, url, setHeaders }) {
         clan,
         emblemBg,
         gambitProgression,
-        isClaimed, isOwner, canClaim
+        isClaimed, isOwner, canClaim,
+        seasonal: seasonalStream,   // Promise (streamed) or resolved value (cache hit)
     };
 }

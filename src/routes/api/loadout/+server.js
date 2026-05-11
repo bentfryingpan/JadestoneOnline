@@ -1,7 +1,9 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
-import { cacheGet, cacheSet, MANIFEST_TTL } from '$lib/server/cache.js';
-import { getStatDef, getDamageTypeDef, getStatNames } from '$lib/server/manifest.js';
+import { getItemDef, getSandboxPerkDef, getStatDef, getDamageTypeDef, getStatNames } from '$lib/server/manifest.js';
+// getItemDef and getSandboxPerkDef use makeHashLookup with a shared in-process
+// cache — the same keys used by the match page, so a weapon looked up on a
+// match page is already warm when the loadout tab opens (and vice-versa).
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
@@ -80,43 +82,15 @@ async function bungieGet(url) {
     return res.json();
 }
 
-// Fetch DestinyInventoryItemDefinition with 1-hour cache (individual hash endpoint —
-// still needed here since the bulk table is too large to download synchronously
-// inside the loadout request; the manifest service warm-up handles pre-loading).
+// Thin wrappers so the rest of the file keeps its [hash, def] tuple convention
 async function fetchDef(hash) {
-    const cacheKey = `manifest:item:${hash}`;
-    const cached   = cacheGet(cacheKey);
-    if (cached !== undefined) return [hash, cached];
-    try {
-        const r = await fetch(
-            `${BUNGIE_ROOT}/Platform/Destiny2/Manifest/DestinyInventoryItemDefinition/${hash}/`,
-            { headers: { 'X-API-Key': BUNGIE_API_KEY } }
-        );
-        const d   = await r.json();
-        const def = d.Response ?? null;
-        cacheSet(cacheKey, def, MANIFEST_TTL);
-        return [hash, def];
-    } catch {
-        return [hash, null];
-    }
+    const def = await getItemDef(hash);
+    return [hash, def];
 }
 
 async function fetchPerkDef(hash) {
-    const cacheKey = `manifest:perk:${hash}`;
-    const cached   = cacheGet(cacheKey);
-    if (cached !== undefined) return [hash, cached];
-    try {
-        const r = await fetch(
-            `${BUNGIE_ROOT}/Platform/Destiny2/Manifest/DestinySandboxPerkDefinition/${hash}/`,
-            { headers: { 'X-API-Key': BUNGIE_API_KEY } }
-        );
-        const d   = await r.json();
-        const def = d.Response ?? null;
-        cacheSet(cacheKey, def, MANIFEST_TTL);
-        return [hash, def];
-    } catch {
-        return [hash, null];
-    }
+    const def = await getSandboxPerkDef(hash);
+    return [hash, def];
 }
 
 export async function GET({ url, setHeaders }) {
