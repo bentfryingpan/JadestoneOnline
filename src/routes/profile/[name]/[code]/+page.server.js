@@ -59,13 +59,12 @@ export async function load({ params, parent, url, setHeaders }) {
         }
     }
 
-    // ── 2. Profile data (cached 60s) + match history fired in parallel ────────
+    // ── 2. Profile data + Supabase check in parallel ─────────────────────────
     const profileKey = `profile:${membershipId}`;
-    const matchKey   = `matches:${membershipId}`;
 
     let profileBundle, dbPlayer;
     try {
-        [profileBundle, , dbPlayer] = await Promise.all([
+        [profileBundle, dbPlayer] = await Promise.all([
 
             // Profile + clan + stats — cached as one bundle
             cacheWrap(profileKey, PROFILE_TTL, async () => {
@@ -77,9 +76,6 @@ export async function load({ params, parent, url, setHeaders }) {
                 ]);
                 return { profileData, clanData, acctStats };
             }),
-
-            // placeholder slot (match key resolved below after we have mainCharId)
-            cacheWrap(matchKey, PROFILE_TTL, async () => null),
 
             // Supabase claim check (cached 5 min — rarely changes)
             (async () => {
@@ -118,18 +114,41 @@ export async function load({ params, parent, url, setHeaders }) {
     );
     const mainCharId = sortedCharIds[0];
 
-    // ── 3. Match history (cached 60s per membershipId+char) ──────────────────
-    // Now that we have mainCharId we can fetch properly. Use a char-specific key
-    // so switching characters fetches fresh data.
+    // ── 3. Match history — fetch ALL characters in parallel ──────────────────
+    // We cannot rely on mainCharId alone: dateLastPlayed tracks ANY activity,
+    // not just Gambit.  A player who runs Crucible daily on their Hunter but
+    // only plays Gambit on their Titan would always show the Hunter as
+    // mainCharId, making us miss all recent Gambit matches on the Titan.
+    // Fix: pull the last 25 Gambit matches for every character simultaneously,
+    // deduplicate by instanceId (same match can't appear on two chars), and
+    // merge into one recency-sorted list.
     let recentMatches = [];
-    if (mainCharId) {
-        const key = `matches:${membershipId}:${mainCharId}`;
-        const matchData = await cacheWrap(key, PROFILE_TTL, () =>
-            bungieGet(
-                `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${mainCharId}/Stats/Activities/?mode=63&count=25&page=0`
-            )
+    if (sortedCharIds.length > 0) {
+        const perCharData = await Promise.all(
+            sortedCharIds.map(charId => {
+                const key = `matches:${membershipId}:${charId}`;
+                return cacheWrap(key, PROFILE_TTL, () =>
+                    bungieGet(
+                        `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=25&page=0`
+                    )
+                ).then(d => d?.Response?.activities ?? []);
+            })
         );
-        recentMatches = matchData?.Response?.activities ?? [];
+
+        const seen   = new Set();
+        const merged = [];
+        for (const charMatches of perCharData) {
+            for (const m of charMatches) {
+                const id = m.activityDetails?.instanceId;
+                if (id && seen.has(id)) continue;
+                if (id) seen.add(id);
+                merged.push(m);
+            }
+        }
+        // Sort newest-first, cap at 25
+        recentMatches = merged
+            .sort((a, b) => new Date(b.period ?? 0) - new Date(a.period ?? 0))
+            .slice(0, 25);
     }
 
     // ── 3b. Resolve lifetime Gambit stats ─────────────────────────────────────
