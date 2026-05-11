@@ -96,8 +96,9 @@
         careerLoading = true;
         careerError   = null;
         try {
+            const charIds = data.characterIds.join(',');
             const res = await fetch(
-                `/api/career?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${activeChar}&count=50`
+                `/api/career?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&count=250`
             );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             career = await res.json();
@@ -106,6 +107,124 @@
             careerError = 'Could not load career analytics. Please try again.';
         }
         finally { careerLoading = false; }
+    }
+
+    // ── Favorites ──────────────────────────────────────────────────────────────
+    let favorites    = $state(new Set());
+    let favsLoaded   = $state(false);
+
+    async function loadFavorites() {
+        if (favsLoaded) return;
+        try {
+            const res = await fetch(`/api/favorites?membershipId=${data.membershipId}`);
+            const d   = await res.json();
+            favorites  = new Set(d.favorites ?? []);
+            favsLoaded = true;
+        } catch { /* no-op */ }
+    }
+
+    async function toggleFavorite(instanceId) {
+        if (!instanceId) return;
+        const wasFav = favorites.has(instanceId);
+        // Optimistic update
+        const next = new Set(favorites);
+        if (wasFav) next.delete(instanceId); else next.add(instanceId);
+        favorites = next;
+        try {
+            await fetch('/api/favorites', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ membershipId: data.membershipId, pgcrId: instanceId }),
+            });
+        } catch {
+            // Revert on error
+            const reverted = new Set(favorites);
+            if (wasFav) reverted.add(instanceId); else reverted.delete(instanceId);
+            favorites = reverted;
+        }
+    }
+
+    // ── Stack filter ───────────────────────────────────────────────────────────
+    let stackFilter = $state(0); // 0=All, 1-4=fireteam size, 'favs'=favorites
+
+    const filteredMatches = $derived((() => {
+        if (!history?.matches) return [];
+        let ms = history.matches.filter(m => !m.dnf);
+        if (stackFilter === 'favs') return ms.filter(m => favorites.has(m.instanceId));
+        if (stackFilter > 0) return ms.filter(m => (m.fireteam_size ?? 1) === stackFilter);
+        return ms;
+    })());
+
+    // ── Win/loss streak ────────────────────────────────────────────────────────
+    const streak = $derived((() => {
+        const ms = history?.matches?.filter(m => m.win || m.loss) ?? [];
+        if (!ms.length) return null;
+        const first = ms[0].win ? 'win' : 'loss';
+        let count = 0;
+        for (const m of ms) {
+            if ((first === 'win' && m.win) || (first === 'loss' && m.loss)) count++;
+            else break;
+        }
+        return { type: first, count };
+    })());
+
+    // ── Session summary (last 10 completed matches) ────────────────────────────
+    const sessionSummary = $derived((() => {
+        const ms = history?.matches?.filter(m => m.win || m.loss).slice(0, 10) ?? [];
+        if (!ms.length) return null;
+        const wins     = ms.filter(m => m.win).length;
+        const avgEgo   = ms.reduce((s, m) => s + (m.ego?.finalScore ?? 0), 0) / ms.length;
+        const totMotes = ms.reduce((s, m) => s + (m.motesDeposited ?? 0), 0);
+        const wipes    = ms.filter(m => m.loss).length;
+        const carries  = ms.filter(m => m.is_hard_carry).length;
+        return { games: ms.length, wins, avgEgo: +avgEgo.toFixed(1), totMotes, wipes, carries };
+    })());
+
+    // ── PGCR enrichment ────────────────────────────────────────────────────────
+    let enriching      = $state(false);
+    let enrichProgress = $state({ stored: 0, total: 0 });
+
+    async function triggerEnrichment() {
+        if (enriching || !history?.matches) return;
+        const unenriched = history.matches
+            .filter(m => m.instanceId && m.fireteam_size == null)
+            .map(m => m.instanceId)
+            .slice(0, 200);
+        if (!unenriched.length) return;
+
+        enriching = true;
+        enrichProgress = { stored: 0, total: unenriched.length };
+
+        for (let i = 0; i < unenriched.length; i += 20) {
+            const batch = unenriched.slice(i, i + 20);
+            try {
+                const res = await fetch('/api/pgcr-enrich', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        membershipId: data.membershipId,
+                        membershipType: data.membershipType,
+                        bungieDisplayName: data.player.bungieGlobalDisplayName,
+                        bungieDisplayCode: data.player.bungieGlobalDisplayNameCode,
+                        instanceIds: batch,
+                    }),
+                });
+                const r = await res.json();
+                enrichProgress = { stored: enrichProgress.stored + (r.stored ?? 0), total: unenriched.length };
+            } catch { /* continue */ }
+        }
+
+        enriching = false;
+        // Refresh history to pick up enriched data
+        historyFor = 0;
+        fetchHistory();
+    }
+
+    // ── CSV export ─────────────────────────────────────────────────────────────
+    function downloadCsv() {
+        const charIds = data.characterIds.join(',');
+        const url = `/api/export?membershipId=${data.membershipId}&membershipType=${data.membershipType}&charIds=${charIds}&count=${historyCount}`;
+        window.open(url, '_blank');
     }
 
     $effect(() => {
@@ -117,10 +236,16 @@
         if (tab === 'matches') {
             const _c = historyCount; // track count changes
             fetchHistory();
+            loadFavorites();
         }
     });
     $effect(() => {
-        if ((tab === 'weaponry' || tab === 'maps' || tab === 'synergy') && !career && !careerLoading) {
+        if (tab === 'matches' && history && !enriching) {
+            triggerEnrichment();
+        }
+    });
+    $effect(() => {
+        if ((tab === 'weaponry' || tab === 'maps' || tab === 'synergy' || tab === 'trophies') && !career && !careerLoading) {
             fetchCareer();
         }
     });
@@ -352,10 +477,41 @@
         { id: 'weaponry', label: 'Weaponry'  },
         { id: 'synergy',  label: 'Synergy'   },
         { id: 'maps',     label: 'Maps'      },
+        { id: 'trophies', label: 'Trophies'  },
         { id: 'pursuits', label: 'Pursuits'  },
         { id: 'loadout',  label: 'Loadout'   },
         { id: 'subclass', label: 'Subclass'  },
     ];
+
+    // ── Medal display names ────────────────────────────────────────────────────
+    const MEDAL_LABELS = {
+        notOnMyWatch:        'Not On My Watch',
+        armyOfOne:           'Army of One',
+        locksmith:           'Locksmith',
+        blockbuster:         'Blockbuster',
+        rapidPayback:        'Rapid Payback',
+        massacre:            'Massacre',
+        motesHaveBeen:       'Motes Have Been…',
+        halfBanked:          'Half Banked',
+        firstToBlock:        'First to Block',
+        payback:             'Payback',
+        overkillmonger:      'Overkillmonger',
+        killmonger:          'Killmonger',
+        thrillmonger:        'Thrillmonger',
+        fastFill:            'Fast Fill',
+        killAfterInvasion:   'Kill After Invasion',
+        bigGameHunter:       'Big Game Hunter',
+        lastGuardianStanding:'Last Guardian Standing',
+        noEscape:            'No Escape',
+    };
+
+    // ── Playstyle colors ───────────────────────────────────────────────────────
+    const PLAYSTYLE_COLORS = {
+        Reaper:    { bar: 'bg-red-500',    text: 'text-red-400'    },
+        Collector: { bar: 'bg-amber-500',  text: 'text-amber-400'  },
+        Invader:   { bar: 'bg-purple-500', text: 'text-purple-400' },
+        Sentry:    { bar: 'bg-blue-500',   text: 'text-blue-400'   },
+    };
 
     const monogram = $derived(
         (data.player.bungieGlobalDisplayName ?? 'GD').slice(0, 2).toUpperCase()
@@ -614,8 +770,8 @@
             <div class="bg-zinc-900/60 border border-zinc-800 p-4">
                 <div class="flex items-start justify-between mb-3">
                     <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Win Rate</span>
-                    {#if winRateRank(dWinRate) as r}
-                        <span class="text-[9px] font-bold {r.color} border border-current/30 px-1.5 py-0.5">{r.label}</span>
+                    {#if winRateRank(dWinRate)}
+                        <span class="text-[9px] font-bold {winRateRank(dWinRate).color} border border-current/30 px-1.5 py-0.5">{winRateRank(dWinRate).label}</span>
                     {/if}
                 </div>
                 <div class="text-4xl font-sans font-light tracking-tighter {winTier(dWinRate).color} leading-none mb-1">
@@ -630,8 +786,8 @@
             <div class="bg-zinc-900/60 border border-zinc-800 p-4">
                 <div class="flex items-start justify-between mb-3">
                     <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">K / D / A</span>
-                    {#if kdRank(dKD) as r}
-                        <span class="text-[9px] font-bold {r.color} border border-current/30 px-1.5 py-0.5">{r.label}</span>
+                    {#if kdRank(dKD)}
+                        <span class="text-[9px] font-bold {kdRank(dKD).color} border border-current/30 px-1.5 py-0.5">{kdRank(dKD).label}</span>
                     {/if}
                 </div>
                 <div class="text-4xl font-sans font-light tracking-tighter {kdTier(dKD).color} leading-none mb-1">
@@ -646,8 +802,8 @@
             <div class="bg-zinc-900/60 border border-zinc-800 p-4">
                 <div class="flex items-start justify-between mb-3">
                     <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Avg Motes</span>
-                    {#if motesRank(dAvgMotes) as r}
-                        <span class="text-[9px] font-bold {r.color} border border-current/30 px-1.5 py-0.5">{r.label}</span>
+                    {#if motesRank(dAvgMotes)}
+                        <span class="text-[9px] font-bold {motesRank(dAvgMotes).color} border border-current/30 px-1.5 py-0.5">{motesRank(dAvgMotes).label}</span>
                     {/if}
                 </div>
                 <div class="text-4xl font-sans font-light tracking-tighter text-zinc-200 leading-none mb-1">
@@ -662,8 +818,8 @@
             <div class="bg-zinc-900/60 border border-zinc-800 p-4">
                 <div class="flex items-start justify-between mb-3">
                     <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Avg Invasions</span>
-                    {#if invRank(dAvgInv) as r}
-                        <span class="text-[9px] font-bold {r.color} border border-current/30 px-1.5 py-0.5">{r.label}</span>
+                    {#if invRank(dAvgInv)}
+                        <span class="text-[9px] font-bold {invRank(dAvgInv).color} border border-current/30 px-1.5 py-0.5">{invRank(dAvgInv).label}</span>
                     {/if}
                 </div>
                 <div class="text-4xl font-sans font-light tracking-tighter {invTier(dAvgInv).color} leading-none mb-1">
@@ -804,8 +960,9 @@
     <!-- ══════════════════════════════════ MATCHES ══ -->
     {:else if tab === 'matches'}
 
-        <!-- Count selector + status -->
-        <div class="flex items-center justify-between mb-4">
+        <!-- Top controls row -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <!-- Count selector -->
             <div class="flex items-center gap-3">
                 <span class="text-xs text-zinc-500">Show last</span>
                 <select bind:value={historyCount}
@@ -815,13 +972,74 @@
                     {/each}
                 </select>
                 {#if historyCount >= 1000}
-                    <span class="text-[10px] text-amber-500/70 italic">Large requests may take 30–60 s</span>
+                    <span class="text-[10px] text-amber-500/70 italic">May take 30–60 s</span>
                 {/if}
             </div>
-            {#if history}
-                <span class="text-[10px] text-zinc-600">{history.fetched?.toLocaleString() ?? 0} loaded · {history.totalAvailable?.toLocaleString() ?? 0} available</span>
+            <!-- Right controls -->
+            <div class="flex items-center gap-2">
+                {#if history}
+                    <span class="text-[10px] text-zinc-600">{history.fetched?.toLocaleString() ?? 0} loaded</span>
+                {/if}
+                {#if enriching}
+                    <span class="text-[10px] text-violet-400 animate-pulse">enriching {enrichProgress.stored}/{enrichProgress.total}…</span>
+                {/if}
+                <button onclick={downloadCsv}
+                    class="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold text-zinc-400 border border-zinc-700 hover:border-emerald-600 hover:text-emerald-400 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Stack size filter + streak -->
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-1">
+                <span class="text-[10px] text-zinc-600 mr-1">Stack:</span>
+                {#each [{v:0,l:'Any'},{v:1,l:'Solo'},{v:2,l:'Duo'},{v:3,l:'Trio'},{v:4,l:'Full'}] as sf}
+                    <button onclick={() => stackFilter = sf.v}
+                        class="px-2 py-0.5 text-[10px] font-semibold border transition-colors
+                               {stackFilter === sf.v
+                                   ? 'bg-emerald-500/10 border-emerald-600 text-emerald-400'
+                                   : 'border-zinc-800 text-zinc-600 hover:border-zinc-600 hover:text-zinc-400'}">
+                        {sf.l}
+                    </button>
+                {/each}
+                <button onclick={() => stackFilter = 'favs'}
+                    class="px-2 py-0.5 text-[10px] font-semibold border transition-colors
+                           {stackFilter === 'favs'
+                               ? 'bg-amber-500/10 border-amber-600 text-amber-400'
+                               : 'border-zinc-800 text-zinc-600 hover:border-zinc-600 hover:text-zinc-400'}">
+                    ★ Favs
+                </button>
+            </div>
+            <!-- Streak badge -->
+            {#if streak && streak.count >= 2}
+                <div class="flex items-center gap-1.5 px-2.5 py-1 border
+                            {streak.type === 'win' ? 'border-emerald-600/50 bg-emerald-900/20' : 'border-red-800/50 bg-red-900/20'}">
+                    <span class="text-[10px] font-bold {streak.type === 'win' ? 'text-emerald-400' : 'text-red-400'}">
+                        {streak.count} {streak.type.toUpperCase()} STREAK
+                    </span>
+                </div>
             {/if}
         </div>
+
+        <!-- Session summary strip -->
+        {#if sessionSummary}
+            <div class="flex items-center gap-4 px-3 py-2 bg-zinc-900/40 border border-zinc-800/60 mb-3 text-[10px]">
+                <span class="text-zinc-500 font-semibold uppercase tracking-widest">Last {sessionSummary.games}</span>
+                <span class="text-zinc-300">{sessionSummary.wins}W–{sessionSummary.games - sessionSummary.wins}L</span>
+                <span class="text-zinc-500">·</span>
+                <span class="text-zinc-400">Avg EGO <span class="font-mono font-bold {egoColor(sessionSummary.avgEgo)}">{sessionSummary.avgEgo}</span></span>
+                <span class="text-zinc-500">·</span>
+                <span class="text-zinc-400">Motes <span class="font-mono text-amber-400">{sessionSummary.totMotes.toLocaleString()}</span></span>
+                {#if sessionSummary.carries > 0}
+                    <span class="text-zinc-500">·</span>
+                    <span class="text-emerald-400 font-semibold">{sessionSummary.carries} carry</span>
+                {/if}
+            </div>
+        {/if}
 
         <!-- Loading skeleton -->
         {#if historyLoading}
@@ -831,59 +1049,84 @@
                 {/each}
             </div>
 
-        {:else if !history?.matches?.length}
-            <div class="text-sm text-zinc-600 text-center py-16">No Gambit matches found.</div>
+        {:else if !filteredMatches.length}
+            <div class="text-sm text-zinc-600 text-center py-16">
+                {stackFilter === 'favs' ? 'No favorited matches yet.' : 'No Gambit matches found.'}
+            </div>
 
         {:else}
-            <!-- EGO note -->
-            <div class="text-[10px] text-zinc-600 mb-2 italic">EGO scores computed from activity stats (medals excluded — requires individual match lookup)</div>
-
             <!-- Match table -->
             <div class="border border-zinc-800/60 overflow-hidden">
                 <table class="w-full text-xs">
                     <thead class="border-b border-zinc-800">
                         <tr>
-                            <th class="text-left px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-36">Date</th>
+                            <th class="text-left px-1 py-2 w-6"></th>
+                            <th class="text-left px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-32">Date</th>
                             <th class="text-left px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Map</th>
                             <th class="text-center px-2 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-12">Result</th>
                             <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-16">EGO</th>
                             <th class="text-right px-2 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-16">K/D/A</th>
                             <th class="text-right px-2 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-14">Motes</th>
                             <th class="text-right px-2 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-14">Inv.</th>
+                            <th class="text-center px-2 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-10">Sz</th>
                             <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase w-14">Dur.</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {#each history.matches as m}
+                        {#each filteredMatches as m}
                             {@const ego = m.ego?.finalScore ?? null}
-                            <tr onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
-                                class="border-b border-zinc-800/30 transition-colors cursor-pointer
-                                       {m.win  ? 'hover:bg-emerald-900/10' :
-                                        m.loss ? 'hover:bg-red-900/10' :
-                                                 'hover:bg-zinc-800/20'}">
-                                <td class="px-3 py-2 text-zinc-600 whitespace-nowrap">
+                            {@const isFav = favorites.has(m.instanceId)}
+                            <tr class="border-b border-zinc-800/30 transition-colors group
+                                       {m.win  ? 'hover:bg-emerald-900/10' : 'hover:bg-red-900/10'}">
+                                <!-- Favorite star -->
+                                <td class="px-1 py-2 text-center" onclick={(e) => { e.stopPropagation(); toggleFavorite(m.instanceId); }}>
+                                    <button class="text-[11px] transition-colors {isFav ? 'text-amber-400' : 'text-zinc-800 hover:text-zinc-600'}">★</button>
+                                </td>
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-3 py-2 text-zinc-600 whitespace-nowrap cursor-pointer">
                                     {m.period ? new Date(m.period).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—'}
                                     <span class="text-zinc-700 ml-1">{m.period ? new Date(m.period).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : ''}</span>
                                 </td>
-                                <td class="px-3 py-2 text-zinc-300 font-medium">{m.mapName}</td>
-                                <td class="px-2 py-2 text-center">
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-3 py-2 cursor-pointer">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-zinc-300 font-medium">{m.mapName}</span>
+                                        {#if m.is_hard_carry}
+                                            <span class="text-[9px] font-bold text-amber-400 border border-amber-500/40 px-1 py-0.5 leading-none">CARRY</span>
+                                        {:else if m.is_carried}
+                                            <span class="text-[9px] font-bold text-zinc-600 border border-zinc-700 px-1 py-0.5 leading-none">CARRIED</span>
+                                        {/if}
+                                    </div>
+                                </td>
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-2 py-2 text-center cursor-pointer">
                                     {#if m.win}
                                         <span class="text-emerald-400 font-bold text-[11px]">WIN</span>
-                                    {:else if m.loss}
-                                        <span class="text-red-400 font-semibold text-[11px]">LOSS</span>
                                     {:else}
-                                        <span class="text-zinc-600 text-[11px]">DNF</span>
+                                        <span class="text-red-400 font-semibold text-[11px]">LOSS</span>
                                     {/if}
                                 </td>
-                                <td class="px-3 py-2 text-right font-mono font-bold {egoColor(ego)}">
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-3 py-2 text-right font-mono font-bold {egoColor(ego)} cursor-pointer">
                                     {ego != null ? ego : '—'}
                                 </td>
-                                <td class="px-2 py-2 text-right font-mono text-zinc-400">
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-2 py-2 text-right font-mono text-zinc-400 cursor-pointer">
                                     {m.k}/{m.d}/{m.a}
                                 </td>
-                                <td class="px-2 py-2 text-right font-mono text-zinc-400">{m.motesDeposited}</td>
-                                <td class="px-2 py-2 text-right font-mono text-zinc-400">{m.invasionKills}</td>
-                                <td class="px-3 py-2 text-right font-mono text-zinc-600">{m.duration > 0 ? fmtDuration(m.duration) : '—'}</td>
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-2 py-2 text-right font-mono text-zinc-400 cursor-pointer">{m.motesDeposited}</td>
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-2 py-2 text-right font-mono text-zinc-400 cursor-pointer">{m.invasionKills}</td>
+                                <td class="px-2 py-2 text-center font-mono text-zinc-600">
+                                    {#if m.fireteam_size && m.fireteam_size > 1}
+                                        <span class="text-violet-400">{m.fireteam_size}</span>
+                                    {:else}
+                                        {m.fireteam_size ?? '—'}
+                                    {/if}
+                                </td>
+                                <td onclick={() => m.instanceId && (window.location.href = `/match/${m.instanceId}`)}
+                                    class="px-3 py-2 text-right font-mono text-zinc-600 cursor-pointer">{m.duration > 0 ? fmtDuration(m.duration) : '—'}</td>
                             </tr>
                         {/each}
                     </tbody>
@@ -898,17 +1141,19 @@
         {:else if careerError}
             <p class="text-sm text-red-400 text-center py-16">{careerError}</p>
         {:else if !career?.weapons?.length}
-            <p class="text-sm text-zinc-600 text-center py-16">No weapon data available.</p>
+            <div class="text-center py-16">
+                <p class="text-sm text-zinc-600 mb-2">No weapon data yet.</p>
+                <p class="text-[10px] text-zinc-700">Switch to Matches tab to trigger PGCR enrichment.</p>
+            </div>
         {:else}
             <div class="border border-zinc-800/60 overflow-hidden">
                 <table class="w-full text-xs">
                     <thead class="border-b border-zinc-800">
                         <tr>
                             <th class="text-left px-4 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Weapon</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Kills</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Prec%</th>
                             <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Games</th>
                             <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Win%</th>
+                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Avg EGO</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -918,10 +1163,9 @@
                                 {#if w.icon}<img src={w.icon} alt="" class="w-7 h-7 object-cover opacity-80"/>{/if}
                                 <span class="text-zinc-200 font-medium">{w.name}</span>
                             </td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-300">{w.kills.toLocaleString()}</td>
-                            <td class="px-3 py-2 text-right font-mono {w.precRate >= 30 ? 'text-amber-400' : 'text-zinc-400'}">{w.precRate}%</td>
                             <td class="px-3 py-2 text-right font-mono text-zinc-500">{w.games}</td>
                             <td class="px-3 py-2 text-right font-mono {w.winRate >= 55 ? 'text-emerald-400' : w.winRate >= 45 ? 'text-zinc-300' : 'text-red-400'}">{w.winRate}%</td>
+                            <td class="px-3 py-2 text-right font-mono {egoColor(w.avgScore)}">{w.avgScore}</td>
                         </tr>
                         {/each}
                     </tbody>
@@ -936,18 +1180,101 @@
         {:else if careerError}
             <p class="text-sm text-red-400 text-center py-16">{careerError}</p>
         {:else}
+
+            <!-- ── Playstyle alignment ─────────────────────────────────────────── -->
+            {#if career?.playstyle}
+                {@const ps = career.playstyle}
+                <div class="mb-6 bg-zinc-900/40 border border-zinc-800/60 p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Playstyle Alignment</span>
+                        <span class="text-sm font-bold {PLAYSTYLE_COLORS[ps.dominant]?.text ?? 'text-zinc-300'}">
+                            {ps.dominant}
+                        </span>
+                    </div>
+                    <div class="space-y-2">
+                        {#each ps.breakdown as role}
+                            {@const colors = PLAYSTYLE_COLORS[role.label] ?? { bar:'bg-zinc-600', text:'text-zinc-400' }}
+                            <div class="flex items-center gap-3">
+                                <span class="w-16 text-[10px] font-semibold {colors.text}">{role.label}</span>
+                                <div class="flex-1 h-1.5 bg-zinc-800">
+                                    <div class="h-full {colors.bar} transition-all duration-500"
+                                         style="width:{role.pct}%"></div>
+                                </div>
+                                <span class="w-8 text-right text-[10px] font-mono {colors.text}">{role.pct}%</span>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+
+            <!-- ── Best ally / Nemesis highlights ─────────────────────────────── -->
+            {#if career?.bestAlly || career?.nemesis}
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    {#if career.bestAlly}
+                        <div class="bg-emerald-900/10 border border-emerald-800/40 p-3">
+                            <div class="text-[9px] font-semibold text-emerald-600 tracking-widest uppercase mb-1">Best Ally</div>
+                            <a href="/profile/{career.bestAlly.name.replace('#','/')}"
+                               class="text-sm font-semibold text-emerald-300 hover:text-emerald-200 transition-colors truncate block">
+                                {career.bestAlly.name}
+                            </a>
+                            <div class="text-[10px] text-zinc-500 mt-0.5">
+                                {career.bestAlly.as_ally} matches · {career.bestAlly.winRate}% WR together
+                            </div>
+                        </div>
+                    {/if}
+                    {#if career.nemesis}
+                        <div class="bg-red-900/10 border border-red-800/40 p-3">
+                            <div class="text-[9px] font-semibold text-red-600 tracking-widest uppercase mb-1">Nemesis</div>
+                            <a href="/profile/{career.nemesis.name.replace('#','/')}"
+                               class="text-sm font-semibold text-red-300 hover:text-red-200 transition-colors truncate block">
+                                {career.nemesis.name}
+                            </a>
+                            <div class="text-[10px] text-zinc-500 mt-0.5">
+                                {career.nemesis.as_enemy} matches · {career.nemesis.winRate}% WR vs you
+                            </div>
+                        </div>
+                    {/if}
+                </div>
+            {/if}
+
+            <!-- ── Class compare ─────────────────────────────────────────────── -->
+            {#if career?.classStats?.some(c => c.games > 0)}
+                <div class="mb-6">
+                    <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-2">Class Performance</div>
+                    <div class="flex gap-3">
+                        {#each career.classStats.filter(c => c.games > 0) as cls}
+                            <div class="flex-1 bg-zinc-900/40 border border-zinc-800/60 p-3 text-center">
+                                <div class="text-[10px] text-zinc-500 mb-1">{cls.className}</div>
+                                <div class="text-2xl font-mono font-light text-zinc-200">{cls.games}</div>
+                                <div class="text-[10px] text-zinc-600">games</div>
+                                <div class="text-xs font-semibold {cls.winRate >= 55 ? 'text-emerald-400' : cls.winRate >= 45 ? 'text-zinc-300' : 'text-red-400'} mt-1">
+                                    {cls.winRate}% WR
+                                </div>
+                                <div class="text-[10px] {egoColor(cls.avgScore)} mt-0.5">
+                                    {cls.avgScore} avg EGO
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+
+            <!-- ── Allies + Rivals tables ──────────────────────────────────────── -->
             <div class="grid grid-cols-2 gap-6">
                 <!-- Allies -->
                 <div>
                     <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-2">Frequent Allies</div>
                     {#if !career?.allies?.length}
-                        <p class="text-xs text-zinc-600 py-8 text-center">Not enough data.</p>
+                        <p class="text-xs text-zinc-600 py-8 text-center">Not enough data yet.</p>
                     {:else}
                         <div class="border border-zinc-800/60 overflow-hidden">
                             {#each career.allies as p}
                             <a href="/profile/{p.name.replace('#','/')}"
                                class="flex items-center justify-between px-3 py-2 border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
-                                <span class="text-zinc-300 text-xs font-medium truncate">{p.name}</span>
+                                <div class="min-w-0">
+                                    <span class="text-zinc-300 text-xs font-medium truncate block">{p.name}</span>
+                                    <span class="text-[9px] text-zinc-600">{p.className}</span>
+                                </div>
                                 <div class="flex items-center gap-3 shrink-0 ml-2">
                                     <span class="text-[10px] text-zinc-600">{p.as_ally} together</span>
                                     <span class="text-[10px] font-mono {p.winRate >= 55 ? 'text-emerald-400' : 'text-zinc-400'}">{p.winRate}% WR</span>
@@ -962,13 +1289,16 @@
                 <div>
                     <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-2">Frequent Rivals</div>
                     {#if !career?.rivals?.length}
-                        <p class="text-xs text-zinc-600 py-8 text-center">Not enough data.</p>
+                        <p class="text-xs text-zinc-600 py-8 text-center">Not enough data yet.</p>
                     {:else}
                         <div class="border border-zinc-800/60 overflow-hidden">
                             {#each career.rivals as p}
                             <a href="/profile/{p.name.replace('#','/')}"
                                class="flex items-center justify-between px-3 py-2 border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
-                                <span class="text-zinc-300 text-xs font-medium truncate">{p.name}</span>
+                                <div class="min-w-0">
+                                    <span class="text-zinc-300 text-xs font-medium truncate block">{p.name}</span>
+                                    <span class="text-[9px] text-zinc-600">{p.className}</span>
+                                </div>
                                 <div class="flex items-center gap-3 shrink-0 ml-2">
                                     <span class="text-[10px] text-zinc-600">{p.as_enemy} vs</span>
                                     <span class="text-[10px] font-mono {p.winRate >= 55 ? 'text-emerald-400' : p.winRate >= 45 ? 'text-zinc-400' : 'text-red-400'}">{p.winRate}% WR</span>
@@ -988,9 +1318,12 @@
         {:else if careerError}
             <p class="text-sm text-red-400 text-center py-16">{careerError}</p>
         {:else if !career?.maps?.length}
-            <p class="text-sm text-zinc-600 text-center py-16">No map data available.</p>
+            <div class="text-center py-16">
+                <p class="text-sm text-zinc-600 mb-2">No map data available yet.</p>
+                <p class="text-[10px] text-zinc-700">Switch to Matches tab to trigger PGCR enrichment.</p>
+            </div>
         {:else}
-            <div class="border border-zinc-800/60 overflow-hidden">
+            <div class="border border-zinc-800/60 overflow-hidden mb-6">
                 <table class="w-full text-xs">
                     <thead class="border-b border-zinc-800">
                         <tr>
@@ -998,7 +1331,7 @@
                             <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Games</th>
                             <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Wins</th>
                             <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Win%</th>
-                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">K/D</th>
+                            <th class="text-right px-3 py-2 text-[10px] text-zinc-600 font-semibold tracking-widest uppercase">Avg EGO</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1008,11 +1341,85 @@
                             <td class="px-3 py-2 text-right font-mono text-zinc-400">{m.games}</td>
                             <td class="px-3 py-2 text-right font-mono text-zinc-400">{m.wins}</td>
                             <td class="px-3 py-2 text-right font-mono {m.winRate >= 55 ? 'text-emerald-400' : m.winRate >= 45 ? 'text-zinc-300' : 'text-red-400'}">{m.winRate}%</td>
-                            <td class="px-3 py-2 text-right font-mono text-zinc-300">{m.kd}</td>
+                            <td class="px-3 py-2 text-right font-mono {egoColor(m.avgScore)}">{m.avgScore > 0 ? m.avgScore : '—'}</td>
                         </tr>
                         {/each}
                     </tbody>
                 </table>
+            </div>
+
+            <!-- ── Hourly performance chart ──────────────────────────────────── -->
+            {#if career?.hourlyStats?.some(h => h.games > 0)}
+                <div class="bg-zinc-900/40 border border-zinc-800/60 p-4">
+                    <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-3">Best Time to Play (UTC)</div>
+                    <div class="flex items-end gap-px h-16">
+                        {#each career.hourlyStats as h}
+                            {@const maxGames = Math.max(...career.hourlyStats.map(x => x.games))}
+                            {@const heightPct = maxGames > 0 ? (h.games / maxGames) * 100 : 0}
+                            <div class="flex-1 flex flex-col items-center justify-end gap-0.5 group relative cursor-default"
+                                 title="{h.hour}:00 — {h.games} games, {h.winRate}% WR">
+                                <div class="w-full transition-all duration-300 {h.winRate >= 55 ? 'bg-emerald-600/70 group-hover:bg-emerald-500' : h.winRate >= 45 ? 'bg-zinc-600/70 group-hover:bg-zinc-500' : 'bg-red-900/60 group-hover:bg-red-800'}"
+                                     style="height:{Math.max(heightPct, h.games > 0 ? 5 : 0)}%"></div>
+                                <!-- tooltip -->
+                                {#if h.games > 0}
+                                    <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black/90 border border-zinc-700 px-2 py-1 text-[9px] text-zinc-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
+                                        {h.hour}:00 · {h.games}g · {h.winRate}% WR
+                                    </div>
+                                {/if}
+                            </div>
+                        {/each}
+                    </div>
+                    <div class="flex justify-between text-[8px] text-zinc-700 mt-1">
+                        <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span>
+                    </div>
+                </div>
+            {/if}
+        {/if}
+
+    <!-- ══════════════════════════════════ TROPHIES ══ -->
+    {:else if tab === 'trophies'}
+        {#if careerLoading}
+            <div class="space-y-1">{#each Array(8) as _}<div class="h-10 bg-zinc-900/50 border border-zinc-800/30 animate-pulse"></div>{/each}</div>
+        {:else if careerError}
+            <p class="text-sm text-red-400 text-center py-16">{careerError}</p>
+        {:else if !career?.medals?.length}
+            <div class="text-center py-16">
+                <div class="text-zinc-700 text-4xl mb-3">◈</div>
+                <p class="text-zinc-600 text-sm mb-2">No medals collected yet.</p>
+                <p class="text-[10px] text-zinc-700">Switch to Matches tab to trigger PGCR enrichment.</p>
+            </div>
+        {:else}
+            <!-- Carry summary -->
+            {#if career.carryPct > 0 || career.carriedPct > 0}
+                <div class="flex gap-3 mb-6">
+                    <div class="flex-1 bg-amber-900/10 border border-amber-800/30 p-3 text-center">
+                        <div class="text-[10px] text-amber-600/80 uppercase tracking-widest mb-1">Hard Carry</div>
+                        <div class="text-3xl font-mono font-light text-amber-400">{career.carryPct}%</div>
+                        <div class="text-[10px] text-zinc-600 mt-0.5">{career.carries} of {career.matchesAnalyzed} matches</div>
+                    </div>
+                    <div class="flex-1 bg-zinc-900/40 border border-zinc-800/60 p-3 text-center">
+                        <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Carried</div>
+                        <div class="text-3xl font-mono font-light text-zinc-400">{career.carriedPct}%</div>
+                        <div class="text-[10px] text-zinc-600 mt-0.5">{career.carried} of {career.matchesAnalyzed} matches</div>
+                    </div>
+                    <div class="flex-1 bg-zinc-900/40 border border-zinc-800/60 p-3 text-center">
+                        <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Avg EGO</div>
+                        <div class="text-3xl font-mono font-light {egoColor(career.avgScore)}">{career.avgScore}</div>
+                        <div class="text-[10px] text-zinc-600 mt-0.5">{career.matchesAnalyzed} matches analyzed</div>
+                    </div>
+                </div>
+            {/if}
+
+            <!-- Medal wall -->
+            <div class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase mb-3">Medal Wall</div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {#each career.medals as medal}
+                    {@const label = MEDAL_LABELS[medal.key] ?? medal.key}
+                    <div class="bg-zinc-900/40 border border-zinc-800/60 px-3 py-2.5 flex items-center justify-between gap-2 hover:border-zinc-700 transition-colors">
+                        <span class="text-xs text-zinc-300 truncate">{label}</span>
+                        <span class="text-sm font-mono font-bold text-amber-400 shrink-0">{medal.count.toLocaleString()}</span>
+                    </div>
+                {/each}
             </div>
         {/if}
 

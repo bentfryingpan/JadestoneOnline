@@ -106,7 +106,8 @@ export function calcEgo(stats) {
     const dbKd    = { 1: 25,   2: 28,   3: 31,   4: 35   }[fts] ?? 25;
     if (moteEff > dbMote) pem += Math.floor((moteEff - dbMote) / 5) * 0.02;
     else if (moteEff < dbMote) pem *= (1.0 - ((dbMote - moteEff) * 0.004));
-    const simpleKd = ((stats.kills ?? 0) + (stats.invasionKills ?? 0)) / Math.max(1, stats.deaths ?? 0);
+    // simpleKd = totalKills / deaths  (mobKills + invasionKills = kills, so no double-count)
+    const simpleKd = (stats.kills ?? 0) / Math.max(1, stats.deaths ?? 0);
     if (simpleKd > dbKd) pem += Math.floor((simpleKd - dbKd) / 8) * 0.01;
 
     return {

@@ -19,6 +19,7 @@ import { json } from '@sveltejs/kit';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 import { calcEgo } from '$lib/server/ego.js';
 import { getActivityDef } from '$lib/server/manifest.js';
+import { supabaseAdmin } from '$lib/supabase-server.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const HISTORY_TTL = 120_000; // 2 min — recent matches change quickly
@@ -143,6 +144,34 @@ export async function GET({ url, setHeaders }) {
             ego,
         };
     }));
+
+    // ── Merge Supabase enriched data (fireteam size, carry flags, accurate EGO) ─
+    const instanceIds = matches.map(m => m.instanceId).filter(Boolean);
+    if (instanceIds.length > 0) {
+        try {
+            const { data: enriched } = await supabaseAdmin
+                .from('player_matches')
+                .select('pgcr_id,fireteam_size,is_hard_carry,is_carried,ego_score,map_name')
+                .eq('player_id', parseInt(membershipId))
+                .in('pgcr_id', instanceIds);
+
+            if (enriched?.length) {
+                const byId = Object.fromEntries(enriched.map(r => [r.pgcr_id, r]));
+                for (const m of matches) {
+                    const e = byId[m.instanceId];
+                    if (e) {
+                        m.fireteam_size = e.fireteam_size ?? 1;
+                        m.is_hard_carry = e.is_hard_carry ?? false;
+                        m.is_carried    = e.is_carried    ?? false;
+                        if (e.ego_score != null) {
+                            m.ego = m.ego ? { ...m.ego, finalScore: e.ego_score } : { finalScore: e.ego_score };
+                        }
+                        if (e.map_name) m.mapName = e.map_name;
+                    }
+                }
+            }
+        } catch { /* table not yet created — harmless */ }
+    }
 
     const result = {
         matches,
