@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { getActivityDef, getItemDef, getAllMedals } from '$lib/server/manifest.js';
+import { calculateEgoScore, extractMedals, detectRole } from '$lib/ego.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
@@ -192,14 +193,43 @@ export async function GET({ url, setHeaders }) {
             else            playersAgg[fullName].as_enemy++;
         }
 
-        // ── Carry / carried detection ────────────────────────────────────────
-        const myKills  = gv(myEntry.values, 'kills');
-        const teammates = pgcr.entries?.filter(e => gv(e.values, 'team') === myTeamId) ?? [];
-        const teamKills = teammates.reduce((s, e) => s + gv(e.values, 'kills'), 0);
-        const teamAvg   = teamKills / Math.max(1, teammates.length);
-
-        if (myKills > teamAvg * 1.5 && myKills > 10) totalCarries++;
-        if (myKills < teamAvg * 0.4 && teamKills > 20) totalCarried++;
+        // ── Carry / carried detection (Python algorithm via ego.js) ─────────
+        const myTeamEntries = pgcr.entries?.filter(e => gv(e.values, 'team') === myTeamId) ?? [];
+        // Score each teammate using EGO for accurate carry detection
+        const teamScores = myTeamEntries.map(e => {
+            const mobK = Math.max(0, gv(e.values, 'kills') - (e.extended?.values?.invasionKills?.basic?.value ?? 0));
+            const result = calculateEgoScore({
+                mobKills:       mobK,
+                invasionKills:  e.extended?.values?.invasionKills?.basic?.value ?? 0,
+                motesDenied:    e.extended?.values?.motesDenied?.basic?.value ?? 0,
+                motesDeposited: e.extended?.values?.motesDeposited?.basic?.value ?? 0,
+                motesPickedUp:  e.extended?.values?.motesPickedUp?.basic?.value ?? 0,
+                primevalDamage: e.extended?.values?.primevalDamage?.basic?.value ?? 0,
+                deaths:         gv(e.values, 'deaths'),
+                assists:        gv(e.values, 'assists'),
+                medals:         extractMedals(e.extended?.values ?? {}),
+                fireteam_size:  myTeamEntries.length,
+            });
+            return result.finalScore;
+        });
+        const myScore = (() => {
+            const mobK = Math.max(0, gv(myEntry.values, 'kills') - (myEntry.extended?.values?.invasionKills?.basic?.value ?? 0));
+            return calculateEgoScore({
+                mobKills:       mobK,
+                invasionKills:  myEntry.extended?.values?.invasionKills?.basic?.value ?? 0,
+                motesDenied:    myEntry.extended?.values?.motesDenied?.basic?.value ?? 0,
+                motesDeposited: myEntry.extended?.values?.motesDeposited?.basic?.value ?? 0,
+                motesPickedUp:  myEntry.extended?.values?.motesPickedUp?.basic?.value ?? 0,
+                primevalDamage: myEntry.extended?.values?.primevalDamage?.basic?.value ?? 0,
+                deaths:         gv(myEntry.values, 'deaths'),
+                assists:        gv(myEntry.values, 'assists'),
+                medals:         extractMedals(myEntry.extended?.values ?? {}),
+                fireteam_size:  myTeamEntries.length,
+            }).finalScore;
+        })();
+        const { isCarry, isCarried } = detectRole(myScore, teamScores);
+        if (isCarry) totalCarries++;
+        if (isCarried) totalCarried++;
     }
 
     // ── 6. Sort and serialize ─────────────────────────────────────────────────

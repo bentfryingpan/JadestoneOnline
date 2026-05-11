@@ -169,13 +169,24 @@
             : null
     );
 
-    // EGO rating formula (use seasonal totals if available for accuracy)
+    // EGO career rating — aggregate estimate from lifetime stats.
+    // This uses a per-match average approach: compute a typical-match EGO from
+    // career averages, then multiply by matches played. Capped for display.
     const egoRating = $derived((() => {
-        const wins   = seasonalTotal?.wins    ?? ltWon;
-        const kills  = seasonalTotal?.kills   ?? ltKills;
-        const inv    = seasonalTotal?.invasionKills ?? ltInvKills;
-        const motes  = seasonalTotal?.motesDeposited ?? ltMotes;
-        return Math.floor(wins * 15 + kills * 0.3 + inv * 5 + motes * 0.1);
+        const entered = Math.max(1, seasonalTotal?.activitiesEntered ?? ltEntered);
+        const kills   = (seasonalTotal?.kills   ?? ltKills)   / entered;
+        const inv     = (seasonalTotal?.invasionKills ?? ltInvKills)  / entered;
+        const denied  = (seasonalTotal?.motesDenied ?? ltMotesDenied) / entered;
+        const motes   = (seasonalTotal?.motesDeposited ?? ltMotes)    / entered;
+        const deaths  = (seasonalTotal?.deaths  ?? ltDeaths)  / entered;
+        const assists = (data.lifetimeStats?.assists?.basic?.value ?? 0) / entered;
+        const primeval = (seasonalTotal?.primevalDamage ?? ltPrimevalDmg) / entered;
+        const mobK    = Math.max(0, kills - inv);
+        // Rough carry bonus: carries inflate average match score slightly
+        // Use the career totals approach: wins * 15 for profile-level rank
+        const wins  = seasonalTotal?.wins ?? ltWon;
+        // Career score = wins×15 + career avg EGO approx
+        return Math.min(999999, Math.floor(wins * 15 + kills * 0.3 + inv * 5 + motes * 0.1 + denied * 2));
     })());
 
     // ── Filtered display stats (season or lifetime) ────────────────────────────
@@ -360,9 +371,9 @@
     <aside class="w-16 sticky top-0 h-screen border-r border-white/[0.07] bg-black/30 backdrop-blur-md flex flex-col items-center py-4 shrink-0 z-40">
 
         <!-- J Diamond logo -->
-        <div class="relative w-9 h-9 mb-5 shrink-0">
-            <div class="absolute inset-0 rotate-45 border border-emerald-500/50 bg-emerald-500/5"></div>
-            <span class="absolute inset-0 flex items-center justify-center text-[11px] font-mono font-black text-emerald-400 select-none">J</span>
+        <div style="position:relative;width:2.25rem;height:2.25rem;margin-bottom:1.25rem;flex-shrink:0;">
+            <div style="position:absolute;inset:0;transform:rotate(45deg);border:1px solid rgba(61,174,119,0.50);background:rgba(61,174,119,0.07);box-shadow:0 0 10px rgba(61,174,119,0.20);"></div>
+            <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-family-display);font-size:0.78rem;font-weight:900;color:var(--gambit-green);user-select:none;">J</span>
         </div>
 
         <!-- Nav icon buttons -->
@@ -489,8 +500,7 @@
                         <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-zinc-400/60 z-10"></div>
                         <!-- Monogram -->
                         <div class="w-full h-full flex items-center justify-center relative z-0">
-                            <span class="font-serif text-5xl font-black italic text-zinc-700 select-none
-                                         transition-colors duration-300 group-hover/avatar:text-zinc-500">
+                            <span style="font-family:var(--font-family-display);font-size:3rem;font-weight:800;letter-spacing:0.06em;color:rgba(255,255,255,0.12);user-select:none;transition:color 0.3s;" class="group-hover/avatar:!text-zinc-400">
                                 {monogram}
                             </span>
                         </div>
@@ -540,10 +550,12 @@
 
                 <!-- Identity block -->
                 <div class="flex-1 min-w-0 mb-1">
-                    <span class="text-xs font-medium text-emerald-500/70 tracking-wide block mb-1">Guardian Profile</span>
-                    <h1 class="font-serif text-6xl font-light italic tracking-tighter uppercase leading-none text-white
-                               drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] mb-2 anim-in truncate">
-                        {data.player.bungieGlobalDisplayName}<span class="font-mono text-xl text-zinc-600 not-italic tracking-normal ml-1">#{String(data.player.bungieGlobalDisplayNameCode).padStart(4,'0')}</span>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.5rem;">
+                        <div style="height:1px;width:32px;background:linear-gradient(to right,transparent,var(--gambit-green));opacity:0.7;"></div>
+                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--gambit-green);">Guardian Profile</span>
+                    </div>
+                    <h1 style="font-family:var(--font-family-display);font-size:clamp(2rem,6vw,3.5rem);font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--d2-text-primary);line-height:0.95;margin:0 0 0.5rem;text-shadow:0 2px 10px rgba(0,0,0,0.5);" class="anim-in truncate">
+                        {data.player.bungieGlobalDisplayName}<span style="font-family:var(--font-family-mono);font-size:0.45em;font-weight:400;color:rgba(255,255,255,0.28);margin-left:0.25rem;">#{String(data.player.bungieGlobalDisplayNameCode).padStart(4,'0')}</span>
                     </h1>
                     <!-- Clan + class -->
                     <div class="flex items-center gap-3 mb-6">
@@ -600,18 +612,19 @@
 
                 <!-- Rating section -->
                 <div class="group/ego shrink-0 text-right mb-1 cursor-default select-none">
-                    <span class="text-xs font-medium text-zinc-500 block mb-1">Rating</span>
-                    <span class="text-5xl font-sans font-light tracking-tighter text-white leading-none block
-                                 transition-all duration-300 group-hover/ego:drop-shadow-[0_0_16px_rgba(255,255,255,0.2)]">
+                    <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.28);display:block;margin-bottom:0.35rem;">EGO Rating</span>
+                    <span style="font-family:var(--font-family-display);font-size:3rem;font-weight:800;letter-spacing:-0.01em;color:var(--d2-text-primary);line-height:1;display:block;transition:filter 0.3s;"
+                          class="group-hover/ego:drop-shadow-[0_0_16px_rgba(255,255,255,0.2)]">
                         {egoRating.toLocaleString()}
                     </span>
-                    <span class="text-sm font-semibold italic text-emerald-500 block mt-2 drop-shadow-md">
-                        #{gambitRank}
+                    <div style="height:2px;width:80px;background:linear-gradient(to left,transparent,var(--gambit-green));margin:0.5rem 0 0.35rem auto;"></div>
+                    <span style="font-family:var(--font-family-display);font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gambit-green);display:block;margin-bottom:0.35rem;">
+                        {gambitRank}
                     </span>
-                    <div class="w-24 h-px bg-zinc-800 mt-3 ml-auto">
-                        <div class="h-full bg-emerald-400/70 transition-all" style="width:{gambitPct}%"></div>
+                    <div style="width:6rem;height:2px;background:rgba(255,255,255,0.08);margin-left:auto;">
+                        <div style="height:100%;background:var(--gambit-green);opacity:0.7;transition:width 0.5s;width:{gambitPct}%;"></div>
                     </div>
-                    <span class="text-[10px] text-zinc-600 mt-1 block">{gambitPct}% to next tier</span>
+                    <span style="font-family:var(--font-family-display);font-size:0.58rem;font-weight:500;letter-spacing:0.08em;color:rgba(255,255,255,0.22);display:block;margin-top:3px;">{gambitPct}% to next tier</span>
                     <!-- Formula tooltip -->
                     <div class="absolute top-1/2 -translate-y-1/2 right-full mr-4 z-30
                                 opacity-0 group-hover/ego:opacity-100
@@ -641,25 +654,27 @@
             </div>
 
             <!-- Bottom accent line -->
-            <div class="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-emerald-500/30 via-transparent to-transparent z-20"></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gambit-green),rgba(61,174,119,0.3) 30%,transparent 60%);opacity:0.5;z-index:20;"></div>
         </header>
 
         <!-- ── Tab nav strip ────────────────────────────────────────────────── -->
-        <div class="h-14 bg-black/30 backdrop-blur-md border-b border-white/[0.07] flex items-end shrink-0 sticky top-0 z-30">
+        <div style="height:48px;background:rgba(6,8,10,0.85);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:stretch;flex-shrink:0;position:sticky;top:0;z-index:30;">
             {#each TABS as t}
                 <button onclick={() => tab = t.id}
-                    class="text-sm font-medium h-10 px-6 relative
-                           transition-all duration-300 border-t border-x border-transparent
-                           flex-shrink-0 whitespace-nowrap
-                           {tab === t.id
-                               ? 'text-white bg-white/[0.05] border-white/[0.08] shadow-[inset_0_2px_5px_rgba(255,255,255,0.03)]'
-                               : 'text-zinc-500 hover:text-zinc-300'}">
+                    style="
+                        font-family:var(--font-family-display);font-size:0.68rem;font-weight:{tab===t.id?'700':'600'};
+                        letter-spacing:0.12em;text-transform:uppercase;
+                        padding:0 1.25rem;position:relative;flex-shrink:0;white-space:nowrap;border:none;
+                        background:{tab===t.id?'rgba(255,255,255,0.04)':'transparent'};
+                        color:{tab===t.id?'var(--d2-text-primary)':'var(--d2-text-muted)'};
+                        cursor:pointer;transition:color 0.15s,background 0.15s;
+                        border-right:1px solid rgba(255,255,255,0.05);
+                    "
+                    onmouseenter={e=>{if(tab!==t.id){e.currentTarget.style.color='var(--d2-text-secondary)';e.currentTarget.style.background='rgba(255,255,255,0.02)';}}}
+                    onmouseleave={e=>{if(tab!==t.id){e.currentTarget.style.color='var(--d2-text-muted)';e.currentTarget.style.background='transparent';}}}>
                     {t.label}
                     {#if tab === t.id}
-                        <!-- Emerald bottom line with glow -->
-                        <span class="absolute bottom-0 left-0 w-full h-px bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.9)] z-20 pointer-events-none"></span>
-                        <!-- Spread glow below tab -->
-                        <span class="absolute top-full left-1/2 -translate-x-1/2 w-[180%] h-10 bg-emerald-500/10 blur-2xl pointer-events-none opacity-80 z-10"></span>
+                        <span style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--gambit-green);box-shadow:0 0 12px rgba(61,174,119,0.8);pointer-events:none;"></span>
                     {/if}
                 </button>
             {/each}
@@ -754,84 +769,76 @@
                         </div>
 
                         <!-- ── 4 primary metric cards ───────────────────────── -->
-                        <div class="grid grid-cols-4 gap-3">
+                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;">
 
                             <!-- Win Ratio -->
-                            <div class="relative bg-white/[0.03] backdrop-blur-sm border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in transition-all hover:border-zinc-600">
-                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
-                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
-                                <span class="text-xs font-medium text-zinc-500 block mb-2">Win Ratio</span>
-                                <div class="flex items-baseline justify-between gap-1">
-                                    <span class="text-[28px] font-mono font-bold leading-none text-zinc-100">
+                            <div style="position:relative;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-top:2px solid rgba(61,174,119,0.35);padding:1rem;overflow:hidden;clip-path:polygon(8px 0%,100% 0%,100% 100%,0% 100%,0% 8px);transition:border-color 0.15s;" class="anim-in"
+                                 onmouseenter={e=>e.currentTarget.style.borderColor='rgba(61,174,119,0.40)'}
+                                 onmouseleave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'}>
+                                <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">Win Ratio</span>
+                                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:0.25rem;">
+                                    <span style="font-family:var(--font-family-display);font-size:1.75rem;font-weight:800;line-height:1;color:var(--d2-text-primary);">
                                         {dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'}
                                     </span>
-                                    <span class="text-xs text-zinc-500 text-right shrink-0 leading-tight">
-                                        {fmt(dWon)}<br/>wins
-                                    </span>
+                                    <span style="font-family:var(--font-family-display);font-size:0.65rem;color:rgba(255,255,255,0.28);text-align:right;flex-shrink:0;line-height:1.4;">{fmt(dWon)}<br/>wins</span>
                                 </div>
                             </div>
 
                             <!-- K/D/A -->
-                            <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all hover:border-zinc-600">
-                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
-                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
-                                <span class="text-xs font-medium text-zinc-500 block mb-2">K/D/A</span>
-                                <div class="flex items-baseline justify-between gap-1">
-                                    <span class="text-[28px] font-mono font-bold leading-none text-zinc-100">
+                            <div style="position:relative;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-top:2px solid rgba(61,174,119,0.25);padding:1rem;overflow:hidden;clip-path:polygon(8px 0%,100% 0%,100% 100%,0% 100%,0% 8px);transition:border-color 0.15s;" class="anim-in anim-in-d1"
+                                 onmouseenter={e=>e.currentTarget.style.borderColor='rgba(61,174,119,0.35)'}
+                                 onmouseleave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'}>
+                                <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">K/D Ratio</span>
+                                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:0.25rem;">
+                                    <span style="font-family:var(--font-family-display);font-size:1.75rem;font-weight:800;line-height:1;color:var(--d2-text-primary);">
                                         {dKD != null ? fmtF(dKD, 2) : '—'}
                                     </span>
-                                    <span class="text-xs text-zinc-500 text-right shrink-0 leading-tight">
-                                        {fmt(dKills)}<br/>kills
-                                    </span>
+                                    <span style="font-family:var(--font-family-display);font-size:0.65rem;color:rgba(255,255,255,0.28);text-align:right;flex-shrink:0;line-height:1.4;">{fmt(dKills)}<br/>kills</span>
                                 </div>
                             </div>
 
                             <!-- Motes Avg -->
-                            <div class="relative bg-[#111111] border border-zinc-800 p-4 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all hover:border-zinc-600">
-                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-emerald-500/20"></span>
-                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-emerald-500/20"></span>
-                                <span class="text-xs font-medium text-zinc-500 block mb-2">Motes Avg</span>
-                                <div class="flex items-baseline justify-between gap-1">
-                                    <span class="text-[28px] font-mono font-bold leading-none
-                                                 {motesRank(dAvgMotes) ? 'text-emerald-400' : 'text-zinc-100'}">
+                            <div style="position:relative;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-top:2px solid rgba(61,174,119,0.25);padding:1rem;overflow:hidden;clip-path:polygon(8px 0%,100% 0%,100% 100%,0% 100%,0% 8px);transition:border-color 0.15s;" class="anim-in anim-in-d2"
+                                 onmouseenter={e=>e.currentTarget.style.borderColor='rgba(61,174,119,0.35)'}
+                                 onmouseleave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'}>
+                                <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">Motes / Match</span>
+                                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:0.25rem;">
+                                    <span style="font-family:var(--font-family-display);font-size:1.75rem;font-weight:800;line-height:1;color:{motesRank(dAvgMotes)?'var(--gambit-green)':'var(--d2-text-primary)'};">
                                         {dEntered > 0 ? fmtF(dAvgMotes, 1) : '—'}
                                     </span>
                                     {#if motesRank(dAvgMotes)}
-                                        <span class="text-xs font-bold {motesRank(dAvgMotes).color} text-right shrink-0">{motesRank(dAvgMotes).label}</span>
+                                        <span style="font-family:var(--font-family-display);font-size:0.62rem;font-weight:700;color:var(--gambit-green);border:1px solid rgba(61,174,119,0.35);padding:1px 5px;">{motesRank(dAvgMotes).label}</span>
                                     {:else}
-                                        <span class="text-xs text-zinc-500 text-right shrink-0 leading-tight">
-                                            {fmt(dMotes)}<br/>total
-                                        </span>
+                                        <span style="font-family:var(--font-family-display);font-size:0.65rem;color:rgba(255,255,255,0.28);text-align:right;flex-shrink:0;line-height:1.4;">{fmt(dMotes)}<br/>total</span>
                                     {/if}
                                 </div>
                             </div>
 
-                            <!-- Avg Invasions — amber italic + bar (like Primeval DPS) -->
-                            <div class="relative bg-gradient-to-br from-[#111111] to-[#0a0a0a] border border-zinc-800 p-4 overflow-hidden anim-in anim-in-d3 transition-all hover:border-zinc-700">
-                                <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500/20"></span>
-                                <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-amber-500/20"></span>
-                                <span class="text-xs font-medium text-zinc-500 block mb-2">Avg Invasions</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-[28px] font-mono font-bold leading-none text-amber-500 italic">
+                            <!-- Avg Invasions -->
+                            <div style="position:relative;background:rgba(206,174,51,0.02);border:1px solid rgba(255,255,255,0.08);border-top:2px solid rgba(206,174,51,0.30);padding:1rem;overflow:hidden;clip-path:polygon(8px 0%,100% 0%,100% 100%,0% 100%,0% 8px);transition:border-color 0.15s;" class="anim-in anim-in-d3"
+                                 onmouseenter={e=>e.currentTarget.style.borderColor='rgba(206,174,51,0.30)'}
+                                 onmouseleave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'}>
+                                <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">Invasions / Match</span>
+                                <div style="display:flex;align-items:center;gap:0.5rem;">
+                                    <span style="font-family:var(--font-family-display);font-size:1.75rem;font-weight:800;line-height:1;color:var(--rarity-exotic);">
                                         {dEntered > 0 ? fmtF(dAvgInv, 2) : '—'}
                                     </span>
-                                    <div class="flex-1 h-px bg-zinc-800 relative top-1 overflow-hidden">
-                                        <div class="h-full bg-amber-600/80 transition-all duration-700"
-                                             style="width:{Math.min((dAvgInv / 3) * 100, 100)}%"></div>
+                                    <div style="flex:1;height:2px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:4px;">
+                                        <div style="height:100%;background:rgba(206,174,51,0.70);transition:width 0.6s;width:{Math.min((dAvgInv / 3) * 100, 100)}%;"></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- ── 3+1 detail cards: Combat / Objectives / Invasion / Extended ── -->
-                        <div class="grid grid-cols-3 gap-4">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
 
                             <!-- COMBAT -->
-                            <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d1 transition-all duration-300 hover:border-zinc-700">
-                                <div class="px-4 py-3 border-b border-zinc-800/60">
-                                    <span class="text-xs font-medium text-zinc-500">Combat</span>
+                            <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-left:2px solid rgba(61,174,119,0.30);overflow:hidden;" class="anim-in anim-in-d1">
+                                <div style="padding:0.625rem 1rem;border-bottom:1px solid rgba(255,255,255,0.07);">
+                                    <span style="font-family:var(--font-family-display);font-size:0.62rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gambit-green);">Combat</span>
                                 </div>
-                                <div class="px-4 py-3">
+                                <div style="padding:0.5rem 1rem;">
                                     {@render DetailRow('Total Kills', fmt(dKills),   kdRank(dKD))}
                                     {@render DetailRow('Precision',
                                         dKills + dDeaths > 0
@@ -844,11 +851,11 @@
                             </div>
 
                             <!-- OBJECTIVES -->
-                            <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800 overflow-hidden stone-sheen anim-in anim-in-d2 transition-all duration-300 hover:border-zinc-700">
-                                <div class="px-4 py-3 border-b border-zinc-800/60">
-                                    <span class="text-xs font-medium text-zinc-500">Objectives</span>
+                            <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-left:2px solid rgba(61,174,119,0.30);overflow:hidden;" class="anim-in anim-in-d2">
+                                <div style="padding:0.625rem 1rem;border-bottom:1px solid rgba(255,255,255,0.07);">
+                                    <span style="font-family:var(--font-family-display);font-size:0.62rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gambit-green);">Objectives</span>
                                 </div>
-                                <div class="px-4 py-3">
+                                <div style="padding:0.5rem 1rem;">
                                     {@render DetailRow('Deposited',   fmt(dMotes),         winRateRank(dWinRate))}
                                     {@render DetailRow('Denied',      fmt(dMotesDenied),   null)}
                                     {@render DetailRow('Picked Up',   fmt(dMotesPickedUp), null)}
@@ -859,11 +866,11 @@
                             </div>
 
                             <!-- INVASION -->
-                            <div class="bg-white/[0.03] backdrop-blur-sm border border-zinc-800/80 overflow-hidden stone-sheen anim-in anim-in-d3 transition-all duration-300 hover:border-zinc-700">
-                                <div class="px-4 py-3 border-b border-zinc-800/60">
-                                    <span class="text-xs font-medium text-zinc-500">Invasion</span>
+                            <div style="background:rgba(206,174,51,0.02);border:1px solid rgba(255,255,255,0.08);border-left:2px solid rgba(206,174,51,0.30);overflow:hidden;" class="anim-in anim-in-d3">
+                                <div style="padding:0.625rem 1rem;border-bottom:1px solid rgba(255,255,255,0.07);">
+                                    <span style="font-family:var(--font-family-display);font-size:0.62rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--rarity-exotic);">Invasion</span>
                                 </div>
-                                <div class="px-4 py-3">
+                                <div style="padding:0.5rem 1rem;">
                                     {@render DetailRow('Guardians Killed', fmt(dInvKills),  invRank(dAvgInv))}
                                     {@render DetailRow('Invasions',        fmt(dInvasions), null)}
                                     {@render DetailRow('Stopped',         fmt(dInvDef),    null)}

@@ -1,6 +1,7 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { error } from '@sveltejs/kit';
 import { getItemDef, getActivityDef, getAllMedals } from '$lib/server/manifest.js';
+import { calculateEgoScore, extractMedals, detectRole } from '$lib/ego.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
@@ -8,99 +9,6 @@ const PGCR_ROOT   = 'https://stats.bungie.net';
 async function bungieGet(url, root = BUNGIE_ROOT) {
     const res = await fetch(root + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
     return res.json();
-}
-
-// ── EGO Scoring Engine (ported from Jadestone desktop app config.py / scoring.py) ─
-const ALGO_CONFIG = {
-    dr_rate: 0.05, medal_dr_rate: 0.15,
-    base_values: {
-        mobKills: 0.19, assists: 0.08, motesDenied: 0.99, invasionKills: 1.90,
-        motesDeposited: 0.58, primevalDamage: 0.00041, deaths: -5.0, wastedMotes: -0.25
-    },
-    medal_values: {
-        notOnMyWatch: 5.34, armyOfOne: 2.02, locksmith: 2.94, blockbuster: 3.96,
-        rapidPayback: 4.14, massacre: 2.48, motesHaveBeen: 2.94, halfBanked: 2.48,
-        firstToBlock: 2.12, payback: 1.66, overkillmonger: 1.29, killmonger: 0.83,
-        thrillmonger: 0.46, fastFill: 1.29, killAfterInvasion: 0.83, bigGameHunter: 0.64,
-        lastGuardianStanding: 0.46, noEscape: 0.46
-    }
-};
-
-function calcDR(cnt, val, rate) {
-    let total = 0, cur = val;
-    for (let i = 0; i < Math.floor(cnt); i++) { total += cur; cur *= (1 - rate); }
-    return total;
-}
-
-function calcEgo(stats) {
-    const v = ALGO_CONFIG.base_values, dr = ALGO_CONFIG.dr_rate, mdr = ALGO_CONFIG.medal_dr_rate;
-    let pve = 0, pvp = 0, obj = 0, med = 0;
-    const fts = stats.fireteamSize ?? 1;
-
-    // PvE: mob kills (total kills minus invasion kills) + primeval damage
-    const mobK = Math.max(0, (stats.kills ?? 0) - (stats.invasionKills ?? 0));
-    pve += calcDR(mobK, v.mobKills, dr);
-    const dmg = stats.primevalDamage ?? 0;
-    const chunks = Math.floor(dmg / 10000);
-    pve += calcDR(chunks, 10000 * v.primevalDamage, dr)
-         + ((dmg % 10000) * (v.primevalDamage * Math.pow(1 - dr, chunks)));
-
-    // PvP: invasion kills + motes denied
-    pvp += calcDR(stats.invasionKills ?? 0, v.invasionKills, dr);
-    pvp += calcDR(stats.motesDenied   ?? 0, v.motesDenied,  dr);
-
-    // Banking: motes deposited
-    obj += calcDR(stats.motesDeposited ?? 0, v.motesDeposited, dr);
-
-    // Assists split between PvE and PvP
-    const ast = calcDR(stats.assists ?? 0, v.assists, dr);
-    pve += ast / 2; pvp += ast / 2;
-
-    // Penalties
-    let pen = (stats.deaths ?? 0) * v.deaths;
-    const wasted = Math.max(0, (stats.motesPickedUp ?? 0) - (stats.motesDeposited ?? 0));
-    if (wasted > 0) pen += wasted * v.wastedMotes;
-
-    // Medals
-    for (const [medal, count] of Object.entries(stats.medals ?? {})) {
-        const mv = ALGO_CONFIG.medal_values[medal];
-        if (count > 0 && mv != null) med += calcDR(count, mv, mdr);
-    }
-
-    // Stack multiplier from config
-    const stackMult = { 1: 1.0, 2: 1.1, 3: 1.2, 4: 1.3 }[fts] ?? 1.0;
-    let base = (pve + pvp + obj + med + pen) * stackMult;
-    // Soft cap
-    if (base > 120) base = 100 + (20 * 0.5) + ((base - 120) * 0.25);
-    else if (base > 100) base = 100 + ((base - 100) * 0.5);
-
-    // PEM (Performance Efficiency Multiplier) — exact logic from desktop app
-    let pem = 1.0;
-    const pk = Math.max(stats.motesPickedUp ?? 0, stats.motesDeposited ?? 0);
-    const moteEff = pk > 0 ? ((stats.motesDeposited ?? 0) / pk * 100) : 100.0;
-    const dbMote  = { 1: 77.5, 2: 81.5, 3: 86.0, 4: 90.0 }[fts] ?? 77.5;
-    const dbKd    = { 1: 25,   2: 28,   3: 31,   4: 35   }[fts] ?? 25;
-    if (moteEff > dbMote) pem += Math.floor((moteEff - dbMote) / 5) * 0.02;
-    else if (moteEff < dbMote) pem *= (1.0 - ((dbMote - moteEff) * 0.004));
-    const simpleKd = ((stats.kills ?? 0) + (stats.invasionKills ?? 0)) / Math.max(1, stats.deaths ?? 0);
-    if (simpleKd > dbKd) pem += Math.floor((simpleKd - dbKd) / 8) * 0.01;
-
-    return {
-        basePps: +base.toFixed(1),
-        pem: +pem.toFixed(3),
-        finalScore: +(base * pem).toFixed(1),
-        moteEff: +moteEff.toFixed(1),
-        simpleKd: +simpleKd.toFixed(2),
-        components: {
-            PvE:     +pve.toFixed(1),
-            PvP:     +pvp.toFixed(1),
-            Banking: +obj.toFixed(1),
-            Medals:  +med.toFixed(1),
-        },
-        dynamicMoteBenchmark: dbMote,
-        dynamicKdBenchmark:   dbKd,
-        fireteamSize: fts,
-    };
 }
 
 // ── Medal key mapping — from desktop app MEDAL_PRIMARY_KEYS + MEDAL_ALIASES ───
@@ -286,21 +194,17 @@ function buildPlayer(entry) {
     }
 
     // ── Extract medals from PGCR extended.values ──────────────────────────────
-    // Bungie medal keys use various prefixes and mixed casing with underscores.
-    // Normalise: lowercase + strip underscores, then match against our map.
-    const medals = {};
-    const rawMedals = {}; // store raw keys for icon lookup
+    // Use extractMedals() from ego.js (shared reverse-lookup table)
     const extVals = entry.extended?.values ?? {};
+    const medals = extractMedals(extVals);
+    // Also keep raw key mapping for icon lookup from HistoricalStatsDefinition
+    const rawMedals = {};
     for (const [rawKey, valObj] of Object.entries(extVals)) {
         const count = valObj?.basic?.value ?? 0;
         if (count <= 0) continue;
-        // Normalise: lowercase, strip underscores AND spaces
-        const normKey = rawKey.toLowerCase().replace(/[_\s]/g, '');
+        const normKey  = rawKey.toLowerCase().replace(/[_\s]/g, '');
         const canonical = MEDAL_KEY_MAP[normKey];
-        if (canonical) {
-            medals[canonical] = (medals[canonical] ?? 0) + count;
-            if (!rawMedals[canonical]) rawMedals[canonical] = rawKey; // for icon lookup
-        }
+        if (canonical && !rawMedals[canonical]) rawMedals[canonical] = rawKey;
     }
 
     // ── Extract weapons from extended.weapons ─────────────────────────────────
@@ -381,10 +285,22 @@ export async function load({ params }) {
         p.stats.fireteamSize = ftGroups[p.fireteamId] ?? 1;
     }
 
-    // ── Compute EGO scores ────────────────────────────────────────────────────
+    // ── Compute EGO scores using the real algorithm from ego.js ──────────────
     for (const p of rawPlayers) {
         if (!p.completed) { p.ego = null; continue; }
-        p.ego = calcEgo(p.stats);
+        const mobKills = Math.max(0, (p.stats.kills ?? 0) - (p.stats.invasionKills ?? 0));
+        p.ego = calculateEgoScore({
+            mobKills,
+            invasionKills:  p.stats.invasionKills  ?? 0,
+            motesDenied:    p.stats.motesDenied    ?? 0,
+            motesDeposited: p.stats.motesDeposited ?? 0,
+            motesPickedUp:  p.stats.motesPickedUp  ?? (p.stats.motesDeposited ?? 0),
+            primevalDamage: p.stats.primevalDamage ?? 0,
+            deaths:         p.stats.deaths         ?? 0,
+            assists:        p.stats.assists        ?? 0,
+            medals:         p.medals               ?? {},
+            fireteam_size:  p.stats.fireteamSize   ?? 1,
+        });
     }
 
     // ── Group into teams ──────────────────────────────────────────────────────
@@ -397,18 +313,14 @@ export async function load({ params }) {
 
     function teamWon(players) { return players.some(p => p.standing === 0); }
 
-    // ── Role detection within each team ──────────────────────────────────────
+    // ── Role detection using Python algorithm (carry/carried logic) ───────────
     function detectRoles(players) {
         const completed = players.filter(p => p.ego);
         if (completed.length < 2) return;
-        const scores = completed.map(p => p.ego.finalScore);
-        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-        const max = Math.max(...scores);
+        const allScores = completed.map(p => p.ego.finalScore);
         for (const p of completed) {
-            const s = p.ego.finalScore;
-            p.role = s === max && s > avg * 1.4 ? 'carry'
-                   : s < avg * 0.55             ? 'carried'
-                                                 : 'solid';
+            const { isCarry, isCarried } = detectRole(p.ego.finalScore, allScores);
+            p.role = isCarry ? 'carry' : isCarried ? 'carried' : 'solid';
         }
     }
 
