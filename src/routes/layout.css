@@ -14,6 +14,23 @@
   --font-family-mono:    'JetBrains Mono', ui-monospace, 'Courier New', monospace;
 }
 
+/* ── Tailwind custom utilities ────────────────────────────────────────────── */
+@utility font-display {
+  font-family: var(--font-family-display);
+}
+@utility tracking-destiny {
+  letter-spacing: 0.10em;
+}
+@utility clip-notch {
+  clip-path: polygon(10px 0%, 100% 0%, 100% 100%, 0% 100%, 0% 10px);
+}
+@utility clip-notch-sm {
+  clip-path: polygon(6px 0%, 100% 0%, 100% 100%, 0% 100%, 0% 6px);
+}
+@utility clip-notch-lg {
+  clip-path: polygon(16px 0%, 100% 0%, 100% 100%, 0% 100%, 0% 16px);
+}
+
 /* ── Destiny CSS Custom Properties ────────────────────────────────────────── */
 :root {
   /* ── Backgrounds ── */

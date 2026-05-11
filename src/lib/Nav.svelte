@@ -73,49 +73,84 @@
     }
 </script>
 
-<!-- ── Navigation bar ────────────────────────────────────────────────────────── -->
-<nav class="sticky top-0 z-50 h-14 flex items-center gap-0
-            bg-black/40 backdrop-blur-md border-b border-white/[0.07]">
+<!-- ── Destiny-style Navigation ──────────────────────────────────────────────── -->
+<nav style="
+    position: sticky; top: 0; z-index: 50;
+    height: 48px;
+    display: flex; align-items: stretch;
+    background: rgba(6, 8, 10, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-family: var(--font-family-display);
+">
+    <!-- Gambit accent line at very top -->
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gambit-green) 0%,rgba(61,174,119,0.3) 30%,transparent 60%);pointer-events:none;"></div>
 
-    <!-- Brand diamond + wordmark -->
-    <a href="/" class="flex items-center gap-3 px-5 h-full border-r border-white/[0.07]
-                       hover:bg-white/[0.04] transition-colors shrink-0 group">
-        <div class="w-6 h-6 bg-emerald-500 flex items-center justify-center rotate-45
-                    group-hover:bg-emerald-400 transition-colors shadow-[0_0_12px_rgba(16,185,129,0.4)]">
-            <span class="text-black font-black text-[10px] -rotate-45">J</span>
+    <!-- Brand -->
+    <a href="/" style="
+        display: flex; align-items: center; gap: 10px;
+        padding: 0 20px;
+        border-right: 1px solid rgba(255,255,255,0.07);
+        text-decoration: none;
+        transition: background 0.15s ease;
+        flex-shrink: 0;
+    " onmouseenter={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}
+       onmouseleave={e => e.currentTarget.style.background='transparent'}>
+        <!-- Diamond emblem with gambit green -->
+        <div style="
+            width: 22px; height: 22px;
+            background: var(--gambit-green);
+            display: flex; align-items: center; justify-content: center;
+            transform: rotate(45deg);
+            box-shadow: 0 0 12px rgba(61,174,119,0.5);
+            flex-shrink: 0;
+        ">
+            <span style="transform:rotate(-45deg);font-size:10px;font-weight:900;color:#000;line-height:1;">J</span>
         </div>
-        <span class="text-sm font-semibold text-zinc-400 tracking-wide
-                     group-hover:text-zinc-200 transition-colors hidden sm:block">
-            Jadestone
-        </span>
+        <span style="
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--d2-text-secondary);
+        ">Jadestone</span>
     </a>
 
     <!-- Nav links -->
     {#each links as link}
-        <a href={link.href}
-           class="h-full px-6 flex items-center text-sm font-medium
-                  transition-colors border-r border-white/[0.07] relative
-                  {active.startsWith(link.href)
-                      ? 'text-white bg-white/[0.05]'
-                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03]'}">
+        <a href={link.href} style="
+            display: flex; align-items: center;
+            padding: 0 20px;
+            border-right: 1px solid rgba(255,255,255,0.07);
+            text-decoration: none;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            position: relative;
+            transition: color 0.15s ease, background 0.15s ease;
+            color: {active.startsWith(link.href) ? 'var(--d2-text-primary)' : 'var(--d2-text-muted)'};
+            background: {active.startsWith(link.href) ? 'rgba(255,255,255,0.04)' : 'transparent'};
+        ">
             {link.label}
             {#if active.startsWith(link.href)}
-                <div class="absolute bottom-0 left-0 w-full h-[1px] bg-emerald-500
-                            shadow-[0_0_12px_rgba(16,185,129,0.8)]"></div>
+                <div style="position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--gambit-green);box-shadow:0 0 8px rgba(61,174,119,0.6);"></div>
             {/if}
         </a>
     {/each}
 
-    <div class="flex-1"></div>
+    <div style="flex:1;"></div>
 
     <!-- Search -->
     {#if searchOpen}
-        <div class="relative border-l border-white/[0.07] h-full">
-            <div class="flex items-center gap-2 h-full px-4 w-64
-                        focus-within:bg-white/[0.04] transition-colors">
-                <svg class="w-3.5 h-3.5 text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+        <div style="position:relative;border-left:1px solid rgba(255,255,255,0.07);">
+            <div style="
+                display:flex;align-items:center;gap:8px;
+                height:100%;padding:0 16px;width:240px;
+            ">
+                <svg style="width:13px;height:13px;color:var(--d2-text-muted);flex-shrink:0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
                 </svg>
                 <input
                     bind:this={inputEl}
@@ -124,37 +159,53 @@
                     onkeydown={onKeydown}
                     onblur={onBlur}
                     placeholder="Search Guardian…"
-                    class="flex-1 bg-transparent text-sm font-sans text-zinc-200
-                           placeholder-zinc-600 outline-none min-w-0"
+                    style="
+                        flex:1; background:transparent; border:none; outline:none;
+                        font-family:var(--font-family-display);
+                        font-size:0.78rem; letter-spacing:0.04em;
+                        color:var(--d2-text-primary);
+                        min-width:0;
+                    "
                 />
                 {#if loading}
-                    <div class="w-3 h-3 border border-zinc-700 border-t-emerald-400 animate-spin shrink-0"></div>
+                    <div style="width:11px;height:11px;border:1.5px solid rgba(255,255,255,0.15);border-top-color:var(--gambit-green);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0;"></div>
                 {/if}
             </div>
 
             {#if suggestions.length}
-                <div class="absolute top-full right-0 mt-0 w-80 z-50
-                            bg-[#060e0b]/95 backdrop-blur-md border border-white/[0.08]
-                            shadow-[0_8px_40px_rgba(0,0,0,0.7)] overflow-hidden">
+                <div style="
+                    position:absolute;top:100%;right:0;width:300px;z-index:100;
+                    background:rgba(6,8,10,0.98);
+                    border:1px solid rgba(255,255,255,0.10);
+                    border-top:2px solid var(--gambit-green);
+                    box-shadow:0 16px 48px rgba(0,0,0,0.8);
+                    overflow:hidden;
+                    clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);
+                ">
                     {#each suggestions as s, i}
                         <button
                             onmousedown={() => navigate(s)}
-                            class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
-                                   {i === selIdx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'}
-                                   {i > 0 ? 'border-t border-white/[0.05]' : ''}">
+                            style="
+                                width:100%;display:flex;align-items:center;gap:10px;
+                                padding:10px 14px;text-align:left;
+                                background:{i === selIdx ? 'rgba(61,174,119,0.08)' : 'transparent'};
+                                border:none;border-bottom:1px solid rgba(255,255,255,0.05);
+                                cursor:pointer;transition:background 0.1s;
+                            "
+                            onmouseenter={e => { if (i !== selIdx) e.currentTarget.style.background='rgba(255,255,255,0.04)'; }}
+                            onmouseleave={e => { if (i !== selIdx) e.currentTarget.style.background='transparent'; }}
+                        >
                             {#if s.iconPath}
-                                <img src="https://www.bungie.net{s.iconPath}" alt=""
-                                     class="w-8 h-8 shrink-0 object-cover rounded" />
+                                <img src="https://www.bungie.net{s.iconPath}" alt="" style="width:30px;height:30px;object-fit:cover;flex-shrink:0;" />
                             {:else}
-                                <div class="w-8 h-8 bg-zinc-800 border border-zinc-700 shrink-0
-                                            flex items-center justify-center rotate-45">
-                                    <span class="-rotate-45 text-xs font-sans text-zinc-500">?</span>
+                                <div style="width:30px;height:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);flex-shrink:0;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;">
+                                    <span style="transform:rotate(-45deg);font-size:10px;color:var(--d2-text-muted);">?</span>
                                 </div>
                             {/if}
-                            <span class="text-sm font-sans text-zinc-200 flex-1 text-left">
-                                {s.name}<span class="text-zinc-500">#{s.code}</span>
+                            <span style="font-family:var(--font-family-display);font-size:0.82rem;font-weight:500;color:var(--d2-text-primary);flex:1;text-align:left;letter-spacing:0.03em;">
+                                {s.name}<span style="color:var(--d2-text-muted);">#{s.code}</span>
                             </span>
-                            <svg class="w-3 h-3 text-zinc-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg style="width:10px;height:10px;color:var(--d2-text-muted);flex-shrink:0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
                         </button>
@@ -164,34 +215,60 @@
         </div>
     {:else}
         <button onclick={openSearch}
-                class="h-full px-4 border-l border-white/[0.07] text-zinc-600
-                       hover:text-zinc-300 hover:bg-white/[0.03] transition-colors"
-                title="Search Guardian (type name#code)">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                style="
+                    height:100%;padding:0 16px;
+                    border:none;border-left:1px solid rgba(255,255,255,0.07);
+                    background:transparent;cursor:pointer;
+                    color:var(--d2-text-muted);
+                    transition:color 0.15s,background 0.15s;
+                "
+                title="Search Guardian"
+                onmouseenter={e => { e.currentTarget.style.color='var(--d2-text-secondary)'; e.currentTarget.style.background='rgba(255,255,255,0.04)'; }}
+                onmouseleave={e => { e.currentTarget.style.color='var(--d2-text-muted)'; e.currentTarget.style.background='transparent'; }}
+        >
+            <svg style="width:15px;height:15px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
             </svg>
         </button>
     {/if}
 
     <!-- Auth -->
-    <div class="flex items-center h-full border-l border-white/[0.07] shrink-0">
+    <div style="display:flex;align-items:stretch;border-left:1px solid rgba(255,255,255,0.07);flex-shrink:0;">
         {#if user}
-            <span class="text-sm text-zinc-500 px-4 hidden sm:block">
-                {user.displayName}
-            </span>
-            <a href="/auth/logout"
-               class="h-full px-4 flex items-center text-sm text-zinc-600
-                      hover:text-zinc-300 hover:bg-white/[0.03] transition-colors">
+            <span style="
+                font-family:var(--font-family-display);
+                font-size:0.72rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;
+                color:var(--d2-text-muted);padding:0 14px;
+                display:flex;align-items:center;
+            ">{user.displayName}</span>
+            <a href="/auth/logout" style="
+                display:flex;align-items:center;padding:0 14px;
+                font-family:var(--font-family-display);
+                font-size:0.68rem;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;
+                color:var(--d2-text-muted);text-decoration:none;
+                border-left:1px solid rgba(255,255,255,0.07);
+                transition:color 0.15s,background 0.15s;
+            "
+            onmouseenter={e => { e.currentTarget.style.color='var(--d2-text-primary)'; e.currentTarget.style.background='rgba(255,255,255,0.04)'; }}
+            onmouseleave={e => { e.currentTarget.style.color='var(--d2-text-muted)'; e.currentTarget.style.background='transparent'; }}>
                 Sign Out
             </a>
         {:else}
-            <a href="/auth/login?returnTo={encodeURIComponent(active)}"
-               class="h-full px-5 flex items-center text-sm font-semibold
-                      text-emerald-400 hover:text-emerald-300
-                      hover:bg-emerald-500/5 transition-colors">
+            <a href="/auth/login?returnTo={encodeURIComponent(active)}" style="
+                display:flex;align-items:center;padding:0 20px;
+                font-family:var(--font-family-display);
+                font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+                color:var(--gambit-green);text-decoration:none;
+                transition:color 0.15s,background 0.15s;
+            "
+            onmouseenter={e => { e.currentTarget.style.background='rgba(61,174,119,0.08)'; }}
+            onmouseleave={e => { e.currentTarget.style.background='transparent'; }}>
                 Sign In
             </a>
         {/if}
     </div>
 </nav>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
