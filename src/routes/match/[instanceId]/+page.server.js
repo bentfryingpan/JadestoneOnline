@@ -1,6 +1,7 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { error } from '@sveltejs/kit';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
+import { calcEgo } from '$lib/server/ego.js';
 import { getItemDef, getActivityDef, getAllMedals } from '$lib/server/manifest.js';
 
 const PGCR_TTL = 86_400_000; // 24 h — PGCRs are immutable historical records
