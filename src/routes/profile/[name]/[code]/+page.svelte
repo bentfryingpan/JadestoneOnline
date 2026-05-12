@@ -392,17 +392,19 @@
     const weaponData = $derived((() => {
         const grouped = { kinetic: [], energy: [], power: [] };
         if (career?.weapons) {
-            career.weapons.forEach((w, i) => {
+            career.weapons.forEach((w) => {
                 const item = {
                     name: w.name,
                     type: 'Combat Weapon',
                     kills: w.kills,
                     precision: fmtF(w.precRate, 1) + '%',
-                    color: w.winRate >= 60 ? 'text-emerald-400' : 'text-zinc-200'
+                    color: (w.winRate ?? 0) >= 60 ? 'text-emerald-400' : 'text-zinc-200'
                 };
-                if (i % 3 === 0) grouped.kinetic.push(item);
-                else if (i % 3 === 1) grouped.energy.push(item);
-                else grouped.power.push(item);
+                const slot = (w.slot ?? '').toLowerCase();
+                if (slot === 'kinetic') grouped.kinetic.push(item);
+                else if (slot === 'energy')  grouped.energy.push(item);
+                else if (slot === 'power')   grouped.power.push(item);
+                else grouped.kinetic.push(item); // fallback
             });
         }
         return grouped;

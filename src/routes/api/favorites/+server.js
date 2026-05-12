@@ -17,7 +17,7 @@ export async function GET({ url }) {
         const { data, error } = await supabaseAdmin
             .from('player_favorites')
             .select('pgcr_id')
-            .eq('player_id', parseInt(membershipId))
+            .eq('player_id', membershipId) // string
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -34,7 +34,7 @@ export async function POST({ request }) {
     const { membershipId, pgcrId } = body;
     if (!membershipId || !pgcrId) return json({ error: 'Missing params' }, { status: 400 });
 
-    const playerId = parseInt(membershipId);
+    const playerId = membershipId; // Keep as string for BIGINT
 
     try {
         // Check if it's already a favorite

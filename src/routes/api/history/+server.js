@@ -152,7 +152,7 @@ export async function GET({ url, setHeaders }) {
             const { data: enriched } = await supabaseAdmin
                 .from('player_matches')
                 .select('pgcr_id,fireteam_size,is_hard_carry,is_carried,ego_score,map_name,map_image')
-                .eq('player_id', parseInt(membershipId))
+                .eq('player_id', membershipId) // membershipId as string
                 .in('pgcr_id', instanceIds);
 
             if (enriched?.length) {

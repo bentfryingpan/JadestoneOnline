@@ -53,7 +53,7 @@ async function careerFromSupabase(membershipId, count) {
     const { data: rows, error } = await supabaseAdmin
         .from('player_matches')
         .select('pgcr_id,map_name,map_image,period,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats,components,roster')
-        .eq('player_id', parseInt(membershipId))
+        .eq('player_id', membershipId) // membershipId as string for BIGINT
         .not('outcome', 'eq', 'DNF')
         .order('period', { ascending: false })
         .limit(count);
@@ -100,7 +100,7 @@ async function careerFromSupabase(membershipId, count) {
         // Weapon synergy
         for (const w of stats.top_weapons ?? []) {
             const wn = w.name ?? 'Unknown';
-            if (!weaponsAgg[wn]) weaponsAgg[wn] = { games: 0, wins: 0, kills: 0, precision: 0, scoreSum: 0, icon: w.icon ?? null, hash: w.hash ?? null };
+            if (!weaponsAgg[wn]) weaponsAgg[wn] = { games: 0, wins: 0, kills: 0, precision: 0, scoreSum: 0, icon: w.icon ?? null, hash: w.hash ?? null, slot: w.slot ?? 'Unknown' };
             weaponsAgg[wn].games++;
             weaponsAgg[wn].kills     += w.kills     ?? 0;
             weaponsAgg[wn].precision += w.precision ?? 0;
@@ -165,7 +165,7 @@ async function careerFromSupabase(membershipId, count) {
             precRate: s.kills > 0 ? +((s.precision / s.kills) * 100).toFixed(1) : 0,
             winRate:  s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
             avgScore: s.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0,
-            icon: s.icon, hash: s.hash,
+            icon: s.icon, hash: s.hash, slot: s.slot,
         }))
         .sort((a, b) => b.kills - a.kills)   // sort by total kills
         .slice(0, 20);

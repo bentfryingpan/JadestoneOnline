@@ -223,13 +223,22 @@ export async function POST({ request }) {
                         : null);
             }
 
-            // Resolve weapon names + icons
+            // Resolve weapon names + icons + slots
+            const SLOT_BUCKETS = {
+                1491708835: 'Kinetic',
+                2465295065: 'Energy',
+                95395402:   'Power'
+            };
+
             for (const w of result.stats.top_weapons ?? []) {
                 if (w.hash) {
                     const def = await getItemDef(w.hash);
                     w.name = def?.displayProperties?.name ?? `Item ${w.hash}`;
                     w.icon = def?.displayProperties?.icon
                         ? BUNGIE_ROOT + def.displayProperties.icon : null;
+                    
+                    const bucketHash = def?.inventory?.bucketTypeHash;
+                    w.slot = SLOT_BUCKETS[bucketHash] ?? 'Unknown';
                 }
             }
 
@@ -238,7 +247,7 @@ export async function POST({ request }) {
 
             await supabaseAdmin.from('player_matches').upsert({
                 pgcr_id:         instanceId,
-                player_id:       parseInt(membershipId),
+                player_id:       membershipId, // Keep as string for BIGINT to avoid precision loss
                 bungie_name:     bungieDisplayName ?? null,
                 bungie_code:     bungieDisplayCode ? String(bungieDisplayCode) : null,
                 membership_type: membershipType ? parseInt(membershipType) : null,
@@ -263,27 +272,25 @@ export async function POST({ request }) {
             }, { onConflict: 'pgcr_id,player_id' });
 
             // ── Update NGR (running-mean EGO) for this player ─────────────────
-            // Uses the same incremental formula as the desktop app:
-            // new_ngr = (old_ngr * old_games + new_score) / (old_games + 1)
             try {
                 const { data: ngrRow } = await supabaseAdmin
                     .from('player_ngr_cache')
                     .select('ngr,games')
-                    .eq('player_id', parseInt(membershipId))
+                    .eq('player_id', membershipId)
                     .single();
                 const prevNgr   = ngrRow?.ngr   ?? 0;
                 const prevGames = ngrRow?.games  ?? 0;
                 const newGames  = prevGames + 1;
                 const newNgr    = (prevNgr * prevGames + result.ego.finalScore) / newGames;
                 await supabaseAdmin.from('player_ngr_cache').upsert({
-                    player_id:   parseInt(membershipId),
+                    player_id:   membershipId,
                     bungie_name: bungieDisplayName ?? null,
                     bungie_code: bungieDisplayCode ? String(bungieDisplayCode) : null,
                     ngr:         Math.round(newNgr * 10) / 10,
                     games:       newGames,
                     updated_at:  new Date().toISOString(),
                 }, { onConflict: 'player_id' });
-            } catch { /* non-fatal: NGR table may not exist yet */ }
+            } catch { /* non-fatal */ }
 
             stored++;
         } catch (e) {
