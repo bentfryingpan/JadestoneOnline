@@ -1,6 +1,5 @@
 /**
- * /api/sync/wipe — Maintenance tool to clear corrupted match data.
- * Useful if IDs were previously rounded by JS precision loss.
+ * /api/sync/wipe — Database-Aligned Wipe Utility
  */
 
 import { json } from '@sveltejs/kit';
@@ -12,24 +11,29 @@ export async function POST({ request }) {
 
     try {
         const idStr = String(membershipId);
-        const prefix = idStr.substring(0, 13); // Even more aggressive prefix matching
+        const prefix = idStr.substring(0, 13);
         
+        // 1. Reset player stats in the 'players' table
         await supabaseAdmin
-            .from('player_ngr_cache')
-            .delete()
-            .or(`player_id.eq.${idStr},player_id.like.${prefix}%`);
+            .from('players')
+            .update({ ngr: 0, ego_score_avg: 0, games_played: 0 })
+            .or(`id.eq.${idStr},id.like.${prefix}%`);
 
+        // 2. Wipe matches from the 'matches' table
         const { count, error } = await supabaseAdmin
-            .from('player_matches')
+            .from('matches')
             .delete({ count: 'exact' })
             .or(`player_id.eq.${idStr},player_id.like.${prefix}%`);
 
+        if (error) throw error;
+
         return json({ 
             success: true, 
-            message: `Cleared ${count ?? 0} corrupted matches using prefix ${prefix}.`,
+            message: `Cleared ${count ?? 0} matches from 'matches' table using prefix ${prefix}.`,
             clearedCount: count 
         });
     } catch (e) {
+        console.error('Wipe failed:', e.message);
         return json({ error: e.message }, { status: 500 });
     }
 }

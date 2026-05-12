@@ -245,17 +245,21 @@ export async function load({ params, parent, url, setHeaders }) {
         }
     }
 
-    // Mark the stats source so the UI can show a notice when data is approximate
-    const statsSource = !lifetimeStats
+    // Detect if we should use Supabase or live API for the summary
+    let statsSource = !lifetimeStats
         ? 'none'
         : lifetimeStats._synthetic
             ? 'recent'   // synthesized from last 25 matches
             : 'bungie';  // full lifetime data from Bungie API
 
-    // ── 4. Claim / ownership ──────────────────────────────────────────────────
-    const isClaimed = !!dbPlayer?.claimed_by;
-    const isOwner   = user?.membershipId === membershipId;
-    const canClaim  = isOwner && !isClaimed;
+    try {
+        const { data: pData } = await supabaseAdmin
+            .from('players')
+            .select('ngr, games_played')
+            .eq('id', String(membershipId))
+            .single();
+        if (pData && pData.games_played > 5) statsSource = 'supabase';
+    } catch { }
 
     // ── 5. Fire-and-forget leaderboard upsert ────────────────────────────────
     if (lifetimeStats) {

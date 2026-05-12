@@ -27,7 +27,8 @@
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "^2.105.3",
-		"adm-zip": "^0.5.16"
+		"adm-zip": "^0.5.16",
+		"dotenv": "^17.4.2"
 	},
 	"optionalDependencies": {
 		"better-sqlite3": "^11.7.0"
