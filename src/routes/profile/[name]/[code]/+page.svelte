@@ -175,6 +175,91 @@
         finally { enriching = false; }
     }
 
+    // ── Deep Career Scan ───────────────────────────────────────────────────────
+    let deepScanning      = $state(false);
+    let deepScanStatus    = $state(''); // 'discovering' | 'enriching'
+    let deepScanProgress  = $state({ current: 0, total: 0 });
+
+    async function triggerDeepScan() {
+        if (deepScanning) return;
+        deepScanning = true;
+        deepScanStatus = 'discovering';
+        deepScanProgress = { current: 0, total: 0 };
+
+        try {
+            // 1. Discovery
+            const discRes = await fetch('/api/sync/discovery', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    membershipId: data.membershipId,
+                    membershipType: data.membershipType,
+                    characterIds: data.characterIds,
+                }),
+            });
+            const { missing, total } = await discRes.json();
+            
+            if (!missing || missing.length === 0) {
+                deepScanning = false;
+                fetchHistory();
+                fetchCareer();
+                return;
+            }
+
+            deepScanStatus = 'enriching';
+            deepScanProgress = { current: 0, total: missing.length };
+
+            // 2. Batch Enrichment (20 at a time)
+            const chunkSize = 20;
+            for (let i = 0; i < missing.length; i += chunkSize) {
+                const chunk = missing.slice(i, i + chunkSize);
+                
+                await fetch('/api/pgcr-enrich', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        membershipId: data.membershipId,
+                        membershipType: data.membershipType,
+                        bungieDisplayName: data.player.bungieGlobalDisplayName,
+                        bungieDisplayCode: data.player.bungieGlobalDisplayNameCode,
+                        instanceIds: chunk,
+                    }),
+                });
+
+                deepScanProgress.current += chunk.length;
+            }
+
+            // 3. Finalize
+            historyFor = 0;
+            fetchHistory();
+            fetchCareer();
+        } catch (e) {
+            console.error('Deep scan failed', e);
+        } finally {
+            deepScanning = false;
+        }
+    }
+
+    // ── Pursuits (Triumphs/Collectibles) ──────────────────────────────────────
+    let pursuits        = $state(null);
+    let pursuitsLoading = $state(false);
+
+    async function fetchPursuits() {
+        if (pursuitsLoading || pursuits) return;
+        pursuitsLoading = true;
+        try {
+            const res = await fetch(`/api/pursuits?membershipType=${data.membershipType}&membershipId=${data.membershipId}`);
+            pursuits = await res.json();
+        } catch { }
+        finally { pursuitsLoading = false; }
+    }
+
+    $effect(() => {
+        if (tab === 'pursuits' && !pursuits && !pursuitsLoading) {
+            fetchPursuits();
+        }
+    });
+
     $effect(() => {
         if ((tab === 'loadout' || tab === 'subclass') && activeChar && activeChar !== loadoutCharId) {
             fetchLoadout();
@@ -530,12 +615,21 @@
                         </div>
                     </div>
                     <div class="flex gap-14 mb-2 relative z-10 text-right font-sans shrink-0">
-                         <div>
-                                {@render ghostLabel({ text: "RATING" })}
-                                <div class="flex flex-col items-end">
-                                     <span class="text-5xl font-light tracking-tighter text-white leading-none font-sans">{playerData.identity.rating?.toLocaleString() ?? '—'}</span>
-                                     <span class="text-[10px] font-sans text-emerald-500 italic tracking-[0.3em] mt-3 uppercase font-bold drop-shadow-md">#WORLDWIDE</span>
+                         <div class="flex flex-col items-end gap-6">
+                            <button onclick={triggerDeepScan} disabled={deepScanning} 
+                                    class="group flex items-center gap-3 px-6 py-2 border {deepScanning ? 'border-zinc-800 text-zinc-600' : 'border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10'} transition-all duration-300">
+                                <span class="text-[10px] font-sans font-bold uppercase tracking-[0.2em]">{deepScanning ? 'Scanning...' : 'Deep Career Scan'}</span>
+                                <div class="w-4 h-4 border border-current rotate-45 flex items-center justify-center {deepScanning ? 'animate-spin' : 'group-hover:rotate-90 transition-transform duration-500'}">
+                                    <div class="w-1.5 h-1.5 bg-current"></div>
                                 </div>
+                            </button>
+                            <div>
+                                    {@render ghostLabel({ text: "RATING" })}
+                                    <div class="flex flex-col items-end">
+                                         <span class="text-5xl font-light tracking-tighter text-white leading-none font-sans">{playerData.identity.rating?.toLocaleString() ?? '—'}</span>
+                                         <span class="text-[10px] font-sans text-emerald-500 italic tracking-[0.3em] mt-3 uppercase font-bold drop-shadow-md">#WORLDWIDE</span>
+                                    </div>
+                             </div>
                          </div>
                     </div>
              </div>
@@ -558,6 +652,35 @@
              <div class="max-w-6xl mx-auto">
                 {#key profileTab}
                 <div in:fly={{ y: 10, duration: 400 }}>
+                    {#if deepScanning}
+                        <div class="mb-10 bg-emerald-950/10 border border-emerald-500/20 p-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 shadow-2xl">
+                            <div class="absolute inset-0 bg-emerald-500/5 animate-pulse"></div>
+                            <div class="flex items-center justify-between relative z-10">
+                                <div class="flex items-center gap-6">
+                                    <div class="w-10 h-10 border border-emerald-500 flex items-center justify-center rotate-45 animate-[spin_4s_linear_infinite]">
+                                        <div class="w-5 h-5 border border-emerald-400 rotate-45"></div>
+                                    </div>
+                                    <div>
+                                        <p class="text-[12px] font-sans font-black text-emerald-500 uppercase tracking-[0.3em]">
+                                            {deepScanStatus === 'discovering' ? 'Discovering History...' : 'Enriching Career Intelligence...'}
+                                        </p>
+                                        <p class="text-[10px] font-sans text-emerald-600/80 uppercase tracking-[0.2em] font-bold mt-1">
+                                            {deepScanProgress.current} / {deepScanProgress.total} segments processed
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-3xl font-light italic text-emerald-400 font-sans tracking-tighter">
+                                        {deepScanProgress.total > 0 ? Math.round((deepScanProgress.current / deepScanProgress.total) * 100) : 0}%
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="mt-6 h-[1px] bg-zinc-800 w-full relative overflow-hidden">
+                                <div class="absolute inset-y-0 left-0 bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,1)] transition-all duration-700 ease-out" 
+                                     style="width: {deepScanProgress.total > 0 ? (deepScanProgress.current / deepScanProgress.total) * 100 : 0}%"></div>
+                            </div>
+                        </div>
+                    {/if}
                     {#if profileTab === 'overview'}
                         <div class="space-y-4 animate-in fade-in duration-700">
                             <div class="relative border-b border-zinc-800/50 pb-2">
