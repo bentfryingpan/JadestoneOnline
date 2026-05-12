@@ -207,6 +207,10 @@
         deepScanProgress = { current: 0, total: 0 };
 
         try {
+            // 0. Manifest Sync (Small tables & Medals) - ensure metadata is in DB
+            await fetch('/api/admin/sync-manifest?mode=medals', { method: 'POST' });
+            await fetch('/api/admin/sync-manifest?mode=small',  { method: 'POST' });
+
             // 1. Discovery
             const discRes = await fetch('/api/sync/discovery', {
                 method: 'POST',
