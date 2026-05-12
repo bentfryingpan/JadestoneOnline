@@ -265,7 +265,7 @@ export async function load({ params, parent, url, setHeaders }) {
         const kills   = s.kills?.basic?.value             ?? 0;
         const deaths  = s.deaths?.basic?.value            ?? 0;
         supabaseAdmin.from('player_gambit_stats').upsert({
-            player_id:          parseInt(membershipId),
+            player_id:          String(membershipId),
             bungie_name:        name,
             bungie_code:        code,
             membership_type:    membershipType,

@@ -45,7 +45,7 @@ function sv(entry, key) {
         ?? 0;
 }
 
-async function processPgcr(pgcr, targetMembershipId) {
+async function processPgcr(pgcr, targetMembershipId, targetName, targetCode) {
     const entries = pgcr.entries ?? [];
     if (!entries.length) return null;
 
@@ -72,6 +72,12 @@ async function processPgcr(pgcr, targetMembershipId) {
         const ftSize = ftGroups[ftId] ?? 1;
         const team   = teamMap[e.values?.team?.basic?.value ?? 0] ?? 'Alpha';
 
+        // Robust matching: ID string match OR (Name + Code match)
+        // This handles cases where membershipId in PGCR is returned as a number and corrupted by JS.
+        const isTarget = pId === String(targetMembershipId) || 
+                         (pInfo.bungieGlobalDisplayName === targetName && 
+                          String(pInfo.bungieGlobalDisplayNameCode).padStart(4,'0') === String(targetCode).padStart(4,'0'));
+
         const stats = {
             kills: sv(e, 'kills'),
             mobKills: Math.max(0, sv(e, 'kills') - (sv(e, 'invasionKills') || sv(e, 'invaderKills'))),
@@ -93,7 +99,6 @@ async function processPgcr(pgcr, targetMembershipId) {
         };
 
         const ego = sv(e, 'completed') === 1 ? calcEgo(stats) : null;
-        const isTarget = pId === String(targetMembershipId);
 
         roster.push({
             id: pId, 
@@ -116,13 +121,16 @@ async function processPgcr(pgcr, targetMembershipId) {
                 const wDef = await getItemDef(w.referenceId);
                 if (!wDef) continue;
                 const wk = w.values?.uniqueWeaponKills?.basic?.value ?? 0;
+                const wp = w.values?.uniqueWeaponPrecisionKills?.basic?.value ?? 0;
+                
                 if (wk > 0) {
                     topWeapons.push({
                         name: wDef.displayProperties?.name,
                         hash: w.referenceId,
                         icon: wDef.displayProperties?.hasIcon ? BUNGIE_ROOT + wDef.displayProperties.icon : null,
                         slot: SLOT_BUCKETS[wDef.inventory?.bucketTypeHash] ?? 'Unknown',
-                        kills: wk
+                        kills: wk,
+                        precision: wp
                     });
                     if (wDef.inventory?.tierType === 6 && !matchExotic) {
                         const iconB64 = await getExoticIconBase64(w.referenceId);
@@ -138,7 +146,7 @@ async function processPgcr(pgcr, targetMembershipId) {
 
     if (!targetEntry) return null;
 
-    const myTeamScores = roster.filter(r => r.team === teamMap[targetEntry.outcome === 'Win' ? sv(entries.find(e => String(e.player?.destinyUserInfo?.membershipId) === String(targetMembershipId)), 'team') : entries.find(e => e.values?.standing?.basic?.value !== 0)?.values?.team?.basic?.value] && r.score > 0).map(r => r.score);
+    const myTeamScores = roster.filter(r => r.team === roster.find(x => x.is_target)?.team && r.score > 0).map(r => r.score);
     const { isCarry, isCarried } = detectRole(targetEntry.ego.finalScore, myTeamScores);
 
     return { ...targetEntry, isHardCarry: isCarry, isCarried, roster };
@@ -151,7 +159,6 @@ export async function POST({ request }) {
         return json({ error: 'Missing params' }, { status: 400 });
     }
 
-    // Increased batch size to 40 for optimized processing
     const batch = instanceIds.slice(0, 40);
     
     // ── Optimized Parallel Processing ────────────────────────────────────────
@@ -161,7 +168,7 @@ export async function POST({ request }) {
             if (!pgcrData?.Response) return null;
 
             const pgcr = pgcrData.Response;
-            const enriched = await processPgcr(pgcr, membershipId);
+            const enriched = await processPgcr(pgcr, membershipId, bungieDisplayName, bungieDisplayCode);
             if (!enriched) return null;
 
             const refId = pgcr.activityDetails?.referenceId;

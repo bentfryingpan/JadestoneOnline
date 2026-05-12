@@ -85,7 +85,8 @@ async function careerFromSupabase(membershipId, count) {
         
         for (const p of roster) {
             if (p.is_target) continue;
-            const key = p.id;
+            // Handle potentially corrupted IDs in roster by using name+code as fallback key
+            const key = p.id || `${p.name}#${p.code}`;
             if (!key) continue;
             
             if (!playersAgg[key]) {
@@ -155,7 +156,7 @@ async function careerFromSupabase(membershipId, count) {
 
     const players = Object.values(playersAgg);
     const allies = players
-        .filter(p => p.as_ally >= 2)
+        .filter(p => p.as_ally >= 1)
         .map(p => ({
             id: p.id, name: p.name, code: p.code, games: p.as_ally,
             winRate: +((p.ally_wins / p.as_ally) * 100).toFixed(1)
@@ -164,7 +165,7 @@ async function careerFromSupabase(membershipId, count) {
         .slice(0, 10);
 
     const rivals = players
-        .filter(p => p.as_enemy >= 2)
+        .filter(p => p.as_enemy >= 1)
         .map(p => ({
             id: p.id, name: p.name, code: p.code, games: p.as_enemy,
             winRate: +((p.enemy_wins / p.as_enemy) * 100).toFixed(1) 
@@ -196,6 +197,6 @@ async function careerFromSupabase(membershipId, count) {
             winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
             avgScore: s.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0
         })),
-        needsEnrichment: totalMatches < 10
+        needsEnrichment: totalMatches < 5 // Lower threshold for sparse accounts
     };
 }
