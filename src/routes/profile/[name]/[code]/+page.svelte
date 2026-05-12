@@ -726,7 +726,7 @@
                             </div>
                         </div>
 
-                    {#else if profileTab === 'maps'}
+                    {:else if profileTab === 'maps'}
                         <div class="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto">
                             {@render engravedHeader({ text: "MAP EFFICIENCY" })}
                             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 font-sans">
@@ -750,7 +750,7 @@
                             </div>
                         </div>
 
-                    {#else if profileTab === 'pursuits'}
+                    {:else if profileTab === 'pursuits'}
                         <div class="space-y-6 animate-in slide-in-from-bottom-2 duration-700 max-w-6xl mx-auto">
                             {@render engravedHeader({ text: "CAREER ACHIEVEMENTS" })}
                             <div class="grid gap-3">
@@ -770,7 +770,7 @@
                             </div>
                         </div>
 
-                    {#else if profileTab === 'loadout'}
+                    {:else if profileTab === 'loadout'}
                         <div class="animate-in fade-in zoom-in-95 duration-700 max-w-6xl mx-auto py-10 px-4">
                             <div class="grid grid-cols-12 gap-12 items-start font-sans">
                                 <div class="col-span-3 space-y-12 flex flex-col items-center">
