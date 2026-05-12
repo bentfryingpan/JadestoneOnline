@@ -5,7 +5,7 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
-import { calcEgo, extractMedals as _extractMedals, detectRole } from '$lib/server/ego.js';
+import { calcEgo, extractMedals as _extractMedals } from '$lib/server/ego.js';
 import { getItemDef, getActivityDef } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
@@ -96,7 +96,7 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
 }
 
 export async function POST({ request }) {
-    const { membershipId, bungieDisplayName, bungieDisplayCode, instanceIds } = await request.json();
+    const { membershipId, membershipType, bungieDisplayName, bungieDisplayCode, instanceIds } = await request.json();
     if (!membershipId || !instanceIds?.length) return json({ error: 'Missing params' }, { status: 400 });
 
     const results = await Promise.all(instanceIds.map(async (id) => {
@@ -127,6 +127,16 @@ export async function POST({ request }) {
 
     const toUpsert = results.filter(Boolean);
     if (toUpsert.length === 0) return json({ stored: 0 });
+
+    // Ensure player row exists before matches (FK constraint)
+    try {
+        await supabaseAdmin.from('players').upsert({
+            id: String(membershipId),
+            bungie_name: bungieDisplayName,
+            bungie_code: bungieDisplayCode,
+            membership_type: parseInt(membershipType)
+        });
+    } catch { }
 
     const { error } = await supabaseAdmin.from('matches').upsert(toUpsert, { onConflict: 'id,player_id' });
     if (error) return json({ error: error.message }, { status: 500 });
