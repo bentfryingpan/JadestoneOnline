@@ -20,6 +20,11 @@
     let claiming     = $state(false);
     let claimed      = $state(false);
     $effect(() => { claimed = data.isClaimed; });
+    $effect(() => {
+        if (!activeChar && data.characterIds.length > 0) {
+            activeChar = data.characterIds[0];
+        }
+    });
 
     // Mouse parallax
     let mouseX = $state(0);
@@ -44,13 +49,14 @@
     let loadoutCharId  = $state(null);
 
     async function fetchLoadout() {
-        if (loadoutLoading || loadoutCharId === activeChar) return;
+        if (loadoutLoading || loadoutCharId === activeChar || !activeChar) return;
         loadoutLoading = true;
         try {
             const res = await fetch(
                 `/api/loadout?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${activeChar}`
             );
-            loadout       = await res.json();
+            const d = await res.json();
+            loadout       = d;
             loadoutCharId = activeChar;
         } catch (e) { console.error('Loadout fetch failed', e); }
         finally { loadoutLoading = false; }
@@ -102,7 +108,7 @@
     let careerError   = $state(null);
 
     async function fetchCareer() {
-        if (careerLoading || career) return;
+        if (careerLoading) return;
         careerLoading = true;
         careerError   = null;
         try {
@@ -139,7 +145,7 @@
     async function triggerEnrichment() {
         if (enriching || !history?.matches) return;
         const unenriched = history.matches
-            .filter(m => m.instanceId && m.fireteam_size == null)
+            .filter(m => m.instanceId && (m.fireteam_size == null || !m.mapName))
             .map(m => m.instanceId)
             .slice(0, 40);
         if (!unenriched.length) return;
@@ -175,18 +181,18 @@
         }
     });
     $effect(() => {
-        if (tab === 'matches' || (career && career.needsEnrichment)) {
+        if (tab === 'matches' || !career || career.needsEnrichment) {
             fetchHistory();
             loadFavorites();
         }
     });
     $effect(() => {
-        if (history && !enriching && (tab === 'matches' || (career && career.needsEnrichment))) {
+        if (history && !enriching && (tab === 'matches' || !career || career.needsEnrichment)) {
             triggerEnrichment();
         }
     });
     $effect(() => {
-        if ((tab === 'overview' || tab === 'weaponry' || tab === 'maps' || tab === 'synergy' || tab === 'trophies') && !career && !careerLoading) {
+        if (!career && !careerLoading) {
             fetchCareer();
         }
     });
@@ -289,6 +295,7 @@
     })) ?? []);
 
     const matchesList = $derived((history?.matches ?? []).map(m => ({
+        instanceId: m.instanceId,
         result: m.win ? 'WIN' : 'LOSS',
         mode: 'Gambit',
         map: m.mapName,
@@ -417,15 +424,19 @@
     </div>
 {/snippet}
 
-{#snippet jadestoneSlot({ slot, name, quality })}
+{#snippet jadestoneSlot({ slot, name, quality, icon })}
     {@const rarityColor = quality === 'Exotic' ? 'bg-amber-500' : 'bg-zinc-100'}
     {@const borderColor = quality === 'Exotic' ? 'border-amber-500/20' : 'border-zinc-800'}
     <div class="group flex flex-col items-center gap-2 cursor-pointer w-full font-sans">
         <div class="w-16 h-16 bg-[#0c0c0c] border {borderColor} relative group-hover:border-zinc-400 transition-all duration-300 mx-auto overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
             <div class="absolute top-0 left-0 w-full h-[1px] opacity-70 {rarityColor}"></div>
-            <div class="w-full h-full flex items-center justify-center opacity-10 group-hover:opacity-30 transition-opacity">
-                <div class="w-8 h-8 border border-zinc-500 rotate-45"></div>
-            </div>
+            {#if icon}
+                <img src={icon} alt={name} class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+            {:else}
+                <div class="w-full h-full flex items-center justify-center opacity-10 group-hover:opacity-30 transition-opacity">
+                    <div class="w-8 h-8 border border-zinc-500 rotate-45"></div>
+                </div>
+            {/if}
             <div class="absolute bottom-0 right-0 px-1.5 bg-black/60 text-[8px] font-sans text-zinc-500 uppercase font-bold tracking-tighter">MAX</div>
         </div>
         <div class="text-center w-full">
@@ -608,7 +619,7 @@
                                 <button onclick={() => { historyFor = 0; fetchHistory(); }} class="text-[9px] font-sans text-emerald-500 border border-emerald-500/30 px-3 py-1 hover:bg-emerald-500/10 transition-colors uppercase tracking-widest font-bold">Refresh Scanner</button>
                             </div>
                             {#each matchesList as m, i}
-                                <div class="bg-[#0c0c0c] border border-zinc-800 p-3 group relative hover:border-zinc-600 transition-all flex items-center gap-6 font-sans">
+                                <a href="/match/{m.instanceId}" class="bg-[#0c0c0c] border border-zinc-800 p-3 group relative hover:border-emerald-500/50 transition-all flex items-center gap-6 font-sans block no-underline">
                                     <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 {m.result === 'WIN' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'}"></div>
                                     <div class="w-12 text-center"><p class="text-xs font-black italic {m.result === 'WIN' ? 'text-emerald-500' : 'text-rose-500'}">{m.result}</p></div>
                                     <div class="flex-1"><p class="text-[10px] font-sans text-zinc-300 uppercase tracking-widest">{m.mode}</p><p class="text-sm font-bold text-zinc-100 uppercase">{m.map}</p></div>
@@ -618,7 +629,10 @@
                                          <div><p class="text-[8px] font-sans text-zinc-600 uppercase tracking-widest">Damage</p><p class="text-xs font-bold text-amber-500">{m.damage}</p></div>
                                     </div>
                                     <div class="w-20 text-right"><p class="text-[9px] font-sans text-zinc-700 uppercase">{m.date}</p></div>
-                                </div>
+                                    <div class="w-6 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span class="text-emerald-500">→</span>
+                                    </div>
+                                </a>
                             {/each}
                             {#if enriching} <div class="text-center py-4 text-[10px] text-emerald-500 animate-pulse uppercase tracking-widest">Enriching Match Data... {enrichProgress.stored}/{enrichProgress.total}</div> {/if}
                         </div>
@@ -650,6 +664,9 @@
                                          </div>
                                     </div>
                                 {/each}
+                                {#if !(weaponData[activeWeaponSlot]?.length)}
+                                    <div class="col-span-full py-20 text-center text-zinc-700 uppercase tracking-[0.3em] text-[10px]">No recorded data for this slot. Visit 'Matches' to enrich history.</div>
+                                {/if}
                             </div>
                         </div>
 
@@ -676,6 +693,9 @@
                                             </div>
                                         </div>
                                     {/each}
+                                    {#if !(career?.allies?.length)}
+                                        <div class="col-span-full py-10 text-center text-zinc-800 uppercase tracking-widest text-[9px]">No frequent allies found.</div>
+                                    {/if}
                                 </div>
                             </div>
                             <div>
@@ -699,11 +719,14 @@
                                             </div>
                                         </div>
                                     {/each}
+                                    {#if !(career?.rivals?.length)}
+                                        <div class="col-span-full py-10 text-center text-zinc-800 uppercase tracking-widest text-[9px]">No frequent rivals found.</div>
+                                    {/if}
                                 </div>
                             </div>
                         </div>
 
-                    {:else if profileTab === 'maps'}
+                    {#else if profileTab === 'maps'}
                         <div class="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto">
                             {@render engravedHeader({ text: "MAP EFFICIENCY" })}
                             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 font-sans">
@@ -712,17 +735,22 @@
                                          <div class="sheen-overlay"></div>
                                          {#if map.map_image} <div class="absolute inset-0 bg-cover bg-center opacity-10 group-hover:opacity-25 transition-opacity" style="background-image:url('{map.map_image}')"></div> {/if}
                                          <div class="relative z-10">
-                                             <div class="w-full h-16 bg-zinc-950/50 mb-3 flex items-center justify-center overflow-hidden border border-zinc-800 relative"><div class="w-8 h-8 border border-zinc-800 rotate-45 group-hover:border-emerald-500/30 transition-colors"></div></div>
+                                             <div class="w-full h-16 bg-zinc-950/50 mb-3 flex items-center justify-center overflow-hidden border border-zinc-800 relative">
+                                                <div class="w-8 h-8 border border-zinc-800 rotate-45 group-hover:border-emerald-500/30 transition-colors"></div>
+                                             </div>
                                              <p class="text-xs font-black italic text-zinc-300 uppercase tracking-tighter">{map.name}</p>
                                              <p class="text-sm font-bold text-emerald-500 mt-2">{map.winRate}% WIN RATE</p>
                                              <p class="text-[8px] text-zinc-600 uppercase tracking-widest mt-1">{map.games} matches</p>
                                          </div>
                                     </div>
                                 {/each}
+                                {#if !(career?.maps?.length)}
+                                    <div class="col-span-full py-20 text-center text-zinc-800 uppercase tracking-widest text-[9px]">No map data available.</div>
+                                {/if}
                             </div>
                         </div>
 
-                    {:else if profileTab === 'pursuits'}
+                    {#else if profileTab === 'pursuits'}
                         <div class="space-y-6 animate-in slide-in-from-bottom-2 duration-700 max-w-6xl mx-auto">
                             {@render engravedHeader({ text: "CAREER ACHIEVEMENTS" })}
                             <div class="grid gap-3">
@@ -742,7 +770,7 @@
                             </div>
                         </div>
 
-                    {:else if profileTab === 'loadout'}
+                    {#else if profileTab === 'loadout'}
                         <div class="animate-in fade-in zoom-in-95 duration-700 max-w-6xl mx-auto py-10 px-4">
                             <div class="grid grid-cols-12 gap-12 items-start font-sans">
                                 <div class="col-span-3 space-y-12 flex flex-col items-center">
@@ -759,7 +787,7 @@
                                             </div>
                                      </div>
                                      <div class="space-y-10 w-full flex flex-col items-center pt-8 border-t border-zinc-800/40">
-                                            {#each playerData.loadout.weapons as w} {@render jadestoneSlot({ slot: w.slot, name: w.name, quality: w.quality })} {/each}
+                                            {#each playerData.loadout.weapons as w} {@render jadestoneSlot({ slot: w.slot, name: w.name, quality: w.quality, icon: w.icon })} {/each}
                                      </div>
                                 </div>
                                 <div class="col-span-6 relative flex items-center justify-center min-h-[500px]">
@@ -776,7 +804,7 @@
                                 </div>
                                 <div class="col-span-3 flex flex-col space-y-8 items-center h-full">
                                      <div class="flex flex-col items-center gap-6 w-full">
-                                            {#each playerData.loadout.armor as a} {@render jadestoneSlot({ slot: a.slot, name: a.name, quality: a.quality })} {/each}
+                                            {#each playerData.loadout.armor as a} {@render jadestoneSlot({ slot: a.slot, name: a.name, quality: a.quality, icon: a.icon })} {/each}
                                      </div>
                                      <div class="w-full mt-auto bg-[#0a0a0a] border border-zinc-800 p-5 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] font-sans">
                                             <div class="flex justify-between items-center border-b border-zinc-800 pb-3 mb-3">

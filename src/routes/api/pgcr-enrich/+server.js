@@ -25,11 +25,11 @@ const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
 const PGCR_TTL    = 86_400_000; // 24 h in-process
 
-// Slot bucket hashes (from Python Jadestone)
+// Correct Bucket Hashes for weapons
 const SLOT_BUCKETS = {
-    1491708835: 'Kinetic',
+    1498876634: 'Kinetic',
     2465295065: 'Energy',
-    95395402:   'Power'
+    953998645:  'Power'
 };
 
 async function fetchPgcr(instanceId) {
@@ -189,16 +189,26 @@ export async function POST({ request }) {
     const batch = instanceIds.slice(0, 20);
 
     let existingIds = new Set();
+    let legacyIds   = new Set();
     try {
         const { data } = await supabaseAdmin
             .from('player_matches')
-            .select('pgcr_id')
-            .eq('player_id', membershipId) // string
+            .select('pgcr_id,stats')
+            .eq('player_id', membershipId)
             .in('pgcr_id', batch);
-        if (data) existingIds = new Set(data.map(r => r.pgcr_id));
+        
+        if (data) {
+            for (const r of data) {
+                existingIds.add(r.pgcr_id);
+                // Check if this row is "legacy" (missing weapon slot info)
+                const weapons = r.stats?.top_weapons ?? [];
+                const isLegacy = weapons.length > 0 && weapons.some(w => !w.slot || w.slot === 'Unknown');
+                if (isLegacy) legacyIds.add(r.pgcr_id);
+            }
+        }
     } catch { }
 
-    const toFetch = batch.filter(id => !existingIds.has(id));
+    const toFetch = batch.filter(id => !existingIds.has(id) || legacyIds.has(id));
     let stored = 0, errors = 0;
 
     for (const instanceId of toFetch) {
