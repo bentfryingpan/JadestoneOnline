@@ -1,5 +1,8 @@
 /**
  * Destiny 2 Manifest Service (Database-Aligned 1:1)
+ *
+ * This version is designed to work with the existing 'players' and 'matches' tables,
+ * and will fallback to live Bungie API lookups until the manifest tables are created.
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
@@ -9,50 +12,58 @@ import { cacheGet, cacheSet } from './cache.js';
 const BUNGIE_ROOT   = 'https://www.bungie.net';
 const TABLE_TTL     = 86_400_000;   // 24 h
 
-// Mapping for our internal definitions to actual Supabase table names
-const TABLE_MAP = {
-    'DestinyInventoryItemDefinition':   'd2_items',
-    'DestinyActivityDefinition':        'd2_activities',
-    'DestinyStatDefinition':            'd2_stats',
-    'DestinySandboxPerkDefinition':     'd2_perks',
-    'DestinyDamageTypeDefinition':      'd2_damage_types',
-    'DestinySocketTypeDefinition':      'd2_socket_types',
-    'DestinySocketCategoryDefinition':  'd2_socket_cats',
-};
+/**
+ * Robust fetch that handles BigInt membershipIds by quoting them.
+ */
+async function bungieFetch(url) {
+    const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
+    if (!res.ok) return null;
+    const text = await res.text();
+    const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
+    return JSON.parse(fixed);
+}
 
-async function getDbDef(tableName, hash) {
+/**
+ * Returns a definition from:
+ * 1. In-memory cache (fast)
+ * 2. Supabase manifest_definitions (persistent) - if exists
+ * 3. Live Bungie API (source)
+ */
+async function getDef(tableName, hash) {
     if (!hash) return null;
     const hStr = String(hash >>> 0);
-    const dbTable = TABLE_MAP[tableName];
-    if (!dbTable) return null;
+    const cacheKey = `manifest:${tableName}:${hStr}`;
 
-    const cacheKey = `manifest:${dbTable}:${hStr}`;
     const cached = cacheGet(cacheKey);
     if (cached !== undefined) return cached;
 
+    // Check DB (Generic Table)
     try {
-        const { data } = await supabaseAdmin
-            .from(dbTable)
-            .select('raw')
+        const { data: row } = await supabaseAdmin
+            .from('manifest_definitions')
+            .select('data')
+            .eq('table_name', tableName)
             .eq('hash', hStr)
             .single();
-        
-        if (data?.raw) {
-            const def = typeof data.raw === 'string' ? JSON.parse(data.raw) : data.raw;
-            cacheSet(cacheKey, def, TABLE_TTL);
-            return def;
+        if (row?.data) {
+            cacheSet(cacheKey, row.data, TABLE_TTL);
+            return row.data;
         }
     } catch { }
 
-    // Fallback to Live API if not in DB
+    // Fallback: Live API
     try {
-        const res = await fetch(`${BUNGIE_ROOT}/Platform/Destiny2/Manifest/${tableName}/${hStr}/`, {
-            headers: { 'X-API-Key': BUNGIE_API_KEY }
-        });
-        const json = await res.json();
-        const def = json.Response;
+        const data = await bungieFetch(`/Platform/Destiny2/Manifest/${tableName}/${hStr}/`);
+        const def = data?.Response;
         if (def) {
             cacheSet(cacheKey, def, TABLE_TTL);
+            // Optional: Try to store in DB for next time (fire and forget)
+            supabaseAdmin.from('manifest_definitions').upsert({
+                table_name: tableName,
+                hash: hStr,
+                data: def,
+                updated_at: new Date().toISOString()
+            }).then(() => {}).catch(() => {});
             return def;
         }
     } catch { }
@@ -60,71 +71,45 @@ async function getDbDef(tableName, hash) {
     return null;
 }
 
-export const getItemDef             = (h) => getDbDef('DestinyInventoryItemDefinition', h);
-export const getActivityDef         = (h) => getDbDef('DestinyActivityDefinition', h);
-export const getStatDef             = (h) => getDbDef('DestinyStatDefinition', h);
-export const getSandboxPerkDef      = (h) => getDbDef('DestinySandboxPerkDefinition', h);
-export const getDamageTypeDef       = (h) => getDbDef('DestinyDamageTypeDefinition', h);
-export const getSocketTypeDef       = (h) => getDbDef('DestinySocketTypeDefinition', h);
-export const getSocketCategoryDef   = (h) => getDbDef('DestinySocketCategoryDefinition', h);
+// ── Public Lookups ───────────────────────────────────────────────────────────
 
-// The remaining definitions use the same logic but don't have specialized tables yet.
-// We'll use the generic live-fetch-with-cache for them.
-async function getGenericDef(tableName, hash) {
-    if (!hash) return null;
-    const hStr = String(hash >>> 0);
-    const cacheKey = `manifest:gen:${tableName}:${hStr}`;
-    const cached = cacheGet(cacheKey);
-    if (cached !== undefined) return cached;
-    try {
-        const res = await fetch(`${BUNGIE_ROOT}/Platform/Destiny2/Manifest/${tableName}/${hStr}/`, {
-            headers: { 'X-API-Key': BUNGIE_API_KEY }
-        });
-        const json = await res.json();
-        const def = json.Response;
-        cacheSet(cacheKey, def, TABLE_TTL);
-        return def;
-    } catch { return null; }
-}
+export const getItemDef             = (h) => getDef('DestinyInventoryItemDefinition', h);
+export const getActivityDef         = (h) => getDef('DestinyActivityDefinition', h);
+export const getStatDef             = (h) => getDef('DestinyStatDefinition', h);
+export const getSandboxPerkDef      = (h) => getDef('DestinySandboxPerkDefinition', h);
+export const getDamageTypeDef       = (h) => getDef('DestinyDamageTypeDefinition', h);
+export const getRecordDef           = (h) => getDef('DestinyRecordDefinition', h);
+export const getCollectibleDef      = (h) => getDef('DestinyCollectibleDefinition', h);
+export const getPresentationNodeDef = (h) => getDef('DestinyPresentationNodeDefinition', h);
+export const getSeasonDef           = (h) => getDef('DestinySeasonDefinition', h);
+export const getProgressionDef      = (h) => getDef('DestinyProgressionDefinition', h);
+export const getObjectiveDef        = (h) => getDef('DestinyObjectiveDefinition', h);
+export const getBucketDef           = (h) => getDef('DestinyInventoryBucketDefinition', h);
 
-export const getSeasonDef           = (h) => getGenericDef('DestinySeasonDefinition', h);
-export const getProgressionDef      = (h) => getGenericDef('DestinyProgressionDefinition', h);
-export const getClassDef            = (h) => getGenericDef('DestinyClassDefinition', h);
-export const getRaceDef             = (h) => getGenericDef('DestinyRaceDefinition', h);
-export const getBreakerTypeDef      = (h) => getGenericDef('DestinyBreakerTypeDefinition', h);
-export const getItemCategoryDef     = (h) => getGenericDef('DestinyItemCategoryDefinition', h);
-export const getTraitDef            = (h) => getGenericDef('DestinyTraitDefinition', h);
-export const getRecordDef           = (h) => getGenericDef('DestinyRecordDefinition', h);
-export const getCollectibleDef      = (h) => getGenericDef('DestinyCollectibleDefinition', h);
-export const getPresentationNodeDef = (h) => getGenericDef('DestinyPresentationNodeDefinition', h);
-export const getTalentGridDef       = (h) => getGenericDef('DestinyTalentGridDefinition', h);
-export const getMaterialRequirement = (h) => getGenericDef('DestinyMaterialRequirementSetDefinition', h);
-export const getVendorDef           = (h) => getGenericDef('DestinyVendorDefinition', h);
-export const getArtifactDef         = (h) => getGenericDef('DestinyArtifactDefinition', h);
-export const getPowerCapDef         = (h) => getGenericDef('DestinyPowerCapDefinition', h);
-export const getObjectiveDef        = (h) => getGenericDef('DestinyObjectiveDefinition', h);
-export const getBucketDef           = (h) => getGenericDef('DestinyInventoryBucketDefinition', h);
-
+/** Resolves historical stats/medals by string key. */
 export async function getMedalDef(statId) {
     if (!statId) return null;
     const cacheKey = `manifest:medals:${statId}`;
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
+
     try {
-        const { data } = await supabaseAdmin.from('d2_medals').select('raw').eq('stat_id', statId).single();
-        if (data?.raw) {
-            const def = typeof data.raw === 'string' ? JSON.parse(data.raw) : data.raw;
-            cacheSet(cacheKey, def, TABLE_TTL);
-            return def;
+        const { data: row } = await supabaseAdmin.from('manifest_definitions').select('data').eq('table_name', 'DestinyHistoricalStatsDefinition').eq('hash', statId).single();
+        if (row?.data) {
+            cacheSet(cacheKey, row.data, TABLE_TTL);
+            return row.data;
         }
     } catch { }
+
+    // Fallback: We can't fetch single medals easily via ID endpoint.
+    // Return placeholder or null.
     return null;
 }
 
 export async function getAllMedals() {
     try {
-        const { data } = await supabaseAdmin.from('d2_medals').select('stat_id, raw');
-        if (data) return Object.fromEntries(data.map(r => [r.stat_id, typeof r.raw === 'string' ? JSON.parse(r.raw) : r.raw]));
+        const { data } = await supabaseAdmin.from('manifest_definitions').select('hash, data').eq('table_name', 'DestinyHistoricalStatsDefinition');
+        if (data?.length) return Object.fromEntries(data.map(r => [r.hash, r.data]));
     } catch { }
     return {};
 }
@@ -137,9 +122,10 @@ export async function getStatNames(hashes) {
 export async function getMapImage(mapName) {
     if (!mapName) return null;
     const cleanName = mapName.replace(/^(Gambit[:\-]\s*)/i, '').trim();
+    // Search in DB if manifest synced
     try {
-        const { data } = await supabaseAdmin.from('d2_activities').select('pgcr_image').ilike('name', `%${cleanName}%`).limit(1).single();
-        if (data?.pgcr_image) return BUNGIE_ROOT + data.pgcr_image;
+        const { data } = await supabaseAdmin.from('manifest_definitions').select('data').eq('table_name', 'DestinyActivityDefinition').ilike('data->displayProperties->name', `%${cleanName}%`).limit(1).single();
+        if (data?.data?.pgcrImage) return BUNGIE_ROOT + data.data.pgcrImage;
     } catch { }
     return null;
 }
@@ -156,6 +142,8 @@ export async function getExoticIconBase64(itemHash) {
     } catch { return null; }
 }
 
-export async function getRawTable(comp) { return {}; }
+// Stubs for build compatibility
 export async function getManifestVersion() { return 'latest'; }
 export async function warmManifest() { }
+export async function getRawTable() { return {}; }
+export async function getItemDefs(hashes) { return Promise.all(hashes.map(h => getItemDef(h))); }

@@ -1,5 +1,5 @@
 /**
- * /api/sync/wipe — Database-Aligned Wipe Utility
+ * /api/sync/wipe — Robust Wipe Utility to clear corrupted data.
  */
 
 import { json } from '@sveltejs/kit';
@@ -11,12 +11,16 @@ export async function POST({ request }) {
 
     try {
         const idStr = String(membershipId);
-        const prefix = idStr.substring(0, 13);
+        // Rounded IDs typically zero out the last 3-4 digits
+        const prefix = idStr.substring(0, 15); 
         
+        console.log(`[wipe] Clearing data for ID ${idStr} and prefix ${prefix}...`);
+
         // 1. Reset player stats in the 'players' table
+        // We delete rounded variations too
         await supabaseAdmin
             .from('players')
-            .update({ ngr: 0, ego_score_avg: 0, games_played: 0 })
+            .delete()
             .or(`id.eq.${idStr},id.like.${prefix}%`);
 
         // 2. Wipe matches from the 'matches' table
@@ -29,7 +33,7 @@ export async function POST({ request }) {
 
         return json({ 
             success: true, 
-            message: `Cleared ${count ?? 0} matches from 'matches' table using prefix ${prefix}.`,
+            message: `Cleared ${count ?? 0} matches and reset player profile.`,
             clearedCount: count 
         });
     } catch (e) {
