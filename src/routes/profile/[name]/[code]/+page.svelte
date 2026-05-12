@@ -552,18 +552,115 @@
         zinc:    { border:'border-zinc-600',        glow:'group-hover:shadow-[0_0_12px_rgba(161,161,170,0.2)]',  text:'text-zinc-400',    hoverBorder:'group-hover:border-zinc-400'       },
         locked:  { border:'border-zinc-800',        glow:'',                                                      text:'text-zinc-700',    hoverBorder:'group-hover:border-zinc-700'       },
     };
+
+    // ── playerData — Gemini UI data object ────────────────────────────────────
+    const playerData = $derived({
+        identity: {
+            name:      data.player.bungieGlobalDisplayName,
+            code:      data.player.bungieGlobalDisplayNameCode,
+            clan:      data.clan?.name ?? null,
+            rating:    career?.avgScore ?? null,
+            level:     data.gambitProgression?.level ?? 0,
+            rank:      gambitRank,
+            rankValue: gambitPct,
+        },
+        overview: {
+            winRatio:  dWinRate,
+            wins:      dWon,
+            kd:        dKD,
+            kills:     dKills,
+            motesAvg:  dAvgMotes,
+            objectives: { deposited: dMotes, lost: dMotesLost, denied: dMotesDenied },
+            invasion:   { guardians: dInvKills, invasions: dInvasions, shutDown: dInvDef },
+        },
+        loadout: {
+            stats: {
+                Mobility:   char?.stats?.[2996146975] ?? 0,
+                Resilience: char?.stats?.[3927053327] ?? 0,
+                Recovery:   char?.stats?.[1943323491] ?? 0,
+                Discipline: char?.stats?.[1735777505] ?? 0,
+                Intellect:  char?.stats?.[144602215]  ?? 0,
+                Strength:   char?.stats?.[4244567218] ?? 0,
+            },
+            bonuses: { Mobility: 0, Resilience: 0, Recovery: 0, Discipline: 0, Intellect: 0, Strength: 0 },
+            weapons: [
+                { slot: 'KINETIC', name: eq.kinetic?.name  ?? '—', quality: eq.kinetic?.tierTypeName  ?? '', icon: eq.kinetic?.icon  ?? null },
+                { slot: 'ENERGY',  name: eq.energy?.name   ?? '—', quality: eq.energy?.tierTypeName   ?? '', icon: eq.energy?.icon   ?? null },
+                { slot: 'POWER',   name: eq.power?.name    ?? '—', quality: eq.power?.tierTypeName    ?? '', icon: eq.power?.icon    ?? null },
+            ],
+            armor: [
+                { slot: 'HELMET', name: eq.helmet?.name     ?? '—', quality: eq.helmet?.tierTypeName     ?? '', icon: eq.helmet?.icon     ?? null },
+                { slot: 'ARMS',   name: eq.gauntlets?.name  ?? '—', quality: eq.gauntlets?.tierTypeName  ?? '', icon: eq.gauntlets?.icon  ?? null },
+                { slot: 'CHEST',  name: eq.chest?.name      ?? '—', quality: eq.chest?.tierTypeName      ?? '', icon: eq.chest?.icon      ?? null },
+                { slot: 'LEGS',   name: eq.legs?.name       ?? '—', quality: eq.legs?.tierTypeName       ?? '', icon: eq.legs?.icon       ?? null },
+            ],
+        },
+    });
 </script>
 
 <!-- ── Full-height layout ──────────────────────────────────────────────────── -->
 <div class="flex">
 
 <!-- ── Left sidebar ────────────────────────────────────────────────────────── -->
-<aside class="w-16 sticky top-0 h-screen border-r border-white/[0.07] bg-black/30 backdrop-blur-md flex flex-col items-center py-4 shrink-0 z-40">
-        <!-- J Diamond logo -->
-        <div style="position:relative;width:2.25rem;height:2.25rem;margin-bottom:1.25rem;flex-shrink:0;">
-            <div style="position:absolute;inset:0;transform:rotate(45deg);border:1px solid rgba(61,174,119,0.50);background:rgba(61,174,119,0.07);box-shadow:0 0 10px rgba(61,174,119,0.20);"></div>
-            <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-family-display);font-size:0.78rem;font-weight:900;color:var(--gambit-green);user-select:none;">J</span>
-        </div>
+<aside class="w-16 sticky top-0 h-screen border-r border-white/[0.07] bg-black/40 backdrop-blur-md flex flex-col items-center py-4 shrink-0 z-40 gap-1">
+    <!-- J Diamond logo -->
+    <a href="/" style="position:relative;width:2.25rem;height:2.25rem;margin-bottom:1rem;flex-shrink:0;display:block;">
+        <div style="position:absolute;inset:0;transform:rotate(45deg);border:1px solid rgba(61,174,119,0.50);background:rgba(61,174,119,0.07);box-shadow:0 0 10px rgba(61,174,119,0.20);"></div>
+        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-family-display);font-size:0.78rem;font-weight:900;color:var(--gambit-green);user-select:none;">J</span>
+    </a>
+    <!-- Tab icon buttons -->
+    {#each [
+        { id:'overview',  label:'Overview',
+          path:'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+        { id:'matches',   label:'Matches',
+          path:'M4 6h16M4 10h16M4 14h10' },
+        { id:'weaponry',  label:'Weaponry',
+          path:'M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z' },
+        { id:'synergy',   label:'Synergy',
+          path:'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+        { id:'maps',      label:'Maps',
+          path:'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7' },
+        { id:'trophies',  label:'Trophies',
+          path:'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
+        { id:'pursuits',  label:'Pursuits',
+          path:'M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9' },
+        { id:'loadout',   label:'Loadout',
+          path:'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+        { id:'subclass',  label:'Subclass',
+          path:'M13 10V3L4 14h7v7l9-11h-7z' },
+    ] as t}
+        <button onclick={() => tab = t.id} title={t.label}
+            class="relative w-11 h-11 flex items-center justify-center rounded transition-all duration-150 group/sb
+                   {tab === t.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600 hover:text-zinc-300 hover:bg-white/5'}">
+            {#if tab === t.id}
+                <span class="absolute left-0 top-2 bottom-2 w-0.5 bg-emerald-500 rounded-r shadow-[0_0_6px_rgba(61,174,119,0.8)]"></span>
+            {/if}
+            <svg class="w-4.5 h-4.5" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d={t.path}/>
+            </svg>
+            <!-- Tooltip -->
+            <span class="absolute left-full ml-2 px-2 py-1 bg-zinc-900 border border-zinc-700 text-[10px] font-semibold text-zinc-200 whitespace-nowrap
+                         opacity-0 group-hover/sb:opacity-100 pointer-events-none transition-opacity duration-100 z-50"
+                  style="font-family:var(--font-family-display);letter-spacing:0.1em;text-transform:uppercase;">
+                {t.label}
+            </span>
+        </button>
+    {/each}
+
+    <!-- Spacer + claim button at bottom -->
+    <div class="mt-auto flex flex-col items-center gap-2">
+        {#if !claimed}
+            <button onclick={claimProfile} title="Claim profile"
+                class="w-8 h-8 flex items-center justify-center text-zinc-700 hover:text-emerald-400 transition-colors"
+                disabled={claiming}>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+            </button>
+        {:else}
+            <div class="w-2 h-2 rounded-full bg-emerald-500/60" title="Profile claimed"></div>
+        {/if}
+    </div>
 </aside><!-- end left sidebar -->
 
 <!-- ── Main content panel ────────────────────────────────────────────────────── -->
@@ -572,12 +669,14 @@
     <!-- ── Hero header ──────────────────────────────────────────────────────── -->
     <header style="position:relative;overflow:hidden;padding:1.5rem;">
 
-        <!-- Primary stat cards -->
+        <!-- Primary stat cards — Basalt & Silver style -->
         <div class="flex gap-3 mb-4 [&>*]:flex-1">
             {#if hasKey('activitiesEntered') || dEntered > 0}
-            <div class="bg-zinc-900/60 border border-zinc-800 p-4">
+            <div class="relative bg-zinc-950 border border-zinc-800 p-4 overflow-hidden hover:border-zinc-700 transition-colors group">
+                <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/30 pointer-events-none"></span>
+                <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/30 pointer-events-none"></span>
                 <div class="flex items-start justify-between mb-3">
-                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Win Rate</span>
+                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase" style="font-family:var(--font-family-display);">Win Rate</span>
                     {#if winRateRank(dWinRate)}
                         <span class="text-[9px] font-bold {winRateRank(dWinRate).color} border border-current/30 px-1.5 py-0.5">{winRateRank(dWinRate).label}</span>
                     {/if}
@@ -586,14 +685,16 @@
                     {dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'}
                 </div>
                 <div class="text-[10px] text-zinc-600 mt-2">{fmt(dWon)} W · {fmt(dEntered - dWon)} L · {fmt(dEntered)} total</div>
-                <div class="text-[9px] font-semibold {winTier(dWinRate).color} mt-1 tracking-widest">{winTier(dWinRate).label}</div>
+                <div class="text-[9px] font-semibold {winTier(dWinRate).color} mt-1 tracking-widest" style="font-family:var(--font-family-display);">{winTier(dWinRate).label}</div>
             </div>
             {/if}
 
             {#if hasKey('kills') || dKills > 0 || dDeaths > 0}
-            <div class="bg-zinc-900/60 border border-zinc-800 p-4">
+            <div class="relative bg-zinc-950 border border-zinc-800 p-4 overflow-hidden hover:border-zinc-700 transition-colors group">
+                <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/30 pointer-events-none"></span>
+                <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/30 pointer-events-none"></span>
                 <div class="flex items-start justify-between mb-3">
-                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">K / D / A</span>
+                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase" style="font-family:var(--font-family-display);">K / D / A</span>
                     {#if kdRank(dKD)}
                         <span class="text-[9px] font-bold {kdRank(dKD).color} border border-current/30 px-1.5 py-0.5">{kdRank(dKD).label}</span>
                     {/if}
@@ -601,15 +702,17 @@
                 <div class="text-4xl font-sans font-light tracking-tighter {kdTier(dKD).color} leading-none mb-1">
                     {dKD != null ? fmtF(dKD) : '—'}
                 </div>
-                <div class="text-[10px] text-zinc-600 mt-2">{fmt(dKills)} K · {fmt(dDeaths)} D · {fmt(dDeaths > 0 ? dKills+Math.round(dDeaths*.5) : 0)} A</div>
-                <div class="text-[9px] font-semibold {kdTier(dKD).color} mt-1 tracking-widest">{kdTier(dKD).label}</div>
+                <div class="text-[10px] text-zinc-600 mt-2">{fmt(dKills)} K · {fmt(dDeaths)} D</div>
+                <div class="text-[9px] font-semibold {kdTier(dKD).color} mt-1 tracking-widest" style="font-family:var(--font-family-display);">{kdTier(dKD).label}</div>
             </div>
             {/if}
 
             {#if hasKey('motesBanked') || dMotes > 0}
-            <div class="bg-zinc-900/60 border border-zinc-800 p-4">
+            <div class="relative bg-zinc-950 border border-zinc-800 p-4 overflow-hidden hover:border-zinc-700 transition-colors group">
+                <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/30 pointer-events-none"></span>
+                <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/30 pointer-events-none"></span>
                 <div class="flex items-start justify-between mb-3">
-                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Avg Motes</span>
+                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase" style="font-family:var(--font-family-display);">Avg Motes</span>
                     {#if motesRank(dAvgMotes)}
                         <span class="text-[9px] font-bold {motesRank(dAvgMotes).color} border border-current/30 px-1.5 py-0.5">{motesRank(dAvgMotes).label}</span>
                     {/if}
@@ -623,9 +726,11 @@
             {/if}
 
             {#if hasKey('invasions') || dInvasions > 0}
-            <div class="bg-zinc-900/60 border border-zinc-800 p-4">
+            <div class="relative bg-zinc-950 border border-zinc-800 p-4 overflow-hidden hover:border-zinc-700 transition-colors group">
+                <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-amber-500/20 pointer-events-none"></span>
+                <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-amber-500/20 pointer-events-none"></span>
                 <div class="flex items-start justify-between mb-3">
-                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase">Avg Invasions</span>
+                    <span class="text-[10px] font-semibold text-zinc-500 tracking-widest uppercase" style="font-family:var(--font-family-display);">Avg Invasions</span>
                     {#if invRank(dAvgInv)}
                         <span class="text-[9px] font-bold {invRank(dAvgInv).color} border border-current/30 px-1.5 py-0.5">{invRank(dAvgInv).label}</span>
                     {/if}
@@ -634,7 +739,7 @@
                     {fmtF(dAvgInv, 2)}
                 </div>
                 <div class="text-[10px] text-zinc-600 mt-2">{fmt(dInvKills)} kills · {fmt(dInvDef)} shut down</div>
-                <div class="text-[9px] font-semibold {invTier(dAvgInv).color} mt-1 tracking-widest">{invTier(dAvgInv).label}</div>
+                <div class="text-[9px] font-semibold {invTier(dAvgInv).color} mt-1 tracking-widest" style="font-family:var(--font-family-display);">{invTier(dAvgInv).label}</div>
             </div>
             {/if}
         </div>
@@ -963,6 +1068,115 @@
         {#key tab}
         <div in:fly={{ y: 16, duration: 320, opacity: 0 }}>
 
+            <!-- ── Gemini "Basalt & Silver" snippets ──────────────────────────── -->
+
+            {#snippet ghostLabel(text)}
+                <span style="font-family:var(--font-family-display);font-size:0.58rem;font-weight:700;letter-spacing:0.20em;text-transform:uppercase;color:rgba(255,255,255,0.22);">{text}</span>
+            {/snippet}
+
+            {#snippet engravedHeader(title, sub)}
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="h-px flex-1 bg-gradient-to-r from-transparent to-zinc-800/80"></div>
+                    <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.30);" class="shrink-0">{title}</span>
+                    {#if sub}<span class="text-[9px] text-zinc-700 shrink-0">{sub}</span>{/if}
+                    <div class="h-px flex-1 bg-gradient-to-l from-transparent to-zinc-800/80"></div>
+                </div>
+            {/snippet}
+
+            <!-- stoneCard: pass a snippet as `inner` param -->
+            {#snippet stoneCard(inner)}
+                <div class="relative bg-zinc-950 border border-zinc-800/80 overflow-hidden group/sc
+                            hover:border-zinc-700/80 transition-colors duration-200">
+                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/25 pointer-events-none"></span>
+                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/25 pointer-events-none"></span>
+                    <span class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-zinc-700/30 pointer-events-none"></span>
+                    <span class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-zinc-700/30 pointer-events-none"></span>
+                    {@render inner()}
+                </div>
+            {/snippet}
+
+            {#snippet largeMetricCompact(value, label, rankBadge)}
+                <div class="p-4 relative overflow-hidden">
+                    {@render ghostLabel(label)}
+                    <div class="mt-1.5 flex items-baseline justify-between gap-2">
+                        <span style="font-family:var(--font-family-display);font-size:1.9rem;font-weight:800;line-height:1;color:var(--d2-text-primary);">{value}</span>
+                        {#if rankBadge}
+                            <span class="text-[9px] font-bold {rankBadge.color} border border-current/30 px-1.5 py-0.5 shrink-0"
+                                  style="font-family:var(--font-family-display);letter-spacing:0.1em;">{rankBadge.label}</span>
+                        {/if}
+                    </div>
+                </div>
+            {/snippet}
+
+            {#snippet detailStatCompact(label, value, colorClass)}
+                <div class="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/40 last:border-0">
+                    <span class="text-xs font-medium text-zinc-500 shrink-0">{label}</span>
+                    <span class="text-sm font-mono font-bold {colorClass ?? 'text-zinc-200'}">{value}</span>
+                </div>
+            {/snippet}
+
+            {#snippet rankMedallion(rankName, pct)}
+                <div class="flex flex-col items-center gap-1 px-3 py-2">
+                    <span style="font-family:var(--font-family-display);font-size:0.68rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gambit-green);">{rankName}</span>
+                    <div class="w-16 h-1 bg-zinc-800 overflow-hidden">
+                        <div class="h-full bg-emerald-500/70 transition-all duration-500" style="width:{pct}%"></div>
+                    </div>
+                    <span class="text-[9px] text-zinc-600">{pct}% to next</span>
+                </div>
+            {/snippet}
+
+            {#snippet jadestoneSlot(item)}
+                <div class="flex items-center gap-3 px-3 py-2.5 border-b border-zinc-800/40 last:border-0 group/slot hover:bg-white/[0.02] transition-colors">
+                    {#if item.icon}
+                        <img src={item.icon} alt="" class="w-9 h-9 object-cover shrink-0 border border-zinc-700/50" />
+                    {:else}
+                        <div class="w-9 h-9 bg-zinc-900 border border-zinc-800 shrink-0 flex items-center justify-center">
+                            <div class="w-3 h-3 border border-zinc-700 rotate-45"></div>
+                        </div>
+                    {/if}
+                    <div class="flex-1 min-w-0">
+                        <span class="text-sm font-medium text-zinc-300 truncate block group-hover/slot:text-white transition-colors">{item.name}</span>
+                        <span class="text-[9px] tracking-wider uppercase {item.quality === 'Exotic' ? 'text-yellow-500' : item.quality === 'Legendary' ? 'text-violet-400' : 'text-zinc-600'}">{item.slot}</span>
+                    </div>
+                    <span class="text-[9px] shrink-0 {item.quality === 'Exotic' ? 'text-yellow-500' : item.quality === 'Legendary' ? 'text-violet-400/60' : 'text-zinc-700'}">{item.quality}</span>
+                </div>
+            {/snippet}
+
+            {#snippet fateStatRow(statName, base, bonus)}
+                <div class="flex items-center gap-3 py-1.5">
+                    <span class="text-xs text-zinc-500 w-24 shrink-0">{statName}</span>
+                    <div class="flex-1 h-1 bg-zinc-900 overflow-hidden">
+                        <div class="h-full bg-emerald-600/60 transition-all duration-500" style="width:{Math.min(base, 100)}%"></div>
+                    </div>
+                    <span class="text-sm font-mono text-zinc-300 w-8 text-right shrink-0">{base}</span>
+                    {#if bonus > 0}
+                        <span class="text-[10px] font-mono text-emerald-400 shrink-0">+{bonus}</span>
+                    {:else}
+                        <span class="text-[10px] text-zinc-700 shrink-0 w-6"></span>
+                    {/if}
+                </div>
+            {/snippet}
+
+            {#snippet medalBadge(medalKey, count)}
+                {@const localPng = `/icons/medals/${medalKey.replace(/([A-Z])/g, c => c.toLowerCase())}.png`}
+                <div class="relative bg-zinc-950 border border-zinc-800 p-3 flex flex-col items-center gap-2
+                            hover:border-zinc-600 transition-colors group/medal"
+                     title="{MEDAL_LABELS[medalKey] ?? medalKey} × {count}">
+                    <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500/20 pointer-events-none"></span>
+                    <span class="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500/20 pointer-events-none"></span>
+                    <div class="w-12 h-12 flex items-center justify-center relative">
+                        <img src={localPng} alt={MEDAL_LABELS[medalKey] ?? medalKey}
+                             class="w-10 h-10 object-contain group-hover/medal:scale-110 transition-transform"
+                             onerror={(e) => { e.currentTarget.style.display='none'; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display='flex'; }} />
+                        <div class="w-10 h-10 bg-zinc-800 border border-zinc-700 rotate-45 items-center justify-center hidden">
+                            <span class="text-[8px] text-zinc-500 -rotate-45">M</span>
+                        </div>
+                    </div>
+                    <span class="text-xl font-mono font-bold text-zinc-100">{count.toLocaleString()}</span>
+                    <span class="text-[9px] text-zinc-600 text-center leading-tight line-clamp-2">{MEDAL_LABELS[medalKey] ?? medalKey}</span>
+                </div>
+            {/snippet}
+
             <!-- ── DetailRow snippet (label | value | rank badge) ───────────── -->
             {#snippet DetailRow(label, value, rank)}
                 <div class="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/40 last:border-0">
@@ -1049,7 +1263,7 @@
                         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;">
 
                             <!-- Win Ratio -->
-                            <div style="position:relative;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-top:2px solid rgba(61,174,119,0.35);padding:1rem;overflow:hidden;clip-path:polygon(8px 0%,100% 0%,100% 100%,0% 100%,0% 8px);transition:border-color 0.15s;" class="anim-in"
+                            <div style="position:relative;background:rgba(8,8,8,0.98);border:1px solid rgba(255,255,255,0.08);border-top:2px solid rgba(61,174,119,0.35);padding:1rem;overflow:hidden;clip-path:polygon(8px 0%,100% 0%,100% 100%,0% 100%,0% 8px);transition:border-color 0.15s;" class="anim-in"
                                  onmouseenter={e=>e.currentTarget.style.borderColor='rgba(61,174,119,0.40)'}
                                  onmouseleave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'}>
                                 <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">Win Ratio</span>
@@ -1194,15 +1408,57 @@
                         </div>
                         {/if}
 
+                        <!-- ── Guardian build snapshot ──────────────────────────── -->
+                        {#if loadout && (playerData.loadout.weapons[0].name !== '—' || playerData.loadout.stats.Mobility > 0)}
+                            <div class="grid grid-cols-2 gap-4">
+                                <!-- Armor stats -->
+                                {#if playerData.loadout.stats.Mobility > 0}
+                                <div class="relative bg-zinc-950 border border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors">
+                                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/25 pointer-events-none"></span>
+                                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/25 pointer-events-none"></span>
+                                    <div class="px-4 py-2.5 border-b border-zinc-800/60">
+                                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.30);">Character Stats</span>
+                                    </div>
+                                    <div class="px-4 py-3">
+                                        {#each Object.entries(playerData.loadout.stats) as [stat, base]}
+                                            {@render fateStatRow(stat, base, playerData.loadout.bonuses[stat] ?? 0)}
+                                        {/each}
+                                    </div>
+                                </div>
+                                {/if}
+                                <!-- Current weapons -->
+                                {#if playerData.loadout.weapons[0].name !== '—'}
+                                <div class="relative bg-zinc-950 border border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors">
+                                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/25 pointer-events-none"></span>
+                                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/25 pointer-events-none"></span>
+                                    <div class="px-4 py-2.5 border-b border-zinc-800/60">
+                                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.30);">Active Weapons</span>
+                                    </div>
+                                    {#each playerData.loadout.weapons as w}
+                                        {@render jadestoneSlot(w)}
+                                    {/each}
+                                    <div class="px-4 py-2.5 border-t border-zinc-800/60 mt-px">
+                                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.18);">Armor</span>
+                                    </div>
+                                    {#each playerData.loadout.armor as a}
+                                        {@render jadestoneSlot(a)}
+                                    {/each}
+                                </div>
+                                {/if}
+                            </div>
+                        {/if}
+
                         <!-- Recent matches preview -->
                         {#if data.recentMatches.length}
                             <div>
-                                <div class="flex items-center gap-4 mb-3">
-                                    <div class="w-1 h-4 bg-emerald-500/50"></div>
-                                    <span class="text-xs font-medium text-zinc-500">Recent Matches</span>
+                                <div class="flex items-center gap-3 mb-3">
+                                    <div class="h-px flex-1 bg-gradient-to-r from-transparent to-zinc-800/80"></div>
+                                    <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.30);">Recent Matches</span>
+                                    <div class="h-px flex-1 bg-gradient-to-l from-transparent to-zinc-800/80"></div>
                                     <button onclick={() => tab = 'matches'}
-                                        class="ml-auto text-xs font-medium text-emerald-500 hover:text-emerald-400 transition-colors">
-                                        View all →
+                                        class="text-[10px] font-semibold text-emerald-500 hover:text-emerald-400 transition-colors ml-1"
+                                        style="font-family:var(--font-family-display);letter-spacing:0.08em;">
+                                        ALL →
                                     </button>
                                 </div>
                                 <div class="border border-zinc-800 bg-white/[0.02] divide-y divide-zinc-800/50 rounded-lg overflow-hidden">
@@ -1247,16 +1503,16 @@
             <!-- ══ MATCHES ══════════════════════════════════════════════════════ -->
             {:else if tab === 'matches'}
                 <div class="p-6">
-                    <div class="flex items-center gap-4 mb-4">
-                        <div class="w-1 h-4 bg-emerald-500/50"></div>
-                        <span class="text-xs font-medium text-zinc-500">Match History</span>
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="h-px flex-1 bg-gradient-to-r from-transparent to-zinc-800/80"></div>
+                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.30);">Match History</span>
+                        <div class="h-px flex-1 bg-gradient-to-l from-transparent to-zinc-800/80"></div>
                         {#if history}
-                            <span class="ml-auto text-xs text-zinc-600 font-light">
-                                {filteredMatches.length.toLocaleString()} matches
-                                {#if stackFilter !== 0 && stackFilter !== 'favs'}(filtered){/if}
+                            <span class="text-[9px] text-zinc-600 font-light ml-1">
+                                {filteredMatches.length.toLocaleString()} matches{#if stackFilter !== 0 && stackFilter !== 'favs'} (filtered){/if}
                             </span>
                         {:else}
-                            <span class="ml-auto text-xs text-zinc-600 font-light">{data.recentMatches.length} recent matches</span>
+                            <span class="text-[9px] text-zinc-600 font-light ml-1">{data.recentMatches.length} recent</span>
                         {/if}
                     </div>
 
@@ -1432,10 +1688,7 @@
 
                         <!-- Weapon table -->
                         <div>
-                            <div class="flex items-center gap-3 mb-3">
-                                <div class="w-1 h-4 bg-emerald-500/50"></div>
-                                <span class="text-xs font-medium text-zinc-500">Top Weapons · Last {career.matchesAnalyzed} Matches</span>
-                            </div>
+                            {@render engravedHeader('Top Weapons', `· Last ${career.matchesAnalyzed} Matches`)}
                             <div class="border border-zinc-800 overflow-hidden">
                                 <!-- Header -->
                                 <div class="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-0 bg-zinc-900/60 px-4 py-2 border-b border-zinc-800">
@@ -1505,10 +1758,7 @@
                     </div>
                 {:else}
                     <div class="p-6 space-y-5">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-1 h-4 bg-emerald-500/50"></div>
-                            <span class="text-xs font-medium text-zinc-500">Map Performance · Last {career.matchesAnalyzed} Matches</span>
-                        </div>
+                        {@render engravedHeader('Map Performance', `· Last ${career.matchesAnalyzed} Matches`)}
 
                         <!-- Win rate bar chart -->
                         <div class="space-y-2">
@@ -1604,11 +1854,7 @@
 
                             <!-- Best Allies -->
                             <div>
-                                <div class="flex items-center gap-3 mb-4">
-                                    <div class="w-1 h-4 bg-emerald-500/50"></div>
-                                    <span class="text-xs font-medium text-zinc-500">Best Allies</span>
-                                    <span class="text-[9px] text-zinc-700 font-light">· seen as teammate</span>
-                                </div>
+                                {@render engravedHeader('Best Allies', '· seen as teammate')}
                                 {#if !career.allies?.length}
                                     <p class="text-xs text-zinc-600 italic">Not enough repeated teammate encounters yet.</p>
                                 {:else}
@@ -1641,11 +1887,7 @@
 
                             <!-- Rivals -->
                             <div>
-                                <div class="flex items-center gap-3 mb-4">
-                                    <div class="w-1 h-4 bg-red-500/50"></div>
-                                    <span class="text-xs font-medium text-zinc-500">Frequent Rivals</span>
-                                    <span class="text-[9px] text-zinc-700 font-light">· seen as enemy</span>
-                                </div>
+                                {@render engravedHeader('Frequent Rivals', '· seen as enemy')}
                                 {#if !career.rivals?.length}
                                     <p class="text-xs text-zinc-600 italic">Not enough repeated enemy encounters yet.</p>
                                 {:else}
@@ -1731,10 +1973,7 @@
                         <!-- Peak hours -->
                         {#if career.hourlyStats?.length}
                             <div class="border border-zinc-800 bg-white/[0.02] p-5">
-                                <div class="flex items-center gap-4 mb-4">
-                                    <div class="w-1 h-4 bg-amber-500/50"></div>
-                                    <span class="text-xs font-medium text-zinc-500">Performance by Hour (UTC)</span>
-                                </div>
+                                {@render engravedHeader('Performance by Hour (UTC)', '')}
                                 <!-- Bar chart of avg EGO by hour -->
                                 <div class="flex items-end gap-0.5 h-16">
                                     {#each career.hourlyStats as h}
@@ -1780,11 +2019,7 @@
 
                         <!-- Medal Wall -->
                         <div>
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-1 h-4 bg-amber-500/50"></div>
-                                <span class="text-xs font-medium text-zinc-500">Medal Wall · Last {career.matchesAnalyzed} Matches</span>
-                            </div>
-
+                            {@render engravedHeader('Medal Wall', `· Last ${career.matchesAnalyzed} Matches`)}
                             {#if !career.medals?.length}
                                 <div class="text-xs text-zinc-600 italic text-center py-8">
                                     No medal data found. Load more match history to populate.
@@ -1792,51 +2027,41 @@
                             {:else}
                                 <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
                                     {#each career.medals as { key: medal, count }}
-                                        {@const localPng = `/icons/medals/${medal.replace(/([A-Z])/g, c => c.toLowerCase())}.png`}
-                                        <div class="bg-white/[0.02] border border-zinc-800 p-3 flex flex-col items-center gap-2 hover:border-zinc-600 transition-colors group"
-                                             title="{MEDAL_LABELS[medal] ?? medal} × {count}">
-                                            <!-- Medal icon: local PNG first (instant), Bungie CDN as fallback -->
-                                            <div class="w-12 h-12 flex items-center justify-center relative">
-                                                <img src={localPng} alt={MEDAL_LABELS[medal] ?? medal}
-                                                     class="w-10 h-10 object-contain group-hover:scale-110 transition-transform"
-                                                     onerror={(e) => { e.currentTarget.style.display = 'none'; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = 'flex'; }} />
-                                                <!-- Fallback placeholder shown when PNG missing -->
-                                                <div class="w-10 h-10 bg-zinc-800 border border-zinc-700 rotate-45 items-center justify-center hidden">
-                                                    <span class="text-[8px] text-zinc-500 -rotate-45">M</span>
-                                                </div>
-                                            </div>
-                                            <!-- Count -->
-                                            <span class="text-xl font-mono font-bold text-zinc-100">{count.toLocaleString()}</span>
-                                            <!-- Medal name -->
-                                            <span class="text-[9px] text-zinc-600 text-center leading-tight line-clamp-2">
-                                                {MEDAL_LABELS[medal] ?? medal}
-                                            </span>
-                                        </div>
+                                        {@render medalBadge(medal, count)}
                                     {/each}
                                 </div>
                             {/if}
                         </div>
 
                         <!-- Carry stats -->
-                        <div class="grid grid-cols-3 gap-4">
-                            <div class="bg-amber-500/5 border border-amber-500/20 p-4 text-center">
-                                <span class="text-[9px] font-semibold text-amber-500 uppercase tracking-wider block mb-2">Hard Carries</span>
-                                <span class="text-3xl font-mono font-bold text-amber-400">{career.carries ?? 0}</span>
-                                <span class="text-[9px] text-zinc-600 block mt-1">
-                                    {career.matchesAnalyzed > 0 ? fmtF((career.carries / career.matchesAnalyzed) * 100, 1) : '0.0'}% of matches
-                                </span>
-                            </div>
-                            <div class="bg-red-500/5 border border-red-500/20 p-4 text-center">
-                                <span class="text-[9px] font-semibold text-red-500 uppercase tracking-wider block mb-2">Carried</span>
-                                <span class="text-3xl font-mono font-bold text-red-400">{career.carried ?? 0}</span>
-                                <span class="text-[9px] text-zinc-600 block mt-1">
-                                    {career.matchesAnalyzed > 0 ? fmtF((career.carried / career.matchesAnalyzed) * 100, 1) : '0.0'}% of matches
-                                </span>
-                            </div>
-                            <div class="bg-white/[0.02] border border-zinc-800 p-4 text-center">
-                                <span class="text-[9px] font-semibold text-zinc-500 uppercase tracking-wider block mb-2">Avg EGO</span>
-                                <span class="text-3xl font-mono font-bold {egoColor(career.avgScore)}">{career.avgScore ?? '—'}</span>
-                                <span class="text-[9px] text-zinc-600 block mt-1">per match</span>
+                        <div>
+                            {@render engravedHeader('Performance Summary', '')}
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="relative bg-zinc-950 border border-amber-500/25 p-4 text-center overflow-hidden">
+                                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-amber-500/40 pointer-events-none"></span>
+                                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-amber-500/40 pointer-events-none"></span>
+                                    <span class="text-[9px] font-semibold text-amber-500 uppercase tracking-wider block mb-2" style="font-family:var(--font-family-display);">Hard Carries</span>
+                                    <span class="text-3xl font-mono font-bold text-amber-400">{career.carries ?? 0}</span>
+                                    <span class="text-[9px] text-zinc-600 block mt-1">
+                                        {career.matchesAnalyzed > 0 ? fmtF((career.carries / career.matchesAnalyzed) * 100, 1) : '0.0'}% of matches
+                                    </span>
+                                </div>
+                                <div class="relative bg-zinc-950 border border-red-500/25 p-4 text-center overflow-hidden">
+                                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-red-500/40 pointer-events-none"></span>
+                                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-red-500/40 pointer-events-none"></span>
+                                    <span class="text-[9px] font-semibold text-red-500 uppercase tracking-wider block mb-2" style="font-family:var(--font-family-display);">Carried</span>
+                                    <span class="text-3xl font-mono font-bold text-red-400">{career.carried ?? 0}</span>
+                                    <span class="text-[9px] text-zinc-600 block mt-1">
+                                        {career.matchesAnalyzed > 0 ? fmtF((career.carried / career.matchesAnalyzed) * 100, 1) : '0.0'}% of matches
+                                    </span>
+                                </div>
+                                <div class="relative bg-zinc-950 border border-zinc-800 p-4 text-center overflow-hidden">
+                                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/25 pointer-events-none"></span>
+                                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/25 pointer-events-none"></span>
+                                    <span class="text-[9px] font-semibold text-zinc-500 uppercase tracking-wider block mb-2" style="font-family:var(--font-family-display);">Avg EGO</span>
+                                    <span class="text-3xl font-mono font-bold {egoColor(career.avgScore)}">{career.avgScore ?? '—'}</span>
+                                    <span class="text-[9px] text-zinc-600 block mt-1">per match</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1866,7 +2091,39 @@
                         </span>
                     </div>
                 {:else}
-                    <div class="p-6">
+                    <div class="p-6 space-y-5">
+                        <!-- Gemini stat bar + weapon slots -->
+                        {#if playerData.loadout.stats.Mobility > 0 || playerData.loadout.weapons[0].name !== '—'}
+                            <div class="grid grid-cols-2 gap-4">
+                                {#if playerData.loadout.stats.Mobility > 0}
+                                <div class="relative bg-zinc-950 border border-zinc-800 overflow-hidden">
+                                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/25 pointer-events-none"></span>
+                                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/25 pointer-events-none"></span>
+                                    <div class="px-4 py-2.5 border-b border-zinc-800/60">
+                                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.30);">Character Stats</span>
+                                    </div>
+                                    <div class="px-4 py-3">
+                                        {#each Object.entries(playerData.loadout.stats) as [stat, base]}
+                                            {@render fateStatRow(stat, base, 0)}
+                                        {/each}
+                                    </div>
+                                </div>
+                                {/if}
+                                {#if playerData.loadout.weapons[0].name !== '—'}
+                                <div class="relative bg-zinc-950 border border-zinc-800 overflow-hidden">
+                                    <span class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/25 pointer-events-none"></span>
+                                    <span class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/25 pointer-events-none"></span>
+                                    <div class="px-4 py-2.5 border-b border-zinc-800/60">
+                                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.30);">Weapons</span>
+                                    </div>
+                                    {#each playerData.loadout.weapons as w}
+                                        {@render jadestoneSlot(w)}
+                                    {/each}
+                                </div>
+                                {/if}
+                            </div>
+                        {/if}
+                        <!-- Full character screen -->
                         <CharacterScreen
                             char={char}
                             eq={eq}
