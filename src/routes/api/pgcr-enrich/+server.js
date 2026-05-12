@@ -15,9 +15,9 @@ const PGCR_ROOT   = 'https://stats.bungie.net';
 const PGCR_TTL    = 86_400_000;
 
 const SLOT_BUCKETS = {
-    1498876634: 'Kinetic',
+    1491708835: 'Kinetic',
     2465295065: 'Energy',
-    953998645:  'Power'
+    95395402:   'Power'
 };
 
 async function fetchPgcr(instanceId) {
@@ -30,7 +30,13 @@ async function fetchPgcr(instanceId) {
             { headers: { 'X-API-Key': BUNGIE_API_KEY } }
         );
         if (!res.ok) return null;
-        const data = await res.json();
+        
+        // ROBUST BIGINT PARSING:
+        // Quoting numeric IDs before standard JSON.parse can corrupt them.
+        const text = await res.text();
+        const fixedText = text.replace(/:\s*(\d{15,})/g, ': "$1"');
+        const data = JSON.parse(fixedText);
+        
         if (data.ErrorCode === 1 && data.Response) {
             cacheSet(key, data, PGCR_TTL);
             return data;
@@ -72,8 +78,7 @@ async function processPgcr(pgcr, targetMembershipId, targetName, targetCode) {
         const ftSize = ftGroups[ftId] ?? 1;
         const team   = teamMap[e.values?.team?.basic?.value ?? 0] ?? 'Alpha';
 
-        // Robust matching: ID string match OR (Name + Code match)
-        // This handles cases where membershipId in PGCR is returned as a number and corrupted by JS.
+        // Robust matching logic matching Python Jadestone logic
         const isTarget = pId === String(targetMembershipId) || 
                          (pInfo.bungieGlobalDisplayName === targetName && 
                           String(pInfo.bungieGlobalDisplayNameCode).padStart(4,'0') === String(targetCode).padStart(4,'0'));
@@ -112,7 +117,6 @@ async function processPgcr(pgcr, targetMembershipId, targetName, targetCode) {
         });
 
         if (isTarget && sv(e, 'completed') === 1) {
-            // Weapon lookups (async)
             const rawWeapons = e.extended?.weapons ?? [];
             const topWeapons = [];
             let matchExotic = null;
@@ -159,10 +163,7 @@ export async function POST({ request }) {
         return json({ error: 'Missing params' }, { status: 400 });
     }
 
-    const batch = instanceIds.slice(0, 40);
-    
-    // ── Optimized Parallel Processing ────────────────────────────────────────
-    const results = await Promise.all(batch.map(async (id) => {
+    const results = await Promise.all(instanceIds.map(async (id) => {
         try {
             const pgcrData = await fetchPgcr(id);
             if (!pgcrData?.Response) return null;
@@ -205,38 +206,39 @@ export async function POST({ request }) {
     }));
 
     const toUpsert = results.filter(Boolean);
-    if (toUpsert.length === 0) return json({ stored: 0, total: batch.length });
+    if (toUpsert.length === 0) return json({ stored: 0, total: instanceIds.length });
 
-    // ── Bulk Upsert ──────────────────────────────────────────────────────────
     const { error: matchErr } = await supabaseAdmin
         .from('player_matches')
         .upsert(toUpsert, { onConflict: 'pgcr_id,player_id' });
 
     if (matchErr) return json({ error: matchErr.message }, { status: 500 });
 
-    // ── Optimized NGR Calculation ────────────────────────────────────────────
-    const { data: ngrRow } = await supabaseAdmin
-        .from('player_ngr_cache')
-        .select('ngr,games')
-        .eq('player_id', membershipId)
-        .single();
-    
-    let totalScore = (ngrRow?.ngr ?? 0) * (ngrRow?.games ?? 0);
-    let totalGames = (ngrRow?.games ?? 0);
+    // NGR logic...
+    try {
+        const { data: ngrRow } = await supabaseAdmin
+            .from('player_ngr_cache')
+            .select('ngr,games')
+            .eq('player_id', membershipId)
+            .single();
+        
+        let totalScore = (ngrRow?.ngr ?? 0) * (ngrRow?.games ?? 0);
+        let totalGames = (ngrRow?.games ?? 0);
 
-    for (const match of toUpsert) {
-        totalScore += match.ego_score;
-        totalGames += 1;
-    }
+        for (const match of toUpsert) {
+            totalScore += match.ego_score;
+            totalGames += 1;
+        }
 
-    await supabaseAdmin.from('player_ngr_cache').upsert({
-        player_id: membershipId,
-        bungie_name: bungieDisplayName,
-        bungie_code: bungieDisplayCode ? String(bungieDisplayCode) : null,
-        ngr: Math.round((totalScore / totalGames) * 10) / 10,
-        games: totalGames,
-        updated_at: new Date().toISOString()
-    }, { onConflict: 'player_id' });
+        await supabaseAdmin.from('player_ngr_cache').upsert({
+            player_id: membershipId,
+            bungie_name: bungieDisplayName,
+            bungie_code: bungieDisplayCode ? String(bungieDisplayCode) : null,
+            ngr: Math.round((totalScore / totalGames) * 10) / 10,
+            games: totalGames,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'player_id' });
+    } catch { }
 
-    return json({ stored: toUpsert.length, total: batch.length });
+    return json({ stored: toUpsert.length, total: instanceIds.length });
 }

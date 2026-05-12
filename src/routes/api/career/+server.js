@@ -31,9 +31,10 @@ async function careerFromSupabase(membershipId, count) {
         .from('player_matches')
         .select('pgcr_id,map_name,map_image,period,outcome,ego_score,is_hard_carry,is_carried,stats,roster')
         .eq('player_id', membershipId)
+        .not('stats', 'is', null) // Only matches with stats
         .not('outcome', 'eq', 'DNF')
         .order('period', { ascending: false })
-        .limit(count);
+        .limit(Math.max(count, 5000)); // Increase limit for career analytics
 
     if (error || !rows?.length) return null;
 
@@ -80,33 +81,35 @@ async function careerFromSupabase(membershipId, count) {
 
         // Players (Teammates & Rivals)
         const roster = row.roster ?? [];
-        const myEntry = roster.find(r => r.is_target);
+        const myEntry = roster.find(r => r.is_target || String(r.id) === String(membershipId));
         const myTeam  = myEntry?.team;
         
-        for (const p of roster) {
-            if (p.is_target) continue;
-            // Handle potentially corrupted IDs in roster by using name+code as fallback key
-            const key = p.id || `${p.name}#${p.code}`;
-            if (!key) continue;
-            
-            if (!playersAgg[key]) {
-                playersAgg[key] = { 
-                    name: p.name, code: p.code, games: 0, wins: 0, 
-                    as_ally: 0, ally_wins: 0, 
-                    as_enemy: 0, enemy_wins: 0, 
-                    className: p.className ?? 'Unknown' 
-                };
-            }
-            const pa = playersAgg[key];
-            pa.games++;
-            if (isWin) pa.wins++;
-            
-            if (p.team === myTeam) {
-                pa.as_ally++;
-                if (isWin) pa.ally_wins++;
-            } else {
-                pa.as_enemy++;
-                if (isWin) pa.enemy_wins++;
+        if (myTeam) {
+            for (const p of roster) {
+                if (String(p.id) === String(membershipId)) continue;
+                
+                const key = p.id || `${p.name}#${p.code}`;
+                if (!key) continue;
+                
+                if (!playersAgg[key]) {
+                    playersAgg[key] = { 
+                        name: p.name, code: p.code, games: 0, wins: 0, 
+                        as_ally: 0, ally_wins: 0, 
+                        as_enemy: 0, enemy_wins: 0, 
+                        className: p.className ?? 'Unknown' 
+                    };
+                }
+                const pa = playersAgg[key];
+                pa.games++;
+                if (isWin) pa.wins++;
+                
+                if (p.team === myTeam) {
+                    pa.as_ally++;
+                    if (isWin) pa.ally_wins++;
+                } else {
+                    pa.as_enemy++;
+                    if (isWin) pa.enemy_wins++;
+                }
             }
         }
 
