@@ -133,7 +133,7 @@
         careerError   = null;
         try {
             const res = await fetch(
-                `/api/career?membershipId=${data.membershipId}&count=250`
+                `/api/career?membershipId=${data.membershipId}&name=${encodeURIComponent(data.player.bungieGlobalDisplayName)}&code=${data.player.bungieGlobalDisplayNameCode}&count=5000`
             );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             career = await res.json();
@@ -230,7 +230,6 @@
             deepScanProgress = { current: 0, total: missing.length };
 
             // 2. Optimized Parallel Batch Enrichment
-            // We run 5 chunk-requests in parallel, each processing 40 matches.
             const CHUNK_SIZE = 40;
             const CONCURRENCY = 5; 
             
@@ -239,7 +238,6 @@
                 chunks.push(missing.slice(i, i + CHUNK_SIZE));
             }
 
-            // Simple queue-based concurrency
             let chunkIdx = 0;
             const workers = Array(CONCURRENCY).fill(null).map(async () => {
                 while (chunkIdx < chunks.length) {
@@ -261,20 +259,39 @@
                         deepScanProgress.current += (r.stored ?? chunk.length);
                     } catch (err) {
                         console.error('Chunk enrichment failed', err);
-                        deepScanProgress.current += chunk.length; // move forward anyway
+                        deepScanProgress.current += chunk.length;
                     }
                 }
             });
 
             await Promise.all(workers);
 
-            // 3. Finalize
             historyFor = 0;
             fetchHistory();
             fetchCareer();
         } catch (e) {
             console.error('Deep scan failed', e);
         } finally {
+            deepScanning = false;
+        }
+    }
+
+    async function repairData() {
+        if (!confirm('This will clear your local match history and restart the Deep Scan to fix corrupted data. Proceed?')) return;
+        
+        deepScanning = true;
+        deepScanStatus = 'repairing';
+        
+        try {
+            await fetch('/api/sync/wipe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ membershipId: data.membershipId }),
+            });
+            // Force discovery cache clear and restart scan
+            triggerDeepScan();
+        } catch (e) {
+            console.error('Repair failed', e);
             deepScanning = false;
         }
     }
@@ -683,13 +700,23 @@
                     </div>
                     <div class="flex gap-14 mb-2 relative z-10 text-right font-sans shrink-0">
                          <div class="flex flex-col items-end gap-6">
-                            <button onclick={triggerDeepScan} disabled={deepScanning} 
-                                    class="group flex items-center gap-3 px-6 py-2 border {deepScanning ? 'border-zinc-800 text-zinc-600' : 'border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10'} transition-all duration-300">
-                                <span class="text-[10px] font-sans font-bold uppercase tracking-[0.2em]">{deepScanning ? 'Scanning...' : 'Deep Career Scan'}</span>
-                                <div class="w-4 h-4 border border-current rotate-45 flex items-center justify-center {deepScanning ? 'animate-spin' : 'group-hover:rotate-90 transition-transform duration-500'}">
-                                    <div class="w-1.5 h-1.5 bg-current"></div>
-                                </div>
-                            </button>
+                            <div class="flex items-center gap-3">
+                                <button onclick={triggerDeepScan} disabled={deepScanning} 
+                                        class="group flex items-center gap-3 px-6 py-2 border {deepScanning ? 'border-zinc-800 text-zinc-600' : 'border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10'} transition-all duration-300">
+                                    <span class="text-[10px] font-sans font-bold uppercase tracking-[0.2em]">{deepScanning ? 'Scanning...' : 'Deep Career Scan'}</span>
+                                    <div class="w-4 h-4 border border-current rotate-45 flex items-center justify-center {deepScanning ? 'animate-spin' : 'group-hover:rotate-90 transition-transform duration-500'}">
+                                        <div class="w-1.5 h-1.5 bg-current"></div>
+                                    </div>
+                                </button>
+                                {#if !deepScanning}
+                                    <button onclick={repairData} class="flex items-center gap-2 px-4 py-2 border border-rose-900/30 hover:border-rose-500 hover:bg-rose-500/10 transition-all group/repair" title="Repair & Clear Corrupted Data">
+                                        <span class="text-[10px] font-sans font-bold uppercase tracking-[0.2em] text-rose-800 group-hover:text-rose-500">Repair Data</span>
+                                        <div class="w-4 h-4 border border-current rotate-45 flex items-center justify-center">
+                                            <span class="text-[10px] -rotate-45 font-black">!</span>
+                                        </div>
+                                    </button>
+                                {/if}
+                            </div>
                             <div>
                                     {@render ghostLabel({ text: "RATING" })}
                                     <div class="flex flex-col items-end">

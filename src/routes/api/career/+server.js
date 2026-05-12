@@ -7,12 +7,14 @@ import { supabaseAdmin } from '$lib/supabase-server.js';
 
 export async function GET({ url }) {
     const membershipId = url.searchParams.get('membershipId');
+    const name         = url.searchParams.get('name');
+    const code         = url.searchParams.get('code');
     const count        = Math.min(parseInt(url.searchParams.get('count') ?? '250', 10), 1000);
 
     if (!membershipId) return json({ error: 'Missing membershipId' }, { status: 400 });
 
     try {
-        const result = await careerFromSupabase(membershipId, count);
+        const result = await careerFromSupabase(membershipId, name, code, count);
         if (!result) {
             return json({ 
                 source: 'empty', totalMatches: 0, maps: [], weapons: [], allies: [], rivals: [], 
@@ -26,11 +28,15 @@ export async function GET({ url }) {
     }
 }
 
-async function careerFromSupabase(membershipId, count) {
+async function careerFromSupabase(membershipId, targetName, targetCode, count) {
+    // Robust search for the player across both exact and corrupted IDs
+    // Corrupted IDs usually start with the same 13+ digits
+    const idPrefix = String(membershipId).substring(0, 13);
+    
     const { data: rows, error } = await supabaseAdmin
         .from('player_matches')
-        .select('pgcr_id,map_name,map_image,period,outcome,ego_score,is_hard_carry,is_carried,stats,roster')
-        .eq('player_id', membershipId)
+        .select('pgcr_id,map_name,map_image,period,outcome,ego_score,is_hard_carry,is_carried,stats,roster,player_id')
+        .or(`player_id.eq.${membershipId},player_id.like.${idPrefix}%`)
         .not('stats', 'is', null) 
         .not('outcome', 'eq', 'DNF')
         .order('period', { ascending: false })
@@ -45,6 +51,9 @@ async function careerFromSupabase(membershipId, count) {
     const hourlyAgg  = Array.from({ length: 24 }, (_, h) => ({ hour: h, games: 0, wins: 0, scoreSum: 0 }));
     const classAgg   = { Titan: { games: 0, wins: 0, scoreSum: 0 }, Hunter: { games: 0, wins: 0, scoreSum: 0 }, Warlock: { games: 0, wins: 0, scoreSum: 0 } };
 
+    const targetPrefix = targetName ? String(targetName).split('#')[0].toLowerCase() : null;
+    const targetCodeStr = targetCode ? String(targetCode).padStart(4, '0') : null;
+
     let totalMatches = 0, totalWins = 0, carries = 0, carried = 0;
     let totalScore = 0;
 
@@ -56,9 +65,14 @@ async function careerFromSupabase(membershipId, count) {
         const score = row.ego_score ?? 0;
         const roster = row.roster ?? [];
 
-        // 1:1 Target Finding Logic
-        const myEntry = roster.find(r => r.is_target || String(r.id) === String(membershipId));
-        if (!myEntry) continue; // Skip match if target not found in stored roster
+        // ROBUST TARGET FINDING (1:1 with Python Jadestone logic)
+        const myEntry = roster.find(r => 
+            r.is_target || 
+            String(r.id) === String(membershipId) ||
+            (targetPrefix && r.name.split('#')[0].toLowerCase() === targetPrefix && r.code === targetCodeStr)
+        );
+        
+        if (!myEntry) continue; 
 
         totalMatches++;
         if (isWin) totalWins++;
@@ -73,7 +87,7 @@ async function careerFromSupabase(membershipId, count) {
         mapsAgg[mapName].scoreSum += score;
         if (!mapsAgg[mapName].map_image && row.map_image) mapsAgg[mapName].map_image = row.map_image;
 
-        // Weapon stats (Exact 1:1 with Python)
+        // Weapon stats
         for (const w of stats.top_weapons ?? []) {
             const wn = w.name ?? 'Unknown';
             if (!weaponsAgg[wn]) {
@@ -86,10 +100,13 @@ async function careerFromSupabase(membershipId, count) {
             weaponsAgg[wn].scoreSum += score;
         }
 
-        // Teammate/Rival logic (Exact 1:1 with Python)
+        // Teammate/Rival logic
         const myTeam = myEntry.team;
         for (const p of roster) {
-            if (p.is_target || String(p.id) === String(membershipId)) continue;
+            // Check if teammate is NOT me (robust check)
+            const isMe = String(p.id) === String(membershipId) || 
+                         (targetPrefix && p.name.split('#')[0].toLowerCase() === targetPrefix && p.code === targetCodeStr);
+            if (isMe) continue;
             
             const pId = String(p.id);
             const pName = p.name;
@@ -131,7 +148,7 @@ async function careerFromSupabase(membershipId, count) {
             classAgg[className].scoreSum += score;
         }
 
-        // Hourly distribution
+        // Hourly
         if (row.period) {
             const h = new Date(row.period).getHours();
             hourlyAgg[h].games++;
@@ -187,7 +204,7 @@ async function careerFromSupabase(membershipId, count) {
         totalMatches,
         matchesAnalyzed: totalMatches,
         avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
-        winRate: totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
+        winRate:  totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
         carries, carried,
         maps, weapons, allies, rivals, medals,
         hourlyStats: hourlyAgg,
