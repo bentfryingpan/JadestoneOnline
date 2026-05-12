@@ -1,6 +1,5 @@
 /**
- * /api/pgcr-enrich — Optimized Bulk Enrichment.
- * Fetches PGCRs, computes EGO stats, and performs bulk upserts.
+ * /api/pgcr-enrich — Optimized Bulk Enrichment (Robust Version).
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
@@ -31,9 +30,8 @@ async function fetchPgcr(instanceId) {
         );
         if (!res.ok) return null;
         
-        // ROBUST BIGINT PARSING:
-        // Quoting numeric IDs before standard JSON.parse can corrupt them.
         const text = await res.text();
+        // Quote numeric IDs before parsing to prevent precision loss
         const fixedText = text.replace(/:\s*(\d{15,})/g, ': "$1"');
         const data = JSON.parse(fixedText);
         
@@ -55,6 +53,10 @@ async function processPgcr(pgcr, targetMembershipId, targetName, targetCode) {
     const entries = pgcr.entries ?? [];
     if (!entries.length) return null;
 
+    // Standardize target identifiers for matching
+    const targetPrefix = String(targetName).split('#')[0].toLowerCase();
+    const targetCodeStr = String(targetCode).padStart(4, '0');
+
     const ftGroups = {};
     for (const e of entries) {
         const ftId = e.values?.fireteamId?.basic?.value ?? 0;
@@ -69,19 +71,21 @@ async function processPgcr(pgcr, targetMembershipId, targetName, targetCode) {
     }
 
     const roster = [];
-    let targetEntry = null;
+    let targetEntryData = null;
 
     for (const e of entries) {
         const pInfo  = e.player?.destinyUserInfo ?? {};
         const pId    = String(pInfo.membershipId ?? '');
+        const pName  = pInfo.bungieGlobalDisplayName ?? pInfo.displayName ?? 'Unknown';
+        const pCode  = pInfo.bungieGlobalDisplayNameCode ? String(pInfo.bungieGlobalDisplayNameCode).padStart(4, '0') : null;
         const ftId   = e.values?.fireteamId?.basic?.value ?? 0;
         const ftSize = ftGroups[ftId] ?? 1;
         const team   = teamMap[e.values?.team?.basic?.value ?? 0] ?? 'Alpha';
 
-        // Robust matching logic matching Python Jadestone logic
+        // 1:1 Matching Logic from Jadestone Desktop:
+        // Use ID if available, otherwise match name prefix + code
         const isTarget = pId === String(targetMembershipId) || 
-                         (pInfo.bungieGlobalDisplayName === targetName && 
-                          String(pInfo.bungieGlobalDisplayNameCode).padStart(4,'0') === String(targetCode).padStart(4,'0'));
+                         (pName.split('#')[0].toLowerCase() === targetPrefix && pCode === targetCodeStr);
 
         const stats = {
             kills: sv(e, 'kills'),
@@ -105,16 +109,17 @@ async function processPgcr(pgcr, targetMembershipId, targetName, targetCode) {
 
         const ego = sv(e, 'completed') === 1 ? calcEgo(stats) : null;
 
-        roster.push({
+        const rosterItem = {
             id: pId, 
-            name: pInfo.bungieGlobalDisplayName ?? pInfo.displayName ?? 'Unknown',
-            code: pInfo.bungieGlobalDisplayNameCode ? String(pInfo.bungieGlobalDisplayNameCode).padStart(4,'0') : null,
+            name: pName,
+            code: pCode,
             team, 
             className: { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' }[e.player?.classType ?? -1] ?? 'Unknown',
             score: ego?.finalScore ?? 0,
             fireteam_size: ftSize, 
             is_target: isTarget,
-        });
+        };
+        roster.push(rosterItem);
 
         if (isTarget && sv(e, 'completed') === 1) {
             const rawWeapons = e.extended?.weapons ?? [];
@@ -143,17 +148,18 @@ async function processPgcr(pgcr, targetMembershipId, targetName, targetCode) {
                 }
             }
             stats.top_weapons = topWeapons;
-
-            targetEntry = { stats, ego, matchExotic, outcome: sv(e, 'standing') === 0 ? 'Win' : 'Loss' };
+            targetEntryData = { stats, ego, matchExotic, outcome: sv(e, 'standing') === 0 ? 'Win' : 'Loss' };
         }
     }
 
-    if (!targetEntry) return null;
+    if (!targetEntryData) return null;
 
-    const myTeamScores = roster.filter(r => r.team === roster.find(x => x.is_target)?.team && r.score > 0).map(r => r.score);
-    const { isCarry, isCarried } = detectRole(targetEntry.ego.finalScore, myTeamScores);
+    // Detect Carry/Carried role using team scores
+    const myTeamName = roster.find(r => r.is_target)?.team;
+    const myTeamScores = roster.filter(r => r.team === myTeamName && r.score > 0).map(r => r.score);
+    const { isCarry, isCarried } = detectRole(targetEntryData.ego.finalScore, myTeamScores);
 
-    return { ...targetEntry, isHardCarry: isCarry, isCarried, roster };
+    return { ...targetEntryData, isHardCarry: isCarry, isCarried, roster };
 }
 
 export async function POST({ request }) {
@@ -213,32 +219,6 @@ export async function POST({ request }) {
         .upsert(toUpsert, { onConflict: 'pgcr_id,player_id' });
 
     if (matchErr) return json({ error: matchErr.message }, { status: 500 });
-
-    // NGR logic...
-    try {
-        const { data: ngrRow } = await supabaseAdmin
-            .from('player_ngr_cache')
-            .select('ngr,games')
-            .eq('player_id', membershipId)
-            .single();
-        
-        let totalScore = (ngrRow?.ngr ?? 0) * (ngrRow?.games ?? 0);
-        let totalGames = (ngrRow?.games ?? 0);
-
-        for (const match of toUpsert) {
-            totalScore += match.ego_score;
-            totalGames += 1;
-        }
-
-        await supabaseAdmin.from('player_ngr_cache').upsert({
-            player_id: membershipId,
-            bungie_name: bungieDisplayName,
-            bungie_code: bungieDisplayCode ? String(bungieDisplayCode) : null,
-            ngr: Math.round((totalScore / totalGames) * 10) / 10,
-            games: totalGames,
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'player_id' });
-    } catch { }
 
     return json({ stored: toUpsert.length, total: instanceIds.length });
 }

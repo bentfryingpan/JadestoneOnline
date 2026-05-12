@@ -31,10 +31,10 @@ async function careerFromSupabase(membershipId, count) {
         .from('player_matches')
         .select('pgcr_id,map_name,map_image,period,outcome,ego_score,is_hard_carry,is_carried,stats,roster')
         .eq('player_id', membershipId)
-        .not('stats', 'is', null) // Only matches with stats
+        .not('stats', 'is', null) 
         .not('outcome', 'eq', 'DNF')
         .order('period', { ascending: false })
-        .limit(Math.max(count, 5000)); // Increase limit for career analytics
+        .limit(5000); 
 
     if (error || !rows?.length) return null;
 
@@ -54,7 +54,12 @@ async function careerFromSupabase(membershipId, count) {
         const medals = stats.medals ?? {};
         const mapName = row.map_name ?? 'Gambit';
         const score = row.ego_score ?? 0;
-        
+        const roster = row.roster ?? [];
+
+        // 1:1 Target Finding Logic
+        const myEntry = roster.find(r => r.is_target || String(r.id) === String(membershipId));
+        if (!myEntry) continue; // Skip match if target not found in stored roster
+
         totalMatches++;
         if (isWin) totalWins++;
         if (row.is_hard_carry) carries++;
@@ -68,65 +73,65 @@ async function careerFromSupabase(membershipId, count) {
         mapsAgg[mapName].scoreSum += score;
         if (!mapsAgg[mapName].map_image && row.map_image) mapsAgg[mapName].map_image = row.map_image;
 
-        // Weapons
+        // Weapon stats (Exact 1:1 with Python)
         for (const w of stats.top_weapons ?? []) {
             const wn = w.name ?? 'Unknown';
-            if (!weaponsAgg[wn]) weaponsAgg[wn] = { games: 0, wins: 0, kills: 0, precision: 0, scoreSum: 0, icon: w.icon ?? null, hash: w.hash ?? null, slot: w.slot ?? 'Unknown' };
+            if (!weaponsAgg[wn]) {
+                weaponsAgg[wn] = { games: 0, wins: 0, kills: 0, precision: 0, scoreSum: 0, icon: w.icon ?? null, hash: w.hash ?? null, slot: w.slot ?? 'Unknown' };
+            }
             weaponsAgg[wn].games++;
-            weaponsAgg[wn].kills     += w.kills     ?? 0;
+            weaponsAgg[wn].kills += w.kills ?? 0;
             weaponsAgg[wn].precision += w.precision ?? 0;
             if (isWin) weaponsAgg[wn].wins++;
             weaponsAgg[wn].scoreSum += score;
         }
 
-        // Players (Teammates & Rivals)
-        const roster = row.roster ?? [];
-        const myEntry = roster.find(r => r.is_target || String(r.id) === String(membershipId));
-        const myTeam  = myEntry?.team;
-        
-        if (myTeam) {
-            for (const p of roster) {
-                if (String(p.id) === String(membershipId)) continue;
-                
-                const key = p.id || `${p.name}#${p.code}`;
-                if (!key) continue;
-                
-                if (!playersAgg[key]) {
-                    playersAgg[key] = { 
-                        name: p.name, code: p.code, games: 0, wins: 0, 
-                        as_ally: 0, ally_wins: 0, 
-                        as_enemy: 0, enemy_wins: 0, 
-                        className: p.className ?? 'Unknown' 
-                    };
-                }
-                const pa = playersAgg[key];
-                pa.games++;
-                if (isWin) pa.wins++;
-                
-                if (p.team === myTeam) {
-                    pa.as_ally++;
-                    if (isWin) pa.ally_wins++;
-                } else {
-                    pa.as_enemy++;
-                    if (isWin) pa.enemy_wins++;
-                }
+        // Teammate/Rival logic (Exact 1:1 with Python)
+        const myTeam = myEntry.team;
+        for (const p of roster) {
+            if (p.is_target || String(p.id) === String(membershipId)) continue;
+            
+            const pId = String(p.id);
+            const pName = p.name;
+            const pCode = p.code ? String(p.code).padStart(4, '0') : null;
+            const key = pId || `${pName}#${pCode}`;
+            if (!key) continue;
+
+            if (!playersAgg[key]) {
+                playersAgg[key] = { 
+                    name: pName, code: pCode, games: 0, wins: 0, 
+                    as_ally: 0, ally_wins: 0, 
+                    as_enemy: 0, enemy_wins: 0, 
+                    className: p.className ?? 'Unknown' 
+                };
+            }
+            const pa = playersAgg[key];
+            pa.games++;
+            if (isWin) pa.wins++;
+            
+            if (p.team === myTeam) {
+                pa.as_ally++;
+                if (isWin) pa.ally_wins++;
+            } else {
+                pa.as_enemy++;
+                if (isWin) pa.enemy_wins++;
             }
         }
 
-        // Medals
-        for (const [key, count] of Object.entries(medals)) {
-            medalsAgg[key] = (medalsAgg[key] ?? 0) + count;
+        // Medal stats
+        for (const [mKey, count] of Object.entries(medals)) {
+            medalsAgg[mKey] = (medalsAgg[mKey] ?? 0) + count;
         }
 
         // Class stats
-        const className = stats.className;
+        const className = myEntry.className;
         if (className && classAgg[className]) {
             classAgg[className].games++;
             if (isWin) classAgg[className].wins++;
             classAgg[className].scoreSum += score;
         }
 
-        // Hourly
+        // Hourly distribution
         if (row.period) {
             const h = new Date(row.period).getHours();
             hourlyAgg[h].games++;
@@ -137,12 +142,9 @@ async function careerFromSupabase(membershipId, count) {
 
     const maps = Object.entries(mapsAgg)
         .map(([name, s]) => ({
-            name,
-            games:     s.games,
-            wins:      s.wins,
-            losses:    s.games - s.wins,
-            winRate:   +((s.wins / s.games) * 100).toFixed(1),
-            avgScore:  +(s.scoreSum / s.games).toFixed(1),
+            name, games: s.games, wins: s.wins, losses: s.games - s.wins,
+            winRate: +((s.wins / s.games) * 100).toFixed(1),
+            avgScore: +(s.scoreSum / s.games).toFixed(1),
             map_image: s.map_image
         }))
         .sort((a, b) => b.games - a.games);
@@ -151,26 +153,26 @@ async function careerFromSupabase(membershipId, count) {
         .map(([name, s]) => ({
             name, games: s.games, wins: s.wins, kills: s.kills,
             precRate: s.kills > 0 ? +((s.precision / s.kills) * 100).toFixed(1) : 0,
-            winRate:  +((s.wins / s.games) * 100).toFixed(1),
+            winRate: +((s.wins / s.games) * 100).toFixed(1),
             avgScore: +(s.scoreSum / s.games).toFixed(1),
             icon: s.icon, hash: s.hash, slot: s.slot
         }))
         .sort((a, b) => b.kills - a.kills);
 
-    const players = Object.values(playersAgg);
-    const allies = players
+    const playersList = Object.values(playersAgg);
+    const allies = playersList
         .filter(p => p.as_ally >= 1)
         .map(p => ({
-            id: p.id, name: p.name, code: p.code, games: p.as_ally,
+            name: p.name, code: p.code, games: p.as_ally,
             winRate: +((p.ally_wins / p.as_ally) * 100).toFixed(1)
         }))
         .sort((a, b) => b.games - a.games)
         .slice(0, 10);
 
-    const rivals = players
+    const rivals = playersList
         .filter(p => p.as_enemy >= 1)
         .map(p => ({
-            id: p.id, name: p.name, code: p.code, games: p.as_enemy,
+            name: p.name, code: p.code, games: p.as_enemy,
             winRate: +((p.enemy_wins / p.as_enemy) * 100).toFixed(1) 
         }))
         .sort((a, b) => b.games - a.games)
@@ -185,21 +187,15 @@ async function careerFromSupabase(membershipId, count) {
         totalMatches,
         matchesAnalyzed: totalMatches,
         avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
-        winRate:  totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
-        carries,
-        carried,
-        maps,
-        weapons,
-        allies,
-        rivals,
-        medals,
+        winRate: totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
+        carries, carried,
+        maps, weapons, allies, rivals, medals,
         hourlyStats: hourlyAgg,
-        classStats: Object.entries(classAgg).map(([className, s]) => ({
-            className,
-            games: s.games,
+        classStats: Object.entries(classAgg).map(([cn, s]) => ({
+            className: cn, games: s.games,
             winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
             avgScore: s.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0
         })),
-        needsEnrichment: totalMatches < 5 // Lower threshold for sparse accounts
+        needsEnrichment: false
     };
 }
