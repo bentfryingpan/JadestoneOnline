@@ -209,25 +209,44 @@
             deepScanStatus = 'enriching';
             deepScanProgress = { current: 0, total: missing.length };
 
-            // 2. Batch Enrichment (20 at a time)
-            const chunkSize = 20;
-            for (let i = 0; i < missing.length; i += chunkSize) {
-                const chunk = missing.slice(i, i + chunkSize);
-                
-                await fetch('/api/pgcr-enrich', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        membershipId: data.membershipId,
-                        membershipType: data.membershipType,
-                        bungieDisplayName: data.player.bungieGlobalDisplayName,
-                        bungieDisplayCode: data.player.bungieGlobalDisplayNameCode,
-                        instanceIds: chunk,
-                    }),
-                });
-
-                deepScanProgress.current += chunk.length;
+            // 2. Optimized Parallel Batch Enrichment
+            // We run 5 chunk-requests in parallel, each processing 40 matches.
+            const CHUNK_SIZE = 40;
+            const CONCURRENCY = 5; 
+            
+            const chunks = [];
+            for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
+                chunks.push(missing.slice(i, i + CHUNK_SIZE));
             }
+
+            // Simple queue-based concurrency
+            let chunkIdx = 0;
+            const workers = Array(CONCURRENCY).fill(null).map(async () => {
+                while (chunkIdx < chunks.length) {
+                    const idx = chunkIdx++;
+                    const chunk = chunks[idx];
+                    try {
+                        const res = await fetch('/api/pgcr-enrich', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                membershipId: data.membershipId,
+                                membershipType: data.membershipType,
+                                bungieDisplayName: data.player.bungieGlobalDisplayName,
+                                bungieDisplayCode: data.player.bungieGlobalDisplayNameCode,
+                                instanceIds: chunk,
+                            }),
+                        });
+                        const r = await res.json();
+                        deepScanProgress.current += (r.stored ?? chunk.length);
+                    } catch (err) {
+                        console.error('Chunk enrichment failed', err);
+                        deepScanProgress.current += chunk.length; // move forward anyway
+                    }
+                }
+            });
+
+            await Promise.all(workers);
 
             // 3. Finalize
             historyFor = 0;
