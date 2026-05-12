@@ -41,7 +41,27 @@
     let scrollRef        = $state(null);
     function handleWheel(e) { if (scrollRef) scrollRef.scrollLeft += e.deltaY; }
 
-    const tabsList = ['Overview', 'Matches', 'Weaponry', 'Synergy', 'Maps', 'Pursuits', 'Loadout'];
+    const tabsList = ['Overview', 'Matches', 'Weaponry', 'Synergy', 'Maps', 'Pursuits', 'Loadout', 'Vault'];
+
+    // ── Inventory (Vault) ──────────────────────────────────────────────────────
+    let inventory        = $state(null);
+    let inventoryLoading = $state(false);
+
+    async function fetchInventory() {
+        if (inventoryLoading || inventory) return;
+        inventoryLoading = true;
+        try {
+            const res = await fetch(`/api/inventory?membershipType=${data.membershipType}&membershipId=${data.membershipId}`);
+            inventory = await res.json();
+        } catch { }
+        finally { inventoryLoading = false; }
+    }
+
+    $effect(() => {
+        if (tab === 'vault' && !inventory && !inventoryLoading) {
+            fetchInventory();
+        }
+    });
 
     // ── Lazy loadout ───────────────────────────────────────────────────────────
     let loadout        = $state(null);
@@ -528,11 +548,11 @@
     </div>
 {/snippet}
 
-{#snippet jadestoneSlot({ slot, name, quality, icon })}
+{#snippet jadestoneSlot({ slot, name, quality, icon, hash = null })}
     {@const rarityColor = quality === 'Exotic' ? 'bg-amber-500' : 'bg-zinc-100'}
     {@const borderColor = quality === 'Exotic' ? 'border-amber-500/20' : 'border-zinc-800'}
-    <div class="group flex flex-col items-center gap-2 cursor-pointer w-full font-sans">
-        <div class="w-16 h-16 bg-[#0c0c0c] border {borderColor} relative group-hover:border-zinc-400 transition-all duration-300 mx-auto overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+    <div class="group flex flex-col items-center gap-2 cursor-pointer w-full font-sans relative">
+        <a href={hash ? `https://destinyitemmanager.com/en/inspect/${hash}` : '#'} target="_blank" class="w-16 h-16 bg-[#0c0c0c] border {borderColor} relative group-hover:border-emerald-500/50 transition-all duration-300 mx-auto overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] block">
             <div class="absolute top-0 left-0 w-full h-[1px] opacity-70 {rarityColor}"></div>
             {#if icon}
                 <img src={icon} alt={name} class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -542,12 +562,40 @@
                 </div>
             {/if}
             <div class="absolute bottom-0 right-0 px-1.5 bg-black/60 text-[8px] font-sans text-zinc-500 uppercase font-bold tracking-tighter">MAX</div>
-        </div>
+            <div class="absolute inset-0 bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span class="text-[8px] font-black text-emerald-400 tracking-widest">INSPECT</span>
+            </div>
+        </a>
         <div class="text-center w-full">
             <p class="text-[8px] font-sans text-zinc-600 uppercase tracking-widest font-bold">{slot}</p>
             <p class="text-[10px] font-bold uppercase tracking-tight text-zinc-200 group-hover:text-white truncate w-24 mx-auto">{name}</p>
         </div>
     </div>
+{/snippet}
+
+{#snippet inventoryItemCard({ item })}
+    <a href="https://destinyitemmanager.com/en/inspect/{item.hash}" target="_blank" 
+       class="bg-[#111111] border border-zinc-800 p-4 relative group hover:border-emerald-500/50 transition-all duration-500 stone-card block no-underline overflow-hidden">
+        <div class="sheen-overlay"></div>
+        <div class="flex items-center gap-4 relative z-10">
+            <div class="w-12 h-12 bg-zinc-900 border border-zinc-800 relative overflow-hidden rotate-45 group-hover:rotate-90 transition-all duration-500 shrink-0">
+                <img src={item.icon} alt={item.name} class="w-full h-full object-cover -rotate-45 group-hover:-rotate-90 transition-all duration-500" />
+                <div class="absolute top-0 left-0 w-full h-[1px] {item.isExotic ? 'bg-amber-500' : 'bg-zinc-500'}"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-baseline justify-between">
+                    <h3 class="text-[11px] font-black italic uppercase tracking-wider text-zinc-100 truncate group-hover:text-emerald-400 transition-colors">{item.name}</h3>
+                    <span class="text-[10px] font-mono font-bold text-zinc-500"> {item.power} </span>
+                </div>
+                <p class="text-[8px] font-bold text-zinc-600 uppercase tracking-widest mt-0.5">{item.type}</p>
+                <div class="flex gap-1 mt-2">
+                    {#each (item.perks ?? []).slice(0, 4) as perk}
+                        <img src={perk.icon} alt={perk.name} class="w-4 h-4 border border-zinc-800 bg-black/40 rounded-full" />
+                    {/each}
+                </div>
+            </div>
+        </div>
+    </a>
 {/snippet}
 
 {#snippet fateStatRow({ label, value, bonus = 0 })}
@@ -929,7 +977,7 @@
                                             </div>
                                      </div>
                                      <div class="space-y-10 w-full flex flex-col items-center pt-8 border-t border-zinc-800/40">
-                                            {#each playerData.loadout.weapons as w} {@render jadestoneSlot({ slot: w.slot, name: w.name, quality: w.quality, icon: w.icon })} {/each}
+                                            {#each playerData.loadout.weapons as w} {@render jadestoneSlot({ slot: w.slot, name: w.name, quality: w.quality, icon: w.icon, hash: w.hash })} {/each}
                                      </div>
                                 </div>
                                 <div class="col-span-6 relative flex items-center justify-center min-h-[500px]">
@@ -946,7 +994,7 @@
                                 </div>
                                 <div class="col-span-3 flex flex-col space-y-8 items-center h-full">
                                      <div class="flex flex-col items-center gap-6 w-full">
-                                            {#each playerData.loadout.armor as a} {@render jadestoneSlot({ slot: a.slot, name: a.name, quality: a.quality, icon: a.icon })} {/each}
+                                            {#each playerData.loadout.armor as a} {@render jadestoneSlot({ slot: a.slot, name: a.name, quality: a.quality, icon: a.icon, hash: a.hash })} {/each}
                                      </div>
                                      <div class="w-full mt-auto bg-[#0a0a0a] border border-zinc-800 p-5 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] font-sans">
                                             <div class="flex justify-between items-center border-b border-zinc-800 pb-3 mb-3">
@@ -961,6 +1009,36 @@
                                                  <span class="text-[10px] text-emerald-400 font-bold uppercase italic tracking-tighter">BUILD TIER {buildTier}</span>
                                             </div>
                                      </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    {:else if profileTab === 'vault'}
+                        <div class="animate-in fade-in slide-in-from-bottom-2 duration-700 max-w-6xl mx-auto space-y-10">
+                            <div>
+                                {@render engravedHeader({ text: "PERSONAL_ARSENAL" })}
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {#if inventoryLoading}
+                                        {#each Array(9) as _}
+                                            <div class="h-20 bg-zinc-900/20 border border-zinc-800 animate-pulse"></div>
+                                        {/each}
+                                    {:else if inventory?.weapons}
+                                        {#each inventory.weapons as item}
+                                            {@render inventoryItemCard({ item })}
+                                        {/each}
+                                    {:else}
+                                        <div class="col-span-full py-20 text-center text-zinc-700 uppercase tracking-[0.3em] text-[10px]">No inventory data loaded.</div>
+                                    {/if}
+                                </div>
+                            </div>
+                            <div>
+                                {@render engravedHeader({ text: "GUARD_PROTECTION" })}
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-60">
+                                    {#if inventory?.armor}
+                                        {#each inventory.armor as item}
+                                            {@render inventoryItemCard({ item })}
+                                        {/each}
+                                    {/if}
                                 </div>
                             </div>
                         </div>

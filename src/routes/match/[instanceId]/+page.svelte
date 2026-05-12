@@ -1,5 +1,6 @@
 <script>
     import { egoColor, ngrTier, ngrTierColor } from '$lib/ego.js';
+    import { fly, fade } from 'svelte/transition';
 
     let { data } = $props();
 
@@ -31,22 +32,8 @@
         return done.reduce((s, p) => s + p.ego.finalScore, 0) / done.length;
     }
 
-
-    function pemColor(pem) {
-        if (!pem) return 'rgba(255,255,255,0.20)';
-        return pem >= 1.0 ? 'var(--gambit-green)' : '#f87171';
-    }
-
     let expandedPlayer = $state(null);
     function togglePlayer(id) { expandedPlayer = expandedPlayer === id ? null : id; }
-
-    // Component breakdown labels and colors
-    const COMP_COLORS = {
-        PvE:     'bg-sky-500',
-        PvP:     'bg-violet-500',
-        Banking: 'bg-emerald-500',
-        Medals:  'bg-amber-500',
-    };
 
     const DETAIL_STATS = [
         { key: 'kills',             label: 'Kills',             color: 'text-zinc-200'  },
@@ -62,361 +49,242 @@
         { key: 'primevalDamage',    label: 'Primeval Damage',   color: 'text-orange-400'},
         { key: 'primevalHealing',   label: 'Primeval Healed',   color: 'text-green-400' },
         { key: 'superKills',        label: 'Super Kills',       color: 'text-amber-300' },
-        { key: 'grenadeKills',      label: 'Grenade Kills',     color: 'text-zinc-400'  },
-        { key: 'meleeKills',        label: 'Melee Kills',       color: 'text-zinc-400'  },
-        { key: 'rechargeableAbilityKills', label: 'Ability Kills', color: 'text-zinc-400' },
         { key: 'smallBlooms',       label: 'Small Blockers',    color: 'text-zinc-400'  },
         { key: 'largeBlooms',       label: 'Large Blockers',    color: 'text-zinc-300'  },
     ];
 </script>
 
-<svelte:head>
-    <title>Match {data.instanceId} · Jadestone</title>
-</svelte:head>
+<!-- ── Gemini snippets ────────────────────────────────────────────────────── -->
+{#snippet ghostLabel({ text, className = "" })}
+    <span class="text-[8px] font-sans text-zinc-500 uppercase tracking-[0.2em] font-bold block mb-1 {className}">{text}</span>
+{/snippet}
 
-<div style="min-height:100vh;color:#fff;">
+{#snippet stoneCard({ title = null, className = "" }, contentSnippet)}
+    <div class="bg-[#111111] border border-zinc-800 p-5 relative shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] group overflow-hidden transition-all duration-500 hover:border-zinc-700 {className} stone-card">
+        <div class="sheen-overlay"></div>
+        {#if title} {@render ghostLabel({ text: title })} {/if}
+        <div class="relative z-10"> {@render contentSnippet()} </div>
+    </div>
+{/snippet}
 
-    <!-- ── Hero banner ──────────────────────────────────────────────────────── -->
-    <div style="position:relative;overflow:hidden;border-bottom:1px solid rgba(255,255,255,0.07);">
-        {#if data.pgcrImage}
-            <img src={data.pgcrImage} alt={data.mapName}
-                 style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.18;" />
-            <div style="position:absolute;inset:0;background:linear-gradient(to bottom,transparent,rgba(10,10,10,0.70),#0a0a0a);"></div>
+{#snippet medalIconBadge({ medal })}
+    <div class="group relative flex items-center justify-center w-10 h-10 border border-amber-500/20 bg-amber-950/10 rotate-45 transition-all hover:scale-110 hover:rotate-90 cursor-help overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-50"></div>
+        {#if medal.icon}
+            <img src={medal.icon} alt={medal.label} class="w-8 h-8 -rotate-45 group-hover:-rotate-90 transition-transform object-contain" />
+        {:else}
+            <span class="text-[10px] font-bold text-amber-500 -rotate-45 group-hover:-rotate-90 transition-all">★</span>
         {/if}
-        <div style="position:relative;max-width:72rem;margin:0 auto;padding:2.5rem 1.5rem;">
-            <a href="/" style="font-family:var(--font-family-display);font-size:0.68rem;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:var(--d2-text-muted);text-decoration:none;display:inline-block;margin-bottom:1rem;transition:color 0.15s;"
-               onmouseenter={e=>e.currentTarget.style.color='var(--d2-text-secondary)'}
-               onmouseleave={e=>e.currentTarget.style.color='var(--d2-text-muted)'}>
-                ← Back
-            </a>
-            <div style="display:flex;align-items:flex-end;gap:1.5rem;margin-top:0.5rem;">
-                {#if data.mapIcon}
-                    <img src={data.mapIcon} alt={data.mapName}
-                         style="width:64px;height:64px;border:1px solid rgba(61,174,119,0.3);object-fit:cover;flex-shrink:0;" />
-                {/if}
-                <div>
-                    <span style="font-family:var(--font-family-display);font-size:0.65rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--gambit-green);display:block;margin-bottom:0.35rem;">Gambit Match</span>
-                    <h1 style="font-family:var(--font-family-display);font-size:clamp(1.8rem,5vw,2.8rem);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--d2-text-primary);line-height:1;margin:0;">{data.mapName}</h1>
-                    <div style="height:2px;width:64px;background:linear-gradient(90deg,var(--gambit-green),transparent);margin:0.6rem 0 0.5rem;"></div>
-                    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;font-family:var(--font-family-display);font-size:0.72rem;font-weight:500;letter-spacing:0.06em;color:var(--d2-text-muted);">
-                        <span>{timeAgo(data.period)}</span>
-                        <span style="color:rgba(255,255,255,0.15);">·</span>
-                        <span>{fmtDuration(data.duration)}</span>
-                        {#if data.lobbyTier && data.lobbyTier !== 'Unranked'}
-                            <span style="color:rgba(255,255,255,0.15);">·</span>
-                            <span style="
-                                font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;
-                                color:{ngrTierColor(data.lobbyTier)};
-                                border:1px solid {ngrTierColor(data.lobbyTier)};
-                                padding:1px 6px;opacity:0.85;
-                            ">{data.lobbyTier}{data.lobbyModifier ? ' · ' + data.lobbyModifier : ''}</span>
-                        {/if}
-                        <span style="color:rgba(255,255,255,0.15);">·</span>
-                        <span style="font-family:var(--font-family-mono);font-size:0.62rem;color:rgba(255,255,255,0.18);">{data.instanceId}</span>
-                    </div>
-                </div>
+        {#if medal.count > 1}
+            <div class="absolute bottom-1 right-1 bg-black/80 border border-amber-500/40 px-1 py-0.5 -rotate-45 group-hover:-rotate-90 transition-all">
+                <span class="text-[8px] font-black text-amber-400 leading-none">x{medal.count}</span>
             </div>
+        {/if}
+        <!-- Tooltip -->
+        <div class="absolute bottom-full mb-4 px-3 py-1.5 bg-[#0a0a0a] border border-zinc-800 text-[9px] uppercase tracking-[0.2em] text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[100] shadow-2xl rotate-[-45deg] group-hover:rotate-[-90deg] font-sans">
+            {medal.label}
         </div>
     </div>
+{/snippet}
 
-    <div style="max-width:72rem;margin:0 auto;padding:2rem 1.5rem;display:flex;flex-direction:column;gap:2rem;">
+<svelte:head>
+    <title>{data.mapName} Match Intelligence · Jadestone</title>
+</svelte:head>
 
-        <!-- ── Score banner ─────────────────────────────────────────────────── -->
-        <div style="
-            display:grid;grid-template-columns:1fr auto 1fr;gap:1rem;align-items:center;
-            background:rgba(6,8,12,0.85);border:1px solid rgba(255,255,255,0.08);
-            border-top:2px solid rgba(61,174,119,0.5);
-            padding:1.25rem 1.5rem;
-            clip-path:polygon(10px 0%,100% 0%,100% 100%,0% 100%,0% 10px);
-            font-family:var(--font-family-display);
-        ">
-            <!-- Alpha -->
-            <div style="text-align:center;">
-                <p style="font-size:1.5rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:{data.teamAWon ? 'var(--gambit-green)' : '#e05050'};margin:0 0 0.2rem;">
-                    {data.teamAWon ? 'Victory' : 'Defeat'}
-                </p>
-                <p style="font-size:0.62rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--d2-text-muted);margin:0 0 0.5rem;">Team Alpha</p>
-                <div style="display:flex;justify-content:center;gap:0.75rem;font-size:0.75rem;color:var(--d2-text-secondary);">
-                    <span>{teamTotal(data.teamA, 'motesDeposited')} motes</span>
-                    <span style="color:rgba(255,255,255,0.2);">·</span>
-                    <span>{teamTotal(data.teamA, 'kills')}K/{teamTotal(data.teamA, 'deaths')}D</span>
+<div class="min-h-screen bg-[#080808] text-slate-200 font-sans overflow-x-hidden">
+    <!-- ── Hero Section ──────────────────────────────────────────────────────── -->
+    <header class="h-80 relative border-b border-zinc-800 overflow-hidden shrink-0">
+        {#if data.pgcrImage}
+            <div class="absolute inset-0 z-0">
+                <img src={data.pgcrImage} alt={data.mapName} class="w-full h-full object-cover grayscale-[0.3] opacity-40 contrast-125" />
+                <div class="absolute inset-0 bg-gradient-to-t from-[#080808] via-[#080808]/60 to-transparent z-10"></div>
+            </div>
+        {/if}
+        <div class="max-w-7xl mx-auto h-full p-10 flex flex-col justify-end relative z-30 font-sans">
+            <a href="/profile/{data.teamA[0]?.name}/{data.teamA[0]?.code}" class="text-[10px] font-sans font-bold text-emerald-500 uppercase tracking-[0.3em] mb-6 hover:text-emerald-400 transition-colors">← Back to Profile</a>
+            <div class="flex items-end gap-10">
+                {#if data.mapIcon}
+                    <div class="w-24 h-24 bg-[#0c0c0c] border border-zinc-700 p-1.5 relative shadow-2xl overflow-hidden rotate-45 shrink-0 group hover:rotate-90 transition-all duration-700">
+                        <img src={data.mapIcon} alt={data.mapName} class="w-full h-full object-cover -rotate-45 group-hover:-rotate-90 transition-all duration-700 opacity-80" />
+                    </div>
+                {/if}
+                <div class="mb-2 flex-1">
+                    <span class="text-[12px] font-sans text-emerald-500 uppercase tracking-[0.4em] font-black block mb-2">Gambit Intelligence PGCR</span>
+                    <h1 class="text-6xl font-light italic tracking-tighter uppercase leading-none text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">{data.mapName}</h1>
+                    <div class="flex items-center gap-6 mt-6 font-sans text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                        <div class="flex items-center gap-2"> <div class="w-1.5 h-1.5 bg-emerald-500 rotate-45"></div> {timeAgo(data.period)} </div>
+                        <div class="flex items-center gap-2"> <div class="w-1.5 h-1.5 bg-zinc-700 rotate-45"></div> {fmtDuration(data.duration)} </div>
+                        {#if data.lobbyTier && data.lobbyTier !== 'Unranked'}
+                            <div class="flex items-center gap-2 border border-emerald-500/20 px-3 py-1 bg-emerald-950/10">
+                                <span class="text-emerald-500">{data.lobbyTier} LOBBY</span>
+                                {#if data.lobbyModifier} <span class="text-zinc-600">/ {data.lobbyModifier}</span> {/if}
+                            </div>
+                        {/if}
+                    </div>
                 </div>
-                <p style="font-size:0.70rem;color:var(--d2-text-muted);margin-top:0.3rem;">
-                    Avg EGO: <span style="font-weight:700;color:{egoColor(teamAvgEgo(data.teamA))}">{teamAvgEgo(data.teamA).toFixed(1)}</span>
-                </p>
+                <div class="text-right shrink-0">
+                    {@render ghostLabel({ text: "INSTANCE_ID" })}
+                    <span class="text-2xl font-mono text-zinc-700 select-all">{data.instanceId}</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-10 space-y-12">
+        <!-- ── Scoreboard Banner ─────────────────────────────────────────────── -->
+        <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-10 bg-[#0c0c0c] border border-zinc-800 p-8 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-emerald-500/50 via-transparent to-rose-500/50"></div>
+            
+            <!-- Alpha Team -->
+            <div class="text-center font-sans">
+                <p class="text-4xl font-black italic uppercase tracking-tighter {data.teamAWon ? 'text-emerald-500' : 'text-rose-500'}">{data.teamAWon ? 'VICTORY' : 'DEFEAT'}</p>
+                <p class="text-[10px] font-bold text-zinc-500 tracking-[0.3em] uppercase mt-1">Alpha Intelligence</p>
+                <div class="flex justify-center gap-8 mt-6">
+                    <div class="text-center"> <p class="text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Banked</p> <p class="text-xl font-light text-emerald-400 italic">{teamTotal(data.teamA, 'motesDeposited')}</p> </div>
+                    <div class="text-center"> <p class="text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Efficiency</p> <p class="text-xl font-light text-zinc-200 italic">{teamTotal(data.teamA, 'kills')} / {teamTotal(data.teamA, 'deaths')}</p> </div>
+                </div>
+                <div class="mt-6 flex flex-col items-center">
+                    <div class="text-[9px] text-zinc-600 uppercase font-black tracking-[0.2em] mb-1">TEAM_RATING</div>
+                    <span class="text-2xl font-light italic text-white" style="color: {egoColor(teamAvgEgo(data.teamA))}">{teamAvgEgo(data.teamA).toFixed(1)}</span>
+                </div>
             </div>
 
-            <!-- VS -->
-            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 1rem;">
-                <div style="width:1px;height:28px;background:rgba(255,255,255,0.10);"></div>
-                <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.18em;color:rgba(255,255,255,0.20);">VS</span>
-                <div style="width:1px;height:28px;background:rgba(255,255,255,0.10);"></div>
+            <!-- VS Divider -->
+            <div class="flex flex-col items-center gap-4 py-4 opacity-30">
+                <div class="w-[1px] h-12 bg-zinc-600"></div>
+                <div class="w-6 h-6 border border-zinc-600 rotate-45 flex items-center justify-center font-black text-[10px]">VS</div>
+                <div class="w-[1px] h-12 bg-zinc-600"></div>
             </div>
 
-            <!-- Bravo -->
-            <div style="text-align:center;">
-                <p style="font-size:1.5rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:{data.teamBWon ? 'var(--gambit-green)' : '#e05050'};margin:0 0 0.2rem;">
-                    {data.teamBWon ? 'Victory' : 'Defeat'}
-                </p>
-                <p style="font-size:0.62rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--d2-text-muted);margin:0 0 0.5rem;">Team Bravo</p>
-                <div style="display:flex;justify-content:center;gap:0.75rem;font-size:0.75rem;color:var(--d2-text-secondary);">
-                    <span>{teamTotal(data.teamB, 'motesDeposited')} motes</span>
-                    <span style="color:rgba(255,255,255,0.2);">·</span>
-                    <span>{teamTotal(data.teamB, 'kills')}K/{teamTotal(data.teamB, 'deaths')}D</span>
+            <!-- Bravo Team -->
+            <div class="text-center font-sans">
+                <p class="text-4xl font-black italic uppercase tracking-tighter {data.teamBWon ? 'text-emerald-500' : 'text-rose-500'}">{data.teamBWon ? 'VICTORY' : 'DEFEAT'}</p>
+                <p class="text-[10px] font-bold text-zinc-500 tracking-[0.3em] uppercase mt-1">Bravo Intelligence</p>
+                <div class="flex justify-center gap-8 mt-6">
+                    <div class="text-center"> <p class="text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Banked</p> <p class="text-xl font-light text-emerald-400 italic">{teamTotal(data.teamB, 'motesDeposited')}</p> </div>
+                    <div class="text-center"> <p class="text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Efficiency</p> <p class="text-xl font-light text-zinc-200 italic">{teamTotal(data.teamB, 'kills')} / {teamTotal(data.teamB, 'deaths')}</p> </div>
                 </div>
-                <p style="font-size:0.70rem;color:var(--d2-text-muted);margin-top:0.3rem;">
-                    Avg EGO: <span style="font-weight:700;">{teamAvgEgo(data.teamB).toFixed(1)}</span>
-                </p>
+                <div class="mt-6 flex flex-col items-center">
+                    <div class="text-[9px] text-zinc-600 uppercase font-black tracking-[0.2em] mb-1">TEAM_RATING</div>
+                    <span class="text-2xl font-light italic text-white" style="color: {egoColor(teamAvgEgo(data.teamB))}">{teamAvgEgo(data.teamB).toFixed(1)}</span>
+                </div>
             </div>
         </div>
 
-        <!-- ── Two-column team layout ────────────────────────────────────────── -->
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;">
-            {#each [
-                { players: data.teamA, won: data.teamAWon, label: 'Alpha' },
-                { players: data.teamB, won: data.teamBWon, label: 'Bravo' }
-            ] as team}
-                <div style="display:flex;flex-direction:column;gap:0;">
-                    <!-- Team header -->
-                    <div style="
-                        display:flex;align-items:center;gap:0;
-                        background:{team.won ? 'rgba(61,174,119,0.10)' : 'rgba(180,40,40,0.08)'};
-                        border:1px solid {team.won ? 'rgba(61,174,119,0.25)' : 'rgba(180,40,40,0.20)'};
-                        border-left:3px solid {team.won ? 'var(--gambit-green)' : '#c0392b'};
-                        padding:0.5rem 1rem;
-                        margin-bottom:2px;
-                        clip-path:polygon(8px 0%,100% 0%,100% 100%,0% 100%,0% 8px);
-                    ">
-                        <span style="font-family:var(--font-family-display);font-size:0.70rem;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:{team.won ? 'var(--gambit-green)' : '#e05050'};flex:1;">
-                            Team {team.label}
-                        </span>
-                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:{team.won ? 'var(--gambit-green)' : '#e05050'};opacity:0.8;">
-                            {team.won ? 'Round Won' : 'Round Lost'}
-                        </span>
+        <!-- ── Player Grid ───────────────────────────────────────────────────── -->
+        <div class="grid grid-cols-2 gap-8 font-sans">
+            {#each [{ players: data.teamA, won: data.teamAWon, label: 'ALPHA' }, { players: data.teamB, won: data.teamBWon, label: 'BRAVO' }] as team}
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-2 h-2 rotate-45 {team.won ? 'bg-emerald-500' : 'bg-rose-500'}"></div>
+                        <h2 class="text-[12px] font-black tracking-[0.4em] uppercase text-zinc-400">ENCOUNTER_ROSTER: {team.label}</h2>
+                        <div class="flex-1 h-[1px] bg-zinc-800 opacity-30"></div>
                     </div>
-
-                    {#each team.players as player}
-                        {@const uid = `${player.membershipId}-${player.name}`}
-                        {@const isExpanded = expandedPlayer === uid}
-
-                        <div style="
-                            overflow:hidden;
-                            border:1px solid {player.role==='carry' ? 'rgba(206,174,51,0.25)' : team.won ? 'rgba(61,174,119,0.12)' : 'rgba(255,255,255,0.06)'};
-                            border-left:2px solid {player.role==='carry' ? 'var(--rarity-exotic)' : team.won ? 'rgba(61,174,119,0.25)' : 'rgba(180,40,40,0.20)'};
-                            background:{player.role==='carry' ? 'rgba(206,174,51,0.03)' : team.won ? 'rgba(61,174,119,0.04)' : 'rgba(180,40,40,0.03)'};
-                            margin-bottom:2px;
-                            transition:background 0.15s;
-                        ">
-                            <!-- Main row -->
-                            <button style="
-                                width:100%;text-align:left;
-                                padding:0.55rem 0.875rem;
-                                display:flex;align-items:center;gap:0.625rem;
-                                background:transparent;border:none;cursor:pointer;
-                                transition:background 0.12s;
-                            "
-                            onclick={() => togglePlayer(uid)}
-                            onmouseenter={e=>e.currentTarget.style.background='rgba(255,255,255,0.03)'}
-                            onmouseleave={e=>e.currentTarget.style.background='transparent'}>
-
-                                <!-- Emblem -->
-                                <div style="position:relative;flex-shrink:0;">
-                                    {#if player.icon}
-                                        <img src={player.icon} alt={player.name}
-                                             style="width:38px;height:38px;border:1px solid rgba(255,255,255,0.12);object-fit:cover;" />
-                                    {:else}
-                                        <div style="width:38px;height:38px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);display:flex;align-items:center;justify-content:center;font-size:1rem;">
-                                            {player.className === 'Titan' ? '🛡️' : player.className === 'Hunter' ? '🏹' : player.className === 'Warlock' ? '📿' : '👤'}
-                                        </div>
-                                    {/if}
-                                    {#if !player.completed}
-                                        <span style="position:absolute;top:-4px;right:-4px;font-family:var(--font-family-display);font-size:7px;font-weight:800;background:rgba(0,0,0,0.9);color:var(--d2-text-muted);padding:1px 2px;border:1px solid rgba(255,255,255,0.15);">DNF</span>
-                                    {/if}
-                                    {#if player.role === 'carry'}
-                                        <span style="position:absolute;bottom:-4px;right:-4px;font-size:8px;background:var(--rarity-exotic);color:#000;padding:1px 2px;font-weight:900;line-height:1;">★</span>
-                                    {/if}
-                                </div>
-
-                                <!-- Name + class -->
-                                <div style="flex:1;min-width:0;">
-                                    {#if player.code && player.membershipId}
-                                        <a href="/profile/{encodeURIComponent(player.name)}/{player.code}?mid={player.membershipId}&mt={player.membershipType}"
-                                           onclick={(e) => e.stopPropagation()}
-                                           style="font-family:var(--font-family-display);font-size:0.82rem;font-weight:700;letter-spacing:0.03em;color:var(--d2-text-primary);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;transition:color 0.15s;"
-                                           onmouseenter={e=>e.currentTarget.style.color='var(--gambit-green)'}
-                                           onmouseleave={e=>e.currentTarget.style.color='var(--d2-text-primary)'}>
-                                            {player.name}<span style="color:var(--d2-text-muted);font-size:0.72rem;font-weight:400;">#{player.code}</span>
-                                        </a>
-                                    {:else}
-                                        <span style="font-family:var(--font-family-display);font-size:0.82rem;font-weight:600;color:var(--d2-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;">{player.name}</span>
-                                    {/if}
-                                    <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
-                                        <p style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--d2-text-muted);">{player.className}</p>
-                                        {#if player.role === 'carry'}
-                                            <span style="font-family:var(--font-family-display);font-size:0.55rem;font-weight:800;letter-spacing:0.12em;color:var(--rarity-exotic);border:1px solid rgba(206,174,51,0.4);padding:1px 4px;">CARRY</span>
-                                        {:else if player.role === 'carried'}
-                                            <span style="font-family:var(--font-family-display);font-size:0.55rem;font-weight:800;letter-spacing:0.12em;color:#e05050;border:1px solid rgba(224,80,80,0.35);padding:1px 4px;">CARRIED</span>
+                    
+                    {#each team.players as p}
+                        {@const uid = `${p.membershipId}-${p.name}`}
+                        {@const isExp = expandedPlayer === uid}
+                        
+                        <div class="group bg-[#111111] border border-zinc-800 hover:border-zinc-600 transition-all duration-300 {p.role==='carry' ? 'border-l-4 border-l-amber-500' : ''}">
+                            <button onclick={() => togglePlayer(uid)} class="w-full p-4 flex items-center gap-6">
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-zinc-900 border border-zinc-800 relative overflow-hidden rotate-45 group-hover:rotate-90 transition-all duration-500">
+                                        {#if p.icon}
+                                            <img src={p.icon} alt={p.name} class="w-full h-full object-cover -rotate-45 group-hover:-rotate-90 transition-all duration-500" />
+                                        {:else}
+                                            <div class="w-full h-full flex items-center justify-center -rotate-45 group-hover:-rotate-90 transition-all duration-500 font-black text-zinc-700">?</div>
                                         {/if}
                                     </div>
-                                </div>
-
-                                <!-- EGO Score badge -->
-                                <div style="flex-shrink:0;text-align:right;margin-right:8px;padding-right:10px;border-right:1px solid rgba(255,255,255,0.08);">
-                                    {#if player.ego}
-                                        <p style="font-family:var(--font-family-display);font-size:1.1rem;font-weight:800;line-height:1;letter-spacing:-0.01em;color:{egoColor(player.ego.finalScore)};">
-                                            {player.ego.finalScore}
-                                        </p>
-                                        <p style="font-family:var(--font-family-display);font-size:0.55rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-top:1px;">EGO</p>
-                                    {:else}
-                                        <p style="font-family:var(--font-family-mono);font-size:0.9rem;color:rgba(255,255,255,0.18);">—</p>
-                                        <p style="font-family:var(--font-family-display);font-size:0.55rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.18);">EGO</p>
+                                    {#if p.role === 'carry'}
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 flex items-center justify-center rotate-45 shadow-[0_0_10px_rgba(245,158,11,0.5)]">
+                                            <span class="text-[8px] font-black text-black -rotate-45">★</span>
+                                        </div>
                                     {/if}
                                 </div>
-
-                                <!-- KDA -->
-                                <div style="flex-shrink:0;text-align:right;margin-right:8px;">
-                                    <p style="font-family:var(--font-family-display);font-size:0.85rem;font-weight:700;color:var(--d2-text-primary);letter-spacing:0.02em;">{player.k}/{player.d}/{player.a}</p>
-                                    <p style="font-family:var(--font-family-display);font-size:0.62rem;font-weight:500;color:var(--d2-text-muted);">{player.kd} KD</p>
-                                </div>
-
-                                <!-- Motes banked -->
-                                <div style="flex-shrink:0;text-align:center;min-width:2.5rem;border-left:1px solid rgba(255,255,255,0.08);padding-left:8px;">
-                                    <p style="font-family:var(--font-family-display);font-size:0.88rem;font-weight:800;color:{(player.stats.motesDeposited??0)>=15?'var(--gambit-green)':'var(--d2-text-secondary)'};letter-spacing:0.02em;">
-                                        {player.stats.motesDeposited ?? 0}
-                                    </p>
-                                    <p style="font-family:var(--font-family-display);font-size:0.55rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.25);">MB</p>
-                                </div>
-
-                                <!-- Invasions -->
-                                {#if (player.stats.invasions ?? 0) > 0}
-                                    <div style="flex-shrink:0;text-align:center;min-width:2rem;padding-left:6px;">
-                                        <p style="font-family:var(--font-family-display);font-size:0.88rem;font-weight:800;color:var(--dmg-void);letter-spacing:0.02em;">{player.stats.invasions}</p>
-                                        <p style="font-family:var(--font-family-display);font-size:0.55rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.25);">INV</p>
+                                <div class="flex-1 text-left min-w-0">
+                                    <div class="flex items-baseline gap-2">
+                                        <span class="text-sm font-black italic uppercase tracking-wider text-zinc-100 truncate">{p.name}</span>
+                                        {#if p.code} <span class="text-[10px] font-sans font-bold text-zinc-700">#{p.code}</span> {/if}
                                     </div>
-                                {/if}
+                                    <p class="text-[8px] font-bold text-zinc-600 uppercase tracking-widest mt-1">{p.className}</p>
+                                </div>
+                                
+                                <div class="text-right px-4 border-x border-zinc-800/50">
+                                    <p class="text-[8px] text-zinc-700 uppercase font-black tracking-widest mb-0.5">Rating</p>
+                                    <span class="text-xl font-light italic font-sans" style="color: {egoColor(p.ego?.finalScore ?? 0)}">{p.ego?.finalScore ?? '—'}</span>
+                                </div>
 
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                     style="width:14px;height:14px;color:rgba(255,255,255,0.25);flex-shrink:0;transition:transform 0.2s;transform:{isExpanded?'rotate(180deg)':'rotate(0)'};margin-left:2px;">
-                                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
-                                </svg>
+                                <div class="text-right min-w-[80px]">
+                                    <p class="text-xs font-bold text-zinc-200">{p.k}/{p.d}/{p.a}</p>
+                                    <p class="text-[8px] font-black text-zinc-600 uppercase tracking-widest mt-1">{p.kd} KD</p>
+                                </div>
                             </button>
 
-                            <!-- ── Expanded detail panel ──────────────────────── -->
-                            {#if isExpanded}
-                                <div style="border-top:1px solid rgba(255,255,255,0.07);background:rgba(0,0,0,0.25);">
-
-                                    {#if player.ego}
-                                        <!-- EGO breakdown -->
-                                        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,255,255,0.07);">
-                                            <!-- Left: score + PEM -->
-                                            <div style="padding:0.875rem 1rem;border-right:1px solid rgba(255,255,255,0.07);">
-                                                <div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:0.25rem;">
-                                                    <span style="font-family:var(--font-family-display);font-size:1.5rem;font-weight:800;line-height:1;color:{player.ego.finalScore>=110?'#c084fc':player.ego.finalScore>=80?'var(--gambit-green)':player.ego.finalScore>=50?'var(--d2-text-primary)':'#f87171'};">
-                                                        {player.ego.finalScore}
-                                                    </span>
-                                                    <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.30);">EGO Rating</span>
-                                                </div>
-                                                <div style="display:flex;align-items:baseline;gap:0.25rem;margin-bottom:0.5rem;">
-                                                    <span style="font-family:var(--font-family-mono);font-size:0.78rem;color:var(--d2-text-muted);">{player.ego.basePps}</span>
-                                                    <span style="font-family:var(--font-family-display);font-size:0.60rem;color:rgba(255,255,255,0.22);">Base ×</span>
-                                                    <span style="font-family:var(--font-family-mono);font-size:0.78rem;font-weight:700;color:{player.ego.pem>=1?'var(--gambit-green)':'#f87171'};">{player.ego.pem}x</span>
-                                                    <span style="font-family:var(--font-family-display);font-size:0.60rem;color:rgba(255,255,255,0.22);">PEM</span>
-                                                </div>
-                                                <!-- PEM bar -->
-                                                <div style="display:flex;align-items:center;gap:0.5rem;">
-                                                    <div style="flex:1;height:3px;background:rgba(255,255,255,0.08);position:relative;overflow:visible;">
-                                                        <div style="height:100%;background:{player.ego.pem>=1?'var(--gambit-green)':'#f87171'};width:{Math.min(100,((player.ego.pem-0.7)/0.7)*100)}%;transition:width 0.6s;"></div>
-                                                        <div style="position:absolute;top:-2px;bottom:-2px;width:1px;background:rgba(255,255,255,0.35);left:{((1.0-0.7)/0.7)*100}%;"></div>
-                                                    </div>
-                                                    <span style="font-family:var(--font-family-mono);font-size:0.60rem;color:rgba(255,255,255,0.25);white-space:nowrap;">{player.ego.moteEff}% ME</span>
-                                                </div>
-                                            </div>
-                                            <!-- Right: component bars -->
-                                            <div style="padding:0.875rem 1rem;display:flex;flex-direction:column;gap:0.35rem;justify-content:center;">
-                                                {#each Object.entries(player.ego.components) as [comp, val]}
-                                                    {@const maxComp = Math.max(...Object.values(player.ego.components), 1)}
-                                                    <div style="display:flex;align-items:center;gap:0.5rem;">
-                                                        <span style="font-family:var(--font-family-display);font-size:0.58rem;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:rgba(255,255,255,0.30);width:3rem;flex-shrink:0;">{comp}</span>
-                                                        <div style="flex:1;height:4px;background:rgba(255,255,255,0.06);overflow:hidden;">
-                                                            <div style="height:100%;width:{Math.max(0,(val/maxComp)*100)}%;background:{comp==='PvE'?'#38bdf8':comp==='PvP'?'#a78bfa':comp==='Banking'?'var(--gambit-green)':'var(--rarity-exotic)'};transition:width 0.6s;"></div>
+                            {#if isExp}
+                                <div in:fly={{ y: -10, duration: 400 }} class="p-6 border-t border-zinc-800/50 bg-[#0a0a0a]/50">
+                                    <div class="grid grid-cols-2 gap-10">
+                                        <!-- Left: EGO & Performance -->
+                                        <div>
+                                            {@render ghostLabel({ text: "PERFORMANCE_BREAKDOWN" })}
+                                            <div class="space-y-3 mt-4">
+                                                {#each Object.entries(p.ego?.components ?? {}) as [comp, val]}
+                                                    <div class="flex items-center gap-3">
+                                                        <span class="text-[9px] font-black text-zinc-500 uppercase w-16 tracking-widest">{comp}</span>
+                                                        <div class="flex-1 h-1 bg-zinc-900 overflow-hidden">
+                                                            <div class="h-full {comp==='PvE'?'bg-sky-500':comp==='PvP'?'bg-rose-500':comp==='Banking'?'bg-emerald-500':'bg-amber-500'}" 
+                                                                 style="width: {Math.min(100, val)}%"></div>
                                                         </div>
-                                                        <span style="font-family:var(--font-family-mono);font-size:0.65rem;color:var(--d2-text-muted);width:1.75rem;text-align:right;flex-shrink:0;">{val}</span>
+                                                        <span class="text-[10px] font-mono font-bold text-zinc-400">{val}</span>
                                                     </div>
                                                 {/each}
                                             </div>
+                                            
+                                            <!-- Medal Shelf -->
+                                            <div class="mt-8">
+                                                {@render ghostLabel({ text: "ACHIEVED_MEDALS" })}
+                                                <div class="flex flex-wrap gap-4 mt-4">
+                                                    {#each (p.medalList ?? []) as medal}
+                                                        {@render medalIconBadge({ medal })}
+                                                    {/each}
+                                                    {#if !(p.medalList?.length)}
+                                                        <p class="text-[10px] text-zinc-700 italic uppercase tracking-widest">No medals recorded.</p>
+                                                    {/if}
+                                                </div>
+                                            </div>
                                         </div>
-                                    {/if}
 
-                                    <!-- Weapons used -->
-                                    {#if player.weapons?.length}
-                                        <div style="padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.07);">
-                                            <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">Weapons Used</span>
-                                            <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
-                                                {#each player.weapons as w}
-                                                    <div style="display:flex;align-items:center;gap:0.5rem;">
-                                                        {#if w.icon}
-                                                            <div style="width:34px;height:34px;flex-shrink:0;border:1px solid rgba(255,255,255,{w.tier>=6?'0.35':w.tier>=5?'0.25':'0.12'});overflow:hidden;">
-                                                                <img src={w.icon} alt={w.name} style="width:100%;height:100%;object-fit:cover;" />
-                                                            </div>
-                                                        {/if}
-                                                        <div>
-                                                            <p style="font-family:var(--font-family-display);font-size:0.75rem;font-weight:600;color:var(--d2-text-primary);line-height:1.2;">{w.name}</p>
-                                                            <p style="font-family:var(--font-family-mono);font-size:0.62rem;color:var(--d2-text-muted);margin-top:1px;">
-                                                                {w.kills}K{#if w.precision > 0}<span style="color:rgba(255,255,255,0.20);"> · {w.precision} prec</span>{/if}
-                                                            </p>
+                                        <!-- Right: Combat Intelligence -->
+                                        <div>
+                                            {@render ghostLabel({ text: "WEAPON_RESONANCE" })}
+                                            <div class="grid gap-3 mt-4">
+                                                {#each (p.weapons ?? []) as w}
+                                                    <div class="flex items-center gap-4 bg-zinc-950/50 border border-zinc-900 p-2 group/weapon hover:border-zinc-700 transition-colors">
+                                                        <div class="w-10 h-10 bg-zinc-900 border border-zinc-800 relative overflow-hidden shrink-0">
+                                                            {#if w.icon} <img src={w.icon} alt={w.name} class="w-full h-full object-cover" /> {/if}
+                                                            <div class="absolute top-0 left-0 w-full h-[1px] {w.tier>=6 ? 'bg-amber-500' : 'bg-zinc-500'}"></div>
                                                         </div>
+                                                        <div class="flex-1 min-w-0">
+                                                            <p class="text-[11px] font-black italic uppercase text-zinc-200 truncate">{w.name}</p>
+                                                            <p class="text-[9px] font-mono text-zinc-600 mt-0.5">{w.kills} HOSTILES • {w.precision} PREC</p>
+                                                        </div>
+                                                        <a href="https://destinyitemmanager.com/en/inspect/{w.hash}" target="_blank" class="opacity-0 group-hover/weapon:opacity-100 transition-opacity px-2 py-1 border border-emerald-500/30 text-emerald-500 text-[8px] font-black uppercase tracking-tighter hover:bg-emerald-500/10">DIM</a>
                                                     </div>
                                                 {/each}
                                             </div>
-                                        </div>
-                                    {/if}
 
-                                    <!-- Medals earned -->
-                                    {#if player.medalList?.length}
-                                        <div style="padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.07);">
-                                            <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">Medals</span>
-                                            <div style="display:flex;flex-wrap:wrap;gap:0.375rem;">
-                                                {#each player.medalList as medal}
-                                                    <div style="display:flex;align-items:center;gap:0.25rem;border:1px solid rgba(206,174,51,0.25);background:rgba(206,174,51,0.05);padding:2px 8px;">
-                                                        <span style="color:var(--rarity-exotic);font-size:0.60rem;">★</span>
-                                                        <span style="font-family:var(--font-family-display);font-size:0.65rem;font-weight:500;color:var(--d2-text-secondary);">{medal.label}</span>
-                                                        {#if medal.count > 1}
-                                                            <span style="font-family:var(--font-family-display);font-size:0.65rem;font-weight:800;color:var(--rarity-exotic);margin-left:2px;">×{medal.count}</span>
-                                                        {/if}
-                                                    </div>
-                                                {/each}
+                                            <div class="mt-8">
+                                                {@render ghostLabel({ text: "STATISTICAL_VECTORS" })}
+                                                <div class="grid grid-cols-2 gap-x-8 gap-y-1 mt-4">
+                                                    {#each DETAIL_STATS.slice(3, 11) as { key, label, color }}
+                                                        {@const val = p.stats[key] ?? 0}
+                                                        <div class="flex justify-between items-center border-b border-zinc-900 py-1">
+                                                            <span class="text-[9px] font-sans text-zinc-600 uppercase tracking-widest">{label}</span>
+                                                            <span class="text-[10px] font-mono font-bold text-zinc-300">{fmtNum(val)}</span>
+                                                        </div>
+                                                    {/each}
+                                                </div>
                                             </div>
                                         </div>
-                                    {/if}
-
-                                    <!-- Full stat grid -->
-                                    <div style="padding:0.75rem 1rem;">
-                                        <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.30);display:block;margin-bottom:0.5rem;">All Stats</span>
-                                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0 1.5rem;">
-                                            {#each DETAIL_STATS as { key, label, color }}
-                                                {@const val = player.stats[key] ?? null}
-                                                {#if val !== null && val !== 0}
-                                                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-                                                        <span style="font-family:var(--font-family-display);font-size:0.65rem;font-weight:500;color:var(--d2-text-muted);">{label}</span>
-                                                        <span style="font-family:var(--font-family-mono);font-size:0.75rem;font-weight:700;color:{color.replace('text-amber-400','#fbbf24').replace('text-emerald-400','var(--gambit-green)').replace('text-red-400','#f87171').replace('text-violet-400','#a78bfa').replace('text-violet-300','#c4b5fd').replace('text-cyan-400','#22d3ee').replace('text-orange-400','#fb923c').replace('text-green-400','#4ade80').replace('text-amber-300','#fcd34d').replace('text-zinc-400','rgba(255,255,255,0.40)').replace('text-zinc-200','rgba(255,255,255,0.80)')}">{fmtNum(val)}</span>
-                                                    </div>
-                                                {/if}
-                                            {/each}
-                                        </div>
-
-                                        {#if player.code && player.membershipId}
-                                            <div style="margin-top:0.75rem;display:flex;justify-content:flex-end;">
-                                                <a href="/profile/{encodeURIComponent(player.name)}/{player.code}?mid={player.membershipId}&mt={player.membershipType}"
-                                                   style="font-family:var(--font-family-display);font-size:0.70rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--gambit-green);text-decoration:none;display:flex;align-items:center;gap:4px;transition:color 0.15s;"
-                                                   onmouseenter={e=>e.currentTarget.style.color='#6de8b0'}
-                                                   onmouseleave={e=>e.currentTarget.style.color='var(--gambit-green)'}>
-                                                    View Full Profile
-                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style="width:12px;height:12px;">
-                                                        <path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clip-rule="evenodd"/>
-                                                    </svg>
-                                                </a>
-                                            </div>
-                                        {/if}
                                     </div>
                                 </div>
                             {/if}
@@ -426,71 +294,59 @@
             {/each}
         </div>
 
-        <!-- ── Team comparison ───────────────────────────────────────────────── -->
-        <div style="
-            background:rgba(6,8,12,0.80);
-            border:1px solid rgba(255,255,255,0.08);
-            border-top:2px solid rgba(61,174,119,0.35);
-            clip-path:polygon(10px 0%,100% 0%,100% 100%,0% 100%,0% 10px);
-            padding:1.25rem 1.5rem;
-        ">
-            <span style="font-family:var(--font-family-display);font-size:0.62rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:var(--gambit-green);display:block;margin-bottom:1.25rem;">Team Comparison</span>
-            <div style="display:flex;flex-direction:column;gap:0.75rem;">
-                {#each [
-                    { key: 'kills',          label: 'Total Kills'     },
-                    { key: 'motesDeposited', label: 'Motes Banked'    },
-                    { key: 'motesDenied',    label: 'Motes Denied'    },
-                    { key: 'invasions',      label: 'Invasions'       },
-                    { key: 'invasionKills',  label: 'Invasion Kills'  },
-                    { key: 'primevalDamage', label: 'Primeval Damage' },
-                ] as { key, label }}
-                    {@const a = teamTotal(data.teamA, key)}
-                    {@const b = teamTotal(data.teamB, key)}
-                    {@const total = a + b}
-                    {@const pctA = total > 0 ? Math.round((a / total) * 100) : 50}
-                    {#if total > 0}
-                        <div>
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                                <span style="font-family:var(--font-family-mono);font-size:0.78rem;font-weight:700;color:{data.teamAWon?'var(--gambit-green)':'rgba(255,255,255,0.45)'};">{fmtNum(a)}</span>
-                                <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.28);">{label}</span>
-                                <span style="font-family:var(--font-family-mono);font-size:0.78rem;font-weight:700;color:{data.teamBWon?'var(--gambit-green)':'rgba(255,255,255,0.45)'};">{fmtNum(b)}</span>
+        <!-- ── Comparative Analytics ────────────────────────────────────────── -->
+        <div class="grid grid-cols-2 gap-10">
+            <div class="bg-[#111111] border border-zinc-800 p-8 shadow-inner relative overflow-hidden stone-card">
+                <div class="sheen-overlay"></div>
+                {@render ghostLabel({ text: "BATTLE_METRICS_COMPARISON" })}
+                <div class="space-y-6 mt-8 relative z-10">
+                    {#each [{ key: 'motesDeposited', label: 'Motes Banked' }, { key: 'kills', label: 'Hostiles Slain' }, { key: 'primevalDamage', label: 'Primeval DPS' }, { key: 'invasions', label: 'Invasion Vectors' }] as { key, label }}
+                        {@const a = teamTotal(data.teamA, key)}
+                        {@const b = teamTotal(data.teamB, key)}
+                        {@const total = Math.max(a + b, 1)}
+                        {@const pctA = (a / total) * 100}
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                                <span class={data.teamAWon ? 'text-emerald-500' : ''}>{fmtNum(a)}</span>
+                                <span>{label}</span>
+                                <span class={data.teamBWon ? 'text-emerald-500' : ''}>{fmtNum(b)}</span>
                             </div>
-                            <div style="height:3px;display:flex;background:rgba(255,255,255,0.06);overflow:hidden;">
-                                <div style="height:100%;width:{pctA}%;background:{data.teamAWon?'var(--gambit-green)':'rgba(180,40,40,0.70)'};transition:width 0.6s;"></div>
-                                <div style="height:100%;flex:1;background:{data.teamBWon?'var(--gambit-green)':'rgba(180,40,40,0.70)'};"></div>
+                            <div class="h-1 bg-zinc-900 flex">
+                                <div class="h-full {data.teamAWon ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}" style="width: {pctA}%"></div>
+                                <div class="h-full {data.teamBWon ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'} flex-1"></div>
                             </div>
                         </div>
-                    {/if}
-                {/each}
+                    {/each}
+                </div>
+            </div>
+
+            <div class="bg-[#111111] border border-zinc-800 p-8 shadow-inner relative overflow-hidden stone-card">
+                <div class="sheen-overlay"></div>
+                {@render ghostLabel({ text: "INTELLIGENCE_LEGEND" })}
+                <div class="grid grid-cols-2 gap-4 mt-8 relative z-10">
+                    {#each [{ range: '110+', label: 'ELITE', color: '#c084fc' }, { range: '80–109', label: 'STRONG', color: '#10b981' }, { range: '50–79', label: 'AVERAGE', color: '#cbd5e1' }, { range: '<50', label: 'RECLAIMED', color: '#f87171' }] as tier}
+                        <div class="border border-zinc-800 p-3 bg-zinc-950/50">
+                            <p class="text-xs font-black italic" style="color: {tier.color}">{tier.range}</p>
+                            <p class="text-[8px] font-bold text-zinc-600 uppercase tracking-widest mt-1">{tier.label} DATASTREAM</p>
+                        </div>
+                    {/each}
+                </div>
+                <p class="text-[9px] font-sans text-zinc-600 mt-10 leading-relaxed uppercase tracking-widest font-bold">
+                    EGO Ratings are computed via a multi-vector calculus encompassing PvE impact, banking reliability, and PvP efficiency multipliers.
+                </p>
             </div>
         </div>
-
-        <!-- ── EGO Legend ────────────────────────────────────────────────────── -->
-        <div style="
-            border:1px solid rgba(255,255,255,0.07);
-            background:rgba(6,8,12,0.60);
-            padding:1rem 1.25rem;
-            clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);
-        ">
-            <span style="font-family:var(--font-family-display);font-size:0.60rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.28);display:block;margin-bottom:0.75rem;">EGO Rating System</span>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-bottom:0.75rem;">
-                {#each [
-                    { range: '110+',   label: 'Elite',     color: '#c084fc', border: 'rgba(192,132,252,0.30)' },
-                    { range: '80–109', label: 'Strong',    color: 'var(--gambit-green)', border: 'rgba(61,174,119,0.30)' },
-                    { range: '50–79',  label: 'Average',   color: 'rgba(255,255,255,0.75)', border: 'rgba(255,255,255,0.15)' },
-                    { range: '<50',    label: 'Below Avg', color: '#f87171', border: 'rgba(248,113,113,0.30)' },
-                ] as tier}
-                    <div style="display:flex;align-items:center;gap:0.5rem;border:1px solid {tier.border};padding:5px 10px;">
-                        <span style="font-family:var(--font-family-mono);font-size:0.78rem;font-weight:700;color:{tier.color};">{tier.range}</span>
-                        <span style="font-family:var(--font-family-display);font-size:0.62rem;font-weight:600;color:rgba(255,255,255,0.28);letter-spacing:0.04em;">{tier.label}</span>
-                    </div>
-                {/each}
-            </div>
-            <p style="font-family:var(--font-family-sans);font-size:0.68rem;color:rgba(255,255,255,0.18);line-height:1.6;">
-                EGO = (PvE kills + Primeval damage + Invasion kills + Motes banked + Assists + Medals − Deaths penalty − Wasted motes) × Stack multiplier × PEM.
-                <span style="color:rgba(255,255,255,0.13);">PEM (Performance Efficiency Multiplier) rewards mote banking safety and K/D above benchmarks.</span>
-            </p>
-        </div>
-
-    </div>
+    </main>
 </div>
+
+<style>
+    .stone-card {
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
+    }
+    .sheen-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%, rgba(255,255,255,0.02) 100%);
+        pointer-events: none;
+    }
+</style>
