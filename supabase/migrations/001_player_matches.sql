@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS player_matches (
 
     -- Match metadata
     map_name        TEXT,
+    map_image       TEXT,
     period          TIMESTAMPTZ,
     duration        INTEGER,            -- seconds
     outcome         TEXT,               -- 'Win' | 'Loss' | 'DNF'
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS player_matches (
     ego_pem         REAL,
     mote_eff        REAL,
     kd              REAL,
+    inv_yield       REAL,
     fireteam_size   SMALLINT DEFAULT 1,
     is_hard_carry   BOOLEAN  DEFAULT FALSE,
     is_carried      BOOLEAN  DEFAULT FALSE,

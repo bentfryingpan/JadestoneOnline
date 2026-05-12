@@ -553,6 +553,34 @@
         locked:  { border:'border-zinc-800',        glow:'',                                                      text:'text-zinc-700',    hoverBorder:'group-hover:border-zinc-700'       },
     };
 
+    // ── Medal & map icon fetches ───────────────────────────────────────────────
+    let medalIcons  = $state(null);
+    let mapIcons    = $state(null);
+
+    $effect(() => {
+        fetch('/api/medal-icons').then(r => r.json()).then(d => { medalIcons = d; }).catch(() => {});
+        fetch('/api/map-icons').then(r => r.json()).then(d => { mapIcons = d; }).catch(() => {});
+    });
+
+    // ── Armor stat totals ─────────────────────────────────────────────────────
+    const grandTotal  = $derived(
+        (char?.stats?.[2996146975] ?? 0) + (char?.stats?.[3927053327] ?? 0) +
+        (char?.stats?.[1943323491] ?? 0) + (char?.stats?.[1735777505] ?? 0) +
+        (char?.stats?.[144602215]  ?? 0) + (char?.stats?.[4244567218] ?? 0)
+    );
+    const buildTier = $derived(
+        grandTotal >= 500 ? 'S' : grandTotal >= 400 ? 'A' : grandTotal >= 300 ? 'B' : 'C'
+    );
+
+    // Emblem paths
+    const BUNGIE_ROOT_CDN = 'https://www.bungie.net';
+    const emblemBg = $derived(
+        char?.emblemBackgroundPath ? BUNGIE_ROOT_CDN + char.emblemBackgroundPath : null
+    );
+    const emblemIcon = $derived(
+        char?.emblemPath ? BUNGIE_ROOT_CDN + char.emblemPath : null
+    );
+
     // ── playerData — Gemini UI data object ────────────────────────────────────
     const playerData = $derived({
         identity: {
