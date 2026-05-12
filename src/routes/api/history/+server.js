@@ -168,6 +168,7 @@ export async function GET({ url, setHeaders }) {
                         }
                         if (e.map_name)  m.mapName  = e.map_name;
                         if (e.map_image) m.mapImage = e.map_image;
+                        if (e.exotic_json) m.exotic = e.exotic_json;
                     }
                 }
             }

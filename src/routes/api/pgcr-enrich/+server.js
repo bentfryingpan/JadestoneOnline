@@ -17,15 +17,20 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
-import { calcEgo, extractMedals as _extractMedals } from '$lib/server/ego.js';
-import { getItemDef, getActivityDef } from '$lib/server/manifest.js';
+import { calcEgo, extractMedals as _extractMedals, detectRole } from '$lib/server/ego.js';
+import { getItemDef, getActivityDef, getMapImage, getExoticIconBase64 } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
 const PGCR_TTL    = 86_400_000; // 24 h in-process
 
-// Medal extraction now handled by the canonical ego.js implementation
+// Slot bucket hashes (from Python Jadestone)
+const SLOT_BUCKETS = {
+    1491708835: 'Kinetic',
+    2465295065: 'Energy',
+    95395402:   'Power'
+};
 
 async function fetchPgcr(instanceId) {
     const key = `pgcr:${instanceId}`;
@@ -35,9 +40,11 @@ async function fetchPgcr(instanceId) {
         `${PGCR_ROOT}/Platform/Destiny2/Stats/PostGameCarnageReport/${instanceId}/`,
         { headers: { 'X-API-Key': BUNGIE_API_KEY } }
     );
+    if (!res.ok) return null;
     const data = await res.json();
     if (data.ErrorCode === 1 && data.Response) {
         cacheSet(key, data, PGCR_TTL);
+        return data;
     }
     return data;
 }
@@ -48,22 +55,19 @@ function sv(entry, key) {
         ?? 0;
 }
 
-// Delegate to canonical ego.js extractMedals (imported as _extractMedals)
 function extractMedals(entry) {
     return _extractMedals(entry.extended?.values ?? {});
 }
 
-function processPgcr(pgcr, targetMembershipId) {
+async function processPgcr(pgcr, targetMembershipId) {
     const entries = pgcr.entries ?? [];
 
-    // Build fireteam size map
     const ftGroups = {};
     for (const e of entries) {
         const ftId = e.values?.fireteamId?.basic?.value ?? 0;
         if (ftId > 0) ftGroups[ftId] = (ftGroups[ftId] ?? 0) + 1;
     }
 
-    // Map team values → Alpha/Bravo
     const teamMap = {};
     let teamIdx = 0;
     for (const e of entries) {
@@ -90,9 +94,9 @@ function processPgcr(pgcr, targetMembershipId) {
         const assists      = sv(e, 'assists');
         const invasionKills = sv(e, 'invasionKills') || sv(e, 'invaderKills');
         const motesDeposited = sv(e, 'motesDeposited') || sv(e, 'motesBanked');
-        const motesDenied  = sv(e, 'motesDenied');
-        const motesPickedUp = sv(e, 'motesPickedUp') || (motesDeposited + sv(e, 'motesLost'));
         const motesLost    = sv(e, 'motesLost');
+        const motesDenied  = sv(e, 'motesDenied');
+        const motesPickedUp = sv(e, 'motesPickedUp') || (motesDeposited + motesLost);
         const primevalDamage = sv(e, 'primevalDamage');
         const superKills   = sv(e, 'weaponKillsSuper') || sv(e, 'superKills');
         const grenadeKills = sv(e, 'weaponKillsGrenade') || sv(e, 'grenadeKills');
@@ -102,12 +106,30 @@ function processPgcr(pgcr, targetMembershipId) {
         const standing     = sv(e, 'standing');
         const medals       = extractMedals(e);
 
-        // Top weapons (sort by kills desc, take top 5)
-        const topWeapons = (e.extended?.weapons ?? [])
-            .map(w => ({ hash: w.referenceId, kills: w.values?.uniqueWeaponKills?.basic?.value ?? 0 }))
-            .filter(w => w.kills > 0)
-            .sort((a, b) => b.kills - a.kills)
-            .slice(0, 5);
+        const rawWeapons = e.extended?.weapons ?? [];
+        const topWeapons = [];
+        let matchExotic = null;
+
+        for (const w of rawWeapons) {
+            const wHash = w.referenceId;
+            const wDef  = await getItemDef(wHash);
+            if (!wDef) continue;
+            const wKills = w.values?.uniqueWeaponKills?.basic?.value ?? 0;
+            if (wKills > 0) {
+                const slot = SLOT_BUCKETS[wDef.inventory?.bucketTypeHash] ?? 'Unknown';
+                topWeapons.push({
+                    name: wDef.displayProperties?.name ?? 'Unknown',
+                    hash: wHash,
+                    icon: wDef.displayProperties?.icon ? BUNGIE_ROOT + wDef.displayProperties.icon : null,
+                    slot,
+                    kills: wKills
+                });
+                if (wDef.inventory?.tierType === 6 && !matchExotic) {
+                    const iconB64 = await getExoticIconBase64(wHash);
+                    matchExotic = { name: wDef.displayProperties.name, icon: iconB64, source: 'weapon' };
+                }
+            }
+        }
 
         const stats = {
             kills, mobKills, deaths, assists, invasionKills,
@@ -135,126 +157,74 @@ function processPgcr(pgcr, targetMembershipId) {
 
         if (isTarget && completed) {
             targetEntry = {
-                entry: e, stats, ego, standing, ftSize,
+                entry: e, stats, ego, standing, ftSize, matchExotic,
                 outcome: standing === 0 ? 'Win' : 'Loss',
             };
         }
     }
 
-    if (!targetEntry) return null; // player not in match or DNF
+    if (!targetEntry) return null;
 
-    // ── Hard carry / carried detection (exact desktop app thresholds) ──────
-    const targetTeam = roster.find(r => r.is_target)?.team;
-    const myTeam = roster.filter(r => r.team === targetTeam && r.score > 0);
-    const myScore = targetEntry.ego.finalScore;
-    const teamTotal = myTeam.reduce((s, p) => s + p.score, 0);
-    const teamAvg = myTeam.length > 0 ? teamTotal / myTeam.length : 0;
-    const sortedScores = [...myTeam].sort((a, b) => b.score - a.score);
-    const topScore = sortedScores[0]?.score ?? 0;
-    const secondScore = sortedScores[1]?.score ?? 0;
-
-    const isHardCarry = myTeam.length > 1
-        && myScore === topScore
-        && myScore > teamTotal * 0.40
-        && myScore >= secondScore + 30;
-    const isCarried = myTeam.length > 1
-        && myScore < teamAvg * 0.50
-        && topScore >= myScore + 50;
+    const { isCarry, isCarried } = detectRole(targetEntry.ego.finalScore, roster.filter(r => r.team === teamMap[targetEntry.standing === 0 ? sv(targetEntry.entry, 'team') : entries.find(e => e.values?.standing?.basic?.value !== 0)?.values?.team?.basic?.value] && r.score > 0).map(r => r.score));
 
     return {
         outcome: targetEntry.outcome,
         stats: targetEntry.stats,
         ego: targetEntry.ego,
         fireteamSize: targetEntry.ftSize,
-        isHardCarry,
-        isCarried,
+        matchExotic: targetEntry.matchExotic,
+        isHardCarry: isCarry,
+        isCarried: isCarried,
         roster,
     };
 }
 
 export async function POST({ request }) {
-    let body;
-    try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
-
+    const body = await request.json();
     const { membershipId, membershipType, bungieDisplayName, bungieDisplayCode, instanceIds } = body;
     if (!membershipId || !Array.isArray(instanceIds) || instanceIds.length === 0) {
         return json({ error: 'Missing params' }, { status: 400 });
     }
 
-    const batch = instanceIds.slice(0, 20); // cap at 20 per call
+    const batch = instanceIds.slice(0, 20);
 
-    // ── Check which are already stored ───────────────────────────────────────
     let existingIds = new Set();
     try {
         const { data } = await supabaseAdmin
             .from('player_matches')
             .select('pgcr_id')
-            .eq('player_id', parseInt(membershipId))
+            .eq('player_id', membershipId) // string
             .in('pgcr_id', batch);
         if (data) existingIds = new Set(data.map(r => r.pgcr_id));
-    } catch { /* table may not exist yet */ }
+    } catch { }
 
     const toFetch = batch.filter(id => !existingIds.has(id));
     let stored = 0, errors = 0;
 
-    // ── Fetch + process each new PGCR ────────────────────────────────────────
     for (const instanceId of toFetch) {
         try {
             const pgcrData = await fetchPgcr(instanceId);
-            if (pgcrData.ErrorCode !== 1 || !pgcrData.Response) { errors++; continue; }
+            if (!pgcrData || pgcrData.ErrorCode !== 1 || !pgcrData.Response) { errors++; continue; }
 
             const pgcr = pgcrData.Response;
-            const result = processPgcr(pgcr, membershipId);
+            const result = await processPgcr(pgcr, membershipId);
             if (!result) { errors++; continue; }
 
-            // Resolve map name + background image from activity def
             const refId = pgcr.activityDetails?.referenceId;
-            let mapName  = 'Gambit';
-            let mapImage = null;
-            if (refId) {
-                const actDef = await getActivityDef(refId);
-                mapName  = (actDef?.displayProperties?.name ?? 'Gambit')
-                    .replace(/^Gambit[:\-]\s*/i, '').trim() || 'Gambit';
-                // pgcrImage is the large widescreen art used as background; fall back to icon
-                mapImage = actDef?.pgcrImage
-                    ? `${BUNGIE_ROOT}${actDef.pgcrImage}`
-                    : (actDef?.displayProperties?.icon
-                        ? `${BUNGIE_ROOT}${actDef.displayProperties.icon}`
-                        : null);
-            }
-
-            // Resolve weapon names + icons + slots
-            const SLOT_BUCKETS = {
-                1491708835: 'Kinetic',
-                2465295065: 'Energy',
-                95395402:   'Power'
-            };
-
-            for (const w of result.stats.top_weapons ?? []) {
-                if (w.hash) {
-                    const def = await getItemDef(w.hash);
-                    w.name = def?.displayProperties?.name ?? `Item ${w.hash}`;
-                    w.icon = def?.displayProperties?.icon
-                        ? BUNGIE_ROOT + def.displayProperties.icon : null;
-                    
-                    const bucketHash = def?.inventory?.bucketTypeHash;
-                    w.slot = SLOT_BUCKETS[bucketHash] ?? 'Unknown';
-                }
-            }
-
-            const period   = pgcr.period ?? null;
-            const duration = pgcr.entries?.[0]?.values?.activityDurationSeconds?.basic?.value ?? 0;
+            const actDef = refId ? await getActivityDef(refId) : null;
+            const mapName  = (actDef?.displayProperties?.name ?? 'Gambit').replace(/^Gambit[:\-]\s*/i, '').trim() || 'Gambit';
+            const mapImage = await getMapImage(mapName);
 
             await supabaseAdmin.from('player_matches').upsert({
                 pgcr_id:         instanceId,
-                player_id:       membershipId, // Keep as string for BIGINT to avoid precision loss
+                player_id:       membershipId,
                 bungie_name:     bungieDisplayName ?? null,
                 bungie_code:     bungieDisplayCode ? String(bungieDisplayCode) : null,
                 membership_type: membershipType ? parseInt(membershipType) : null,
                 map_name:        mapName,
                 map_image:       mapImage,
-                period:          period,
-                duration:        duration,
+                period:          pgcr.period,
+                duration:        sv(pgcr.entries?.[0], 'activityDurationSeconds'),
                 outcome:         result.outcome,
                 ego_score:       result.ego.finalScore,
                 ego_base:        result.ego.basePps,
@@ -268,29 +238,27 @@ export async function POST({ request }) {
                 stats:           result.stats,
                 components:      result.ego.components,
                 roster:          result.roster,
+                exotic_json:     result.matchExotic,
                 updated_at:      new Date().toISOString(),
             }, { onConflict: 'pgcr_id,player_id' });
 
-            // ── Update NGR (running-mean EGO) for this player ─────────────────
-            try {
-                const { data: ngrRow } = await supabaseAdmin
-                    .from('player_ngr_cache')
-                    .select('ngr,games')
-                    .eq('player_id', membershipId)
-                    .single();
-                const prevNgr   = ngrRow?.ngr   ?? 0;
-                const prevGames = ngrRow?.games  ?? 0;
-                const newGames  = prevGames + 1;
-                const newNgr    = (prevNgr * prevGames + result.ego.finalScore) / newGames;
-                await supabaseAdmin.from('player_ngr_cache').upsert({
-                    player_id:   membershipId,
-                    bungie_name: bungieDisplayName ?? null,
-                    bungie_code: bungieDisplayCode ? String(bungieDisplayCode) : null,
-                    ngr:         Math.round(newNgr * 10) / 10,
-                    games:       newGames,
-                    updated_at:  new Date().toISOString(),
-                }, { onConflict: 'player_id' });
-            } catch { /* non-fatal */ }
+            const { data: ngrRow } = await supabaseAdmin
+                .from('player_ngr_cache')
+                .select('ngr,games')
+                .eq('player_id', membershipId)
+                .single();
+            const prevNgr   = ngrRow?.ngr   ?? 0;
+            const prevGames = ngrRow?.games  ?? 0;
+            const newGames  = prevGames + 1;
+            const newNgr    = (prevNgr * prevGames + result.ego.finalScore) / newGames;
+            await supabaseAdmin.from('player_ngr_cache').upsert({
+                player_id:   membershipId,
+                bungie_name: bungieDisplayName ?? null,
+                bungie_code: bungieDisplayCode ? String(bungieDisplayCode) : null,
+                ngr:         Math.round(newNgr * 10) / 10,
+                games:       newGames,
+                updated_at:  new Date().toISOString(),
+            }, { onConflict: 'player_id' });
 
             stored++;
         } catch (e) {
@@ -304,5 +272,6 @@ export async function POST({ request }) {
         skipped: existingIds.size,
         errors,
         total: batch.length,
+        needsEnrichment: stored < batch.length
     });
 }

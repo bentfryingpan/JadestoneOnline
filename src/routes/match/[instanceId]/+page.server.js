@@ -385,7 +385,6 @@ export async function load({ params, setHeaders }) {
                         ? BUNGIE_ROOT + activityDef.pgcrImage : null;
 
     // ── NGR lookup for lobby difficulty ──────────────────────────────────────
-    // Collect all membershipIds, query NGR cache in one round-trip
     let lobbyTier = null, lobbyModifier = '';
     try {
         const allPlayers = [...teamA, ...teamB];
@@ -394,15 +393,13 @@ export async function load({ params, setHeaders }) {
             const { data: ngrRows } = await supabaseAdmin
                 .from('player_ngr_cache')
                 .select('player_id,ngr')
-                .in('player_id', mIds.map(Number));
+                .in('player_id', mIds); // IDs as strings
+            
             if (ngrRows?.length) {
                 const ngrMap = new Map(ngrRows.map(r => [String(r.player_id), r.ngr]));
-                // Annotate players with their NGR
                 for (const p of allPlayers) {
                     p.ngr = ngrMap.get(String(p.membershipId)) ?? null;
                 }
-                // Compute team average NGRs from whichever team is "opponent"
-                // For each team we'll compute avg NGR of players with known NGR
                 function teamAvgNgr(players) {
                     const known = players.filter(p => p.ngr != null);
                     return known.length > 0 ? known.reduce((s, p) => s + p.ngr, 0) / known.length : null;
@@ -410,7 +407,6 @@ export async function load({ params, setHeaders }) {
                 const avgA = teamAvgNgr(teamA);
                 const avgB = teamAvgNgr(teamB);
                 const oppKnown = avgA != null && avgB != null;
-                // Use the higher-NGR team as "opponent" for difficulty display
                 const oppNgr = oppKnown ? Math.max(avgA, avgB) : null;
                 const tmNgr  = oppKnown ? Math.min(avgA, avgB) : null;
                 const tierResult = ngrTier(oppNgr, tmNgr, oppKnown);
@@ -418,7 +414,7 @@ export async function load({ params, setHeaders }) {
                 lobbyModifier = tierResult.modifier;
             }
         }
-    } catch { /* non-fatal */ }
+    } catch { }
 
     return {
         instanceId, period, duration,

@@ -542,3 +542,57 @@ export async function getFrameName(intrinsicHash) {
     const perk = await getSandboxPerkDef(intrinsicHash);
     return perk?.displayProperties?.name ?? null;
 }
+
+// ── Map & Asset Caching (Ported from Python api.py) ───────────────────────────
+const mapImageCache = new Map();
+const iconCache     = new Map();
+
+/**
+ * Returns the PGCR background image for a map name.
+ * Mimics Python's lookup_activity_image_by_name.
+ */
+export async function getMapImage(mapName) {
+    if (!mapName) return null;
+    const cleanName = mapName.replace(/^(Gambit[:\-]\s*)/i, '').trim();
+    if (mapImageCache.has(cleanName)) return mapImageCache.get(cleanName);
+
+    const table = await fetchTable('DestinyActivityDefinition');
+    if (!table) return null;
+
+    // Search for match
+    for (const def of Object.values(table)) {
+        const name = def.displayProperties?.name ?? '';
+        const img  = def.pgcrImage;
+        
+        if (name.includes(cleanName) && img) {
+            const fullImg = BUNGIE_ROOT + img;
+            mapImageCache.set(cleanName, fullImg);
+            return fullImg;
+        }
+    }
+    return null;
+}
+
+/**
+ * Returns base64 encoded icon for an exotic item, cached in memory.
+ */
+export async function getExoticIconBase64(itemHash) {
+    if (!itemHash) return null;
+    if (iconCache.has(itemHash)) return iconCache.get(itemHash);
+
+    const def = await getItemDef(itemHash);
+    if (!def || def.inventory?.tierType !== 6) return null;
+
+    const iconPath = def.displayProperties?.icon;
+    if (!iconPath) return null;
+
+    try {
+        const res = await fetch(`https://www.bungie.net${iconPath}`);
+        const buf = await res.arrayBuffer();
+        const b64 = Buffer.from(buf).toString('base64');
+        iconCache.set(itemHash, b64);
+        return b64;
+    } catch {
+        return null;
+    }
+}
