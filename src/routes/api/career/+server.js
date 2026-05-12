@@ -52,7 +52,7 @@ function computePlaystyle(matches) {
 async function careerFromSupabase(membershipId, count) {
     const { data: rows, error } = await supabaseAdmin
         .from('player_matches')
-        .select('pgcr_id,map_name,period,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats,components,roster')
+        .select('pgcr_id,map_name,map_image,period,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats,components,roster')
         .eq('player_id', parseInt(membershipId))
         .not('outcome', 'eq', 'DNF')
         .order('period', { ascending: false })
@@ -69,6 +69,7 @@ async function careerFromSupabase(membershipId, count) {
 
     let totalMatches = 0, totalWins = 0, carries = 0, carried = 0;
     let totalScore = 0;
+    let totalKills = 0, totalDeaths = 0;
 
     for (const row of rows) {
         const isWin = row.outcome === 'Win';
@@ -76,17 +77,25 @@ async function careerFromSupabase(membershipId, count) {
         const medals = stats.medals ?? {};
         const mapName = row.map_name ?? 'Gambit';
         const score = row.ego_score ?? 0;
+        const kills  = (stats.mobKills ?? 0) + (stats.invasionKills ?? 0);
+        const deaths = stats.deaths ?? 0;
         totalMatches++;
         if (isWin) totalWins++;
         if (row.is_hard_carry) carries++;
         if (row.is_carried) carried++;
         totalScore += score;
+        totalKills  += kills;
+        totalDeaths += deaths;
 
         // Map stats
-        if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0, scoreSum: 0 };
+        if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0, scoreSum: 0, kills: 0, deaths: 0, map_image: row.map_image ?? null };
         mapsAgg[mapName].games++;
         if (isWin) mapsAgg[mapName].wins++;
         mapsAgg[mapName].scoreSum += score;
+        mapsAgg[mapName].kills    += kills;
+        mapsAgg[mapName].deaths   += deaths;
+        // Prefer non-null image (any match for this map may have it)
+        if (!mapsAgg[mapName].map_image && row.map_image) mapsAgg[mapName].map_image = row.map_image;
 
         // Weapon synergy
         for (const w of stats.top_weapons ?? []) {
@@ -139,9 +148,14 @@ async function careerFromSupabase(membershipId, count) {
 
     const maps = Object.entries(mapsAgg)
         .map(([name, s]) => ({
-            name, games: s.games, wins: s.wins,
-            winRate: s.games > 0 ? +((s.wins / s.games) * 100).toFixed(1) : 0,
-            avgScore: s.games > 0 ? +(s.scoreSum / s.games).toFixed(1) : 0,
+            name,
+            games:     s.games,
+            wins:      s.wins,
+            losses:    s.games - s.wins,
+            winRate:   s.games  > 0 ? +((s.wins   / s.games)  * 100).toFixed(1) : 0,
+            avgScore:  s.games  > 0 ? +(s.scoreSum / s.games).toFixed(1)         : 0,
+            kd:        s.deaths > 0 ? +(s.kills    / s.deaths).toFixed(2)        : s.kills > 0 ? s.kills : 0,
+            map_image: s.map_image ?? null,
         }))
         .sort((a, b) => b.games - a.games);
 
@@ -192,13 +206,16 @@ async function careerFromSupabase(membershipId, count) {
 
     const playstyle = computePlaystyle(rows);
 
+    const overallKd = totalDeaths > 0 ? +(totalKills / totalDeaths).toFixed(2) : totalKills;
+
     return {
         source: 'supabase',
         totalMatches, totalWins, carries, carried,
-        avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
-        winRate: totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
-        carryPct: totalMatches > 0 ? +((carries / totalMatches) * 100).toFixed(1) : 0,
-        carriedPct: totalMatches > 0 ? +((carried / totalMatches) * 100).toFixed(1) : 0,
+        avgScore:    totalMatches > 0 ? +(totalScore  / totalMatches).toFixed(1)        : 0,
+        winRate:     totalMatches > 0 ? +((totalWins  / totalMatches) * 100).toFixed(1) : 0,
+        kd:          overallKd,
+        carryPct:    totalMatches > 0 ? +((carries    / totalMatches) * 100).toFixed(1) : 0,
+        carriedPct:  totalMatches > 0 ? +((carried    / totalMatches) * 100).toFixed(1) : 0,
         maps, weapons, allies, rivals, bestAlly, nemesis,
         medals, hourlyStats, classStats, playstyle,
         matchesAnalyzed: totalMatches,

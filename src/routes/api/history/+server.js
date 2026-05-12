@@ -151,7 +151,7 @@ export async function GET({ url, setHeaders }) {
         try {
             const { data: enriched } = await supabaseAdmin
                 .from('player_matches')
-                .select('pgcr_id,fireteam_size,is_hard_carry,is_carried,ego_score,map_name')
+                .select('pgcr_id,fireteam_size,is_hard_carry,is_carried,ego_score,map_name,map_image')
                 .eq('player_id', parseInt(membershipId))
                 .in('pgcr_id', instanceIds);
 
@@ -166,7 +166,8 @@ export async function GET({ url, setHeaders }) {
                         if (e.ego_score != null) {
                             m.ego = m.ego ? { ...m.ego, finalScore: e.ego_score } : { finalScore: e.ego_score };
                         }
-                        if (e.map_name) m.mapName = e.map_name;
+                        if (e.map_name)  m.mapName  = e.map_name;
+                        if (e.map_image) m.mapImage = e.map_image;
                     }
                 }
             }

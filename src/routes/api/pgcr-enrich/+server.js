@@ -207,16 +207,23 @@ export async function POST({ request }) {
             const result = processPgcr(pgcr, membershipId);
             if (!result) { errors++; continue; }
 
-            // Resolve map name from activity def
+            // Resolve map name + background image from activity def
             const refId = pgcr.activityDetails?.referenceId;
-            let mapName = 'Gambit';
+            let mapName  = 'Gambit';
+            let mapImage = null;
             if (refId) {
                 const actDef = await getActivityDef(refId);
-                mapName = (actDef?.displayProperties?.name ?? 'Gambit')
+                mapName  = (actDef?.displayProperties?.name ?? 'Gambit')
                     .replace(/^Gambit[:\-]\s*/i, '').trim() || 'Gambit';
+                // pgcrImage is the large widescreen art used as background; fall back to icon
+                mapImage = actDef?.pgcrImage
+                    ? `${BUNGIE_ROOT}${actDef.pgcrImage}`
+                    : (actDef?.displayProperties?.icon
+                        ? `${BUNGIE_ROOT}${actDef.displayProperties.icon}`
+                        : null);
             }
 
-            // Resolve weapon names
+            // Resolve weapon names + icons
             for (const w of result.stats.top_weapons ?? []) {
                 if (w.hash) {
                     const def = await getItemDef(w.hash);
@@ -226,7 +233,7 @@ export async function POST({ request }) {
                 }
             }
 
-            const period = pgcr.period ?? null;
+            const period   = pgcr.period ?? null;
             const duration = pgcr.entries?.[0]?.values?.activityDurationSeconds?.basic?.value ?? 0;
 
             await supabaseAdmin.from('player_matches').upsert({
@@ -236,6 +243,7 @@ export async function POST({ request }) {
                 bungie_code:     bungieDisplayCode ? String(bungieDisplayCode) : null,
                 membership_type: membershipType ? parseInt(membershipType) : null,
                 map_name:        mapName,
+                map_image:       mapImage,
                 period:          period,
                 duration:        duration,
                 outcome:         result.outcome,
@@ -244,6 +252,7 @@ export async function POST({ request }) {
                 ego_pem:         result.ego.pem,
                 mote_eff:        result.ego.moteEff,
                 kd:              result.ego.simpleKd,
+                inv_yield:       result.ego.invYield ?? null,
                 fireteam_size:   result.fireteamSize,
                 is_hard_carry:   result.isHardCarry,
                 is_carried:      result.isCarried,
