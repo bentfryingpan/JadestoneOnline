@@ -157,6 +157,49 @@ export async function getItemDefs(hashes) {
     return Promise.all(hashes.map(h => getItemDef(h)));
 }
 
+/**
+ * Resolves multiple stat hashes and returns a map of hash → display name.
+ */
+export async function getStatNames(hashes) {
+    const entries = await Promise.all(
+        [...new Set(hashes)].map(async h => {
+            const def = await getStatDef(h);
+            return [h, def?.displayProperties?.name ?? null];
+        })
+    );
+    return Object.fromEntries(entries.filter(([, v]) => v !== null));
+}
+
+/** Returns the FULL medals/historical-stats table from database. */
+export async function getAllMedals() {
+    try {
+        const { data } = await supabaseAdmin
+            .from('manifest_definitions')
+            .select('hash, data')
+            .eq('table_name', 'DestinyHistoricalStatsDefinition');
+        
+        if (data) {
+            return Object.fromEntries(data.map(r => [r.hash, r.data]));
+        }
+    } catch { }
+    return {};
+}
+
+/** Returns the full raw table for a given component name from database. */
+export async function getRawTable(componentName) {
+    try {
+        const { data } = await supabaseAdmin
+            .from('manifest_definitions')
+            .select('hash, data')
+            .eq('table_name', componentName);
+        
+        if (data) {
+            return Object.fromEntries(data.map(r => [r.hash, r.data]));
+        }
+    } catch { }
+    return {};
+}
+
 /** Pre-populates common Gambit assets into memory/Supabase. */
 export async function warmManifest() {
     console.log('[manifest] Warming up database cache...');
