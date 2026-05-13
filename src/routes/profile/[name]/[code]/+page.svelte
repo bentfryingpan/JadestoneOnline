@@ -302,7 +302,13 @@
 	const ltMotesLost = $derived(sv('motesLost'));
 	const ltMotesDenied = $derived(sv('motesDenied'));
 	const ltPrimevalDmg = $derived(sv('primevalDamage'));
-	const ltSuperKills = $derived(sv('superKills'));
+	const ltSuperKills = $derived(sv('weaponKillsSuper') || sv('superKills'));
+	const ltMeleeKills = $derived(sv('weaponKillsMelee'));
+	const ltGrenadeKills = $derived(sv('weaponKillsGrenade'));
+	const ltSmallBlockers = $derived(sv('smallBlockersSent'));
+	const ltMediumBlockers = $derived(sv('mediumBlockersSent'));
+	const ltLargeBlockers = $derived(sv('largeBlockersSent'));
+	const ltInvaderDeaths = $derived(sv('invaderDeaths'));
 
 	const seasonalTotal = $derived(
 		seasonal?.seasons?.reduce(
@@ -315,7 +321,14 @@
 				acc.motesLost += s.motesLost ?? 0;
 				acc.motesDenied += s.motesDenied ?? 0;
 				acc.invasionKills += s.invasionKills ?? 0;
+				acc.invaderDeaths += s.invaderDeaths ?? 0;
 				acc.primevalDamage += s.primevalDamage ?? 0;
+				acc.superKills += s.superKills ?? 0;
+				acc.meleeKills += s.meleeKills ?? 0;
+				acc.grenadeKills += s.grenadeKills ?? 0;
+				acc.smallBlockersSent += s.smallBlockersSent ?? 0;
+				acc.mediumBlockersSent += s.mediumBlockersSent ?? 0;
+				acc.largeBlockersSent += s.largeBlockersSent ?? 0;
 				return acc;
 			},
 			{
@@ -327,7 +340,14 @@
 				motesLost: 0,
 				motesDenied: 0,
 				invasionKills: 0,
-				primevalDamage: 0
+				invaderDeaths: 0,
+				primevalDamage: 0,
+				superKills: 0,
+				meleeKills: 0,
+				grenadeKills: 0,
+				smallBlockersSent: 0,
+				mediumBlockersSent: 0,
+				largeBlockersSent: 0
 			}
 		) ?? null
 	);
@@ -393,6 +413,41 @@
 		seasonFilter === 'all'
 			? (seasonalTotal?.primevalDamage ?? ltPrimevalDmg)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.primevalDamage ?? 0)
+	);
+	const dSuperKills = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.superKills ?? ltSuperKills)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.superKills ?? 0)
+	);
+	const dMeleeKills = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.meleeKills ?? ltMeleeKills)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.meleeKills ?? 0)
+	);
+	const dGrenadeKills = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.grenadeKills ?? ltGrenadeKills)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.grenadeKills ?? 0)
+	);
+	const dSmallBlockers = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.smallBlockersSent ?? ltSmallBlockers)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.smallBlockersSent ?? 0)
+	);
+	const dMediumBlockers = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.mediumBlockersSent ?? ltMediumBlockers)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.mediumBlockersSent ?? 0)
+	);
+	const dLargeBlockers = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.largeBlockersSent ?? ltLargeBlockers)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.largeBlockersSent ?? 0)
+	);
+	const dInvaderDeaths = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.invaderDeaths ?? ltInvaderDeaths)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invaderDeaths ?? 0)
 	);
 
 	const dWinRate = $derived(dEntered > 0 ? (dWon / dEntered) * 100 : null);
@@ -503,21 +558,21 @@
 			combat: {
 				total: fmt(dKills),
 				precision: dKills + dDeaths > 0 ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%' : '—',
-				ability: '—',
-				super: fmt(seasonalTotal?.superKills ?? ltSuperKills)
+				ability: fmt(dMeleeKills + dGrenadeKills),
+				super: fmt(dSuperKills)
 			},
 			objectives: {
 				deposited: fmt(dMotes),
 				lost: fmt(dMotesLost),
 				denied: fmt(dMotesDenied),
-				blockers: '—',
+				blockers: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers),
 				healed: '—'
 			},
 			invasion: {
 				guardians: fmt(dInvKills),
 				armyOfOne: career?.medals?.find((m) => m.key === 'armyOfOne')?.count ?? '0',
-				efficiency: '—',
-				winPct: '—',
+				motesDenied: fmt(dMotesDenied),
+				invaderDeaths: fmt(dInvaderDeaths),
 				invasions: '—',
 				shutDown: '—'
 			}
@@ -906,10 +961,13 @@
 		rank: 'GOLD'
 	})}
 	{@render detailStatCompact({
-		label: 'Efficiency',
-		value: playerData.overview.invasion.efficiency ?? '—'
+		label: 'Motes Denied',
+		value: playerData.overview.invasion.motesDenied ?? '—'
 	})}
-	{@render detailStatCompact({ label: 'Win %', value: playerData.overview.invasion.winPct ?? '—' })}
+	{@render detailStatCompact({
+		label: 'Invader Deaths',
+		value: playerData.overview.invasion.invaderDeaths ?? '—'
+	})}
 {/snippet}
 
 <div class="flex h-screen overflow-hidden bg-[#080808] font-sans text-slate-200">

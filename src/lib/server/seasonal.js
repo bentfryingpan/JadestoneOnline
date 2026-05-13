@@ -60,15 +60,23 @@ function accumulate(bucket, entry) {
 	bucket.kills += n(v, 'kills');
 	bucket.deaths += n(v, 'deaths');
 	bucket.assists += n(v, 'assists');
-	bucket.motesDeposited += n(ext, 'motesDeposited');
+	bucket.motesDeposited += n(ext, 'motesDeposited') || n(ext, 'motesBanked');
 	bucket.motesDenied += n(ext, 'motesDenied');
 	bucket.motesPickedUp += n(ext, 'motesPickedUp');
 	bucket.motesLost += n(ext, 'motesLost');
 	bucket.invasions += n(ext, 'invasions');
-	bucket.invasionKills += n(ext, 'invasionKills');
+	bucket.invasionKills += n(ext, 'invasionKills') || n(ext, 'invaderKills');
 	bucket.invasionsDefeated += n(ext, 'invasionsDefeated');
+	bucket.invaderDeaths += n(ext, 'invaderDeaths') || n(ext, 'invasionDeaths');
 	bucket.primevalDamage += n(ext, 'primevalDamage');
 	bucket.durationSeconds += n(v, 'activityDurationSeconds');
+
+	bucket.meleeKills += n(ext, 'weaponKillsMelee');
+	bucket.grenadeKills += n(ext, 'weaponKillsGrenade');
+	bucket.superKills += n(ext, 'weaponKillsSuper');
+	bucket.smallBlockersSent += n(ext, 'smallBlockersSent');
+	bucket.mediumBlockersSent += n(ext, 'mediumBlockersSent');
+	bucket.largeBlockersSent += n(ext, 'largeBlockersSent');
 }
 
 function emptyBucket(season) {
@@ -87,8 +95,15 @@ function emptyBucket(season) {
 		invasions: 0,
 		invasionKills: 0,
 		invasionsDefeated: 0,
+		invaderDeaths: 0,
 		primevalDamage: 0,
-		durationSeconds: 0
+		durationSeconds: 0,
+		meleeKills: 0,
+		grenadeKills: 0,
+		superKills: 0,
+		smallBlockersSent: 0,
+		mediumBlockersSent: 0,
+		largeBlockersSent: 0
 	};
 }
 
