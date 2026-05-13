@@ -1,12 +1,15 @@
 /**
- * /api/pgcr-enrich — Optimized Bulk Enrichment (Flawless Engine)
+ * /api/pgcr-enrich — Optimized Bulk Enrichment (Robust Schema-Aligned)
+ * 
+ * Packages all extra data (roster, medals, weapons) into 'stats_json' to 
+ * ensure compatibility with the existing live database schema.
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 import { calcEgo, extractMedals as _extractMedals, detectRole } from '$lib/server/ego.js';
-import { getItemDef, getActivityDef, getMapImage, getExoticIconBase64 } from '$lib/server/manifest.js';
+import { getItemDef, getActivityDef, getMapImage } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
@@ -30,7 +33,7 @@ async function fetchPgcr(id) {
         const text = await res.text();
         const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
         const data = JSON.parse(fixed);
-        if (data.ErrorCode === 1 && data.Response) {
+        if (data.ErrorCode === 1) {
             cacheSet(key, data, PGCR_TTL);
             return data;
         }
@@ -106,8 +109,6 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
         if (isTarget && sv(e, 'completed') === 1) {
             const rawWeapons = e.extended?.weapons ?? [];
             const topWeapons = [];
-            let matchExotic = null;
-
             for (const w of rawWeapons) {
                 const wDef = await getItemDef(w.referenceId);
                 if (!wDef) continue;
@@ -121,28 +122,34 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
                         kills: wk,
                         precision: w.values?.uniqueWeaponPrecisionKills?.basic?.value ?? 0
                     });
-                    if (wDef.inventory?.tierType === 6 && !matchExotic) {
-                        const iconB64 = await getExoticIconBase64(w.referenceId);
-                        matchExotic = { name: wDef.displayProperties.name, icon: iconB64, source: 'weapon' };
-                    }
                 }
             }
             stats.top_weapons = topWeapons;
-            targetEntryData = { stats, ego, matchExotic, outcome: sv(e, 'standing') === 0 ? 'Win' : 'Loss' };
+            targetEntryData = { stats, ego, outcome: sv(e, 'standing') === 0 ? 'Win' : 'Loss' };
         }
     }
 
     if (!targetEntryData) return null;
 
-    const myTeamScores = roster.filter(r => r.team === roster.find(x => x.is_target)?.team && r.score > 0).map(r => r.score);
+    // Detect role
+    const myTeamName = roster.find(r => r.is_target)?.team;
+    const myTeamScores = roster.filter(r => r.team === myTeamName && r.score > 0).map(r => r.score);
     const { isCarry, isCarried } = detectRole(targetEntryData.ego.finalScore, myTeamScores);
 
-    return { ...targetEntryData, isHardCarry: isCarry, isCarried, roster };
+    // CONSOLIDATE EVERYTHING INTO stats_json
+    const finalStatsJson = {
+        ...targetEntryData.stats,
+        ego_breakdown: targetEntryData.ego.components,
+        is_hard_carry: isCarry,
+        is_carried: isCarried,
+        roster: roster
+    };
+
+    return { ...targetEntryData, stats_json: finalStatsJson };
 }
 
 export async function POST({ request }) {
-    const body = await request.json();
-    const { membershipId, membershipType, bungieDisplayName, bungieDisplayCode, instanceIds } = body;
+    const { membershipId, membershipType, bungieDisplayName, bungieDisplayCode, instanceIds } = await request.json();
     if (!membershipId || !instanceIds?.length) return json({ error: 'Missing params' }, { status: 400 });
 
     const results = await Promise.all(instanceIds.map(async (id) => {
@@ -152,8 +159,7 @@ export async function POST({ request }) {
             const enriched = await processPgcr(pgcrRes.Response, membershipId, bungieDisplayName, bungieDisplayCode);
             if (!enriched) return null;
 
-            const refId = pgcrRes.Response.activityDetails?.referenceId;
-            const actDef = await getActivityDef(refId);
+            const actDef = await getActivityDef(pgcrRes.Response.activityDetails?.referenceId);
             const mapName = (actDef?.displayProperties?.name ?? 'Gambit').replace(/^Gambit[:\-]\s*/i, '').trim();
 
             return {
@@ -166,33 +172,34 @@ export async function POST({ request }) {
                 pem: enriched.ego.pem,
                 kd: enriched.ego.simpleKd,
                 mote_efficiency: enriched.ego.moteEff,
-                fireteam_size: enriched.stats.fireteamSize,
-                stats_json: enriched.stats,
+                fireteam_size: enriched.stats_json.fireteamSize,
+                stats_json: enriched.stats_json,
                 played_at: pgcrRes.Response.period,
-                created_at: new Date().toISOString(),
-                roster: enriched.roster
+                created_at: new Date().toISOString()
             };
-        } catch { return null; }
+        } catch (e) {
+            console.error(`[enrich] Match ${id} failed:`, e.message);
+            return null;
+        }
     }));
 
     const toUpsert = results.filter(Boolean);
     if (toUpsert.length === 0) return json({ stored: 0 });
 
-    // 1. Ensure Player Record exists
-    try {
-        await supabaseAdmin.from('players').upsert({
-            id: String(membershipId),
-            bungie_name: bungieDisplayName,
-            bungie_code: String(bungieDisplayCode).padStart(4, '0'),
-            membership_type: parseInt(membershipType)
-        }, { onConflict: 'id' });
-    } catch { }
+    // 1. Ensure player exists
+    await supabaseAdmin.from('players').upsert({
+        id: String(membershipId),
+        bungie_name: bungieDisplayName,
+        bungie_code: String(bungieDisplayCode).padStart(4, '0'),
+        membership_type: parseInt(membershipType),
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
 
-    // 2. Bulk Upsert Matches
-    const { error } = await supabaseAdmin.from('matches').upsert(toUpsert, { onConflict: 'id,player_id' });
-    if (error) return json({ error: error.message }, { status: 500 });
+    // 2. Upsert Matches (only valid columns)
+    const { error: mErr } = await supabaseAdmin.from('matches').upsert(toUpsert, { onConflict: 'id,player_id' });
+    if (mErr) return json({ error: mErr.message }, { status: 500 });
 
-    // 3. Update player NGR/Stats
+    // 3. Update summary stats
     const { data: p } = await supabaseAdmin.from('players').select('ngr,games_played').eq('id', String(membershipId)).single();
     const newGames = (p?.games_played ?? 0) + toUpsert.length;
     const newNgr = ((p?.ngr ?? 0) * (p?.games_played ?? 0) + toUpsert.reduce((s, m) => s + m.ego_score, 0)) / newGames;

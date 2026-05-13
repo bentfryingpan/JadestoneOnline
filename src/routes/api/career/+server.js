@@ -1,5 +1,5 @@
 /**
- * /api/career — Database-Aligned Career Analytics (1:1 Optimized)
+ * /api/career — Database-Aligned Career Analytics (Robust 1:1)
  */
 
 import { json } from '@sveltejs/kit';
@@ -29,13 +29,14 @@ export async function GET({ url }) {
 }
 
 async function careerFromSupabase(membershipId, targetName, targetCode, count) {
-    const idPrefix = String(membershipId).substring(0, 13);
+    const idStr = String(membershipId);
+    const idPrefix = idStr.substring(0, 13);
     
     // Optimized fetch from 'matches' table
     const { data: rows, error } = await supabaseAdmin
         .from('matches')
-        .select('id, map_name, played_at, outcome, ego_score, stats_json, roster, player_id')
-        .or(`player_id.eq.${membershipId},player_id.like.${idPrefix}%`)
+        .select('id, map_name, played_at, outcome, ego_score, stats_json, player_id')
+        .or(`player_id.eq.${idStr},player_id.like.${idPrefix}%`)
         .not('stats_json', 'is', null) 
         .not('outcome', 'eq', 'DNF')
         .order('played_at', { ascending: false })
@@ -52,20 +53,22 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
     const targetPrefix = targetName ? String(targetName).split('#')[0].toLowerCase() : null;
     const targetCodeStr = targetCode ? String(targetCode).padStart(4, '0') : null;
 
-    let totalMatches = 0, totalWins = 0, totalScore = 0;
+    let totalMatches = 0, totalWins = 0, totalScore = 0, totalMotes = 0;
 
     for (const row of rows) {
         const isWin = row.outcome === 'Win';
-        const stats = row.stats_json ?? {};
-        const medals = stats.medals ?? {};
+        const s_json = row.stats_json ?? {};
+        const roster = s_json.roster ?? [];
+        const weapons = s_json.top_weapons ?? [];
+        const medals = s_json.medals ?? {};
+        
         const mapName = row.map_name ?? 'Gambit';
         const score = row.ego_score ?? 0;
-        const roster = row.roster ?? [];
 
-        // Robust Target Matching
+        // Robust Target Matching inside the stored roster
         const myEntry = roster.find(r => 
             r.is_target || 
-            String(r.id) === String(membershipId) ||
+            String(r.id) === idStr ||
             (targetPrefix && String(r.name).split('#')[0].toLowerCase() === targetPrefix && String(r.code) === targetCodeStr)
         );
         
@@ -74,6 +77,7 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
         totalMatches++;
         if (isWin) totalWins++;
         totalScore += score;
+        totalMotes += (s_json.motesDeposited ?? 0);
 
         // 1. Map Aggregation
         if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0, scoreSum: 0 };
@@ -82,7 +86,7 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
         mapsAgg[mapName].scoreSum += score;
 
         // 2. Weapon Aggregation
-        for (const w of stats.top_weapons ?? []) {
+        for (const w of weapons) {
             const wn = w.name ?? 'Unknown';
             if (!weaponsAgg[wn]) {
                 weaponsAgg[wn] = { games: 0, wins: 0, kills: 0, precision: 0, scoreSum: 0, slot: w.slot ?? 'Unknown', icon: w.icon ?? null, hash: w.hash ?? null };
@@ -97,7 +101,7 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
         // 3. Synergy Aggregation (Allies/Rivals)
         const myTeam = myEntry.team;
         for (const p of roster) {
-            const isMe = String(p.id) === String(membershipId) || 
+            const isMe = String(p.id) === idStr || 
                          (targetPrefix && String(p.name).split('#')[0].toLowerCase() === targetPrefix && String(p.code) === targetCodeStr);
             if (isMe) continue;
             
@@ -164,6 +168,7 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
         source: 'supabase', totalMatches, matchesAnalyzed: totalMatches,
         avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
         winRate:  totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
+        avgMotes: totalMatches > 0 ? +(totalMotes / totalMatches).toFixed(1) : 0,
         maps, weapons, allies, rivals, medals, hourlyStats: hourlyAgg
     };
 }
