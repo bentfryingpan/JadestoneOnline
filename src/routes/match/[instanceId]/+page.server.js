@@ -2,11 +2,19 @@ import { BUNGIE_API_KEY } from '$env/static/private';
 import { error } from '@sveltejs/kit';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 import { getItemDef, getActivityDef, getAllMedals } from '$lib/server/manifest.js';
-import { calcEgo } from '$lib/server/ego.js';
+import { calcEgo, extractMedals } from '$lib/server/ego.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
 const PGCR_TTL    = 300_000;
+
+// High-res local icon mapping from Jadestone_Project
+const LOCAL_MEDALS = [
+    'armyofone', 'massacre', 'locksmith', 'blockbuster', 'halfbanked', 
+    'firsttoblock', 'notonmywatch', 'moteshavebeen', 'fastfill', 
+    'killmonger', 'overkillmonger', 'thrillmonger', 'biggamehunter', 
+    'lastguardianstanding', 'killafterinvasion', 'noescape', 'payback'
+];
 
 async function fetchPgcr(id) {
     const key = `pgcr:${id}`;
@@ -43,11 +51,7 @@ export async function load({ params }) {
     const actDef = await getActivityDef(refId);
     const mapName = (actDef?.displayProperties?.name ?? 'Gambit').replace(/^Gambit[:\-]\s*/i, '').trim();
 
-    // Load medal definitions and normalize keys to lowercase for robust lookup
-    const rawMedalDefs = await getAllMedals();
-    const medalDefs = Object.fromEntries(
-        Object.entries(rawMedalDefs).map(([k, v]) => [k.toLowerCase(), v])
-    );
+    const medalDefs = await getAllMedals();
 
     const teams = { Alpha: [], Bravo: [] };
     const teamValues = [...new Set(pgcr.entries.map(e => e.values?.team?.basic?.value ?? 0))];
@@ -92,23 +96,23 @@ export async function load({ params }) {
             primevalHealing: sv(e, 'primevalHealing'),
         };
 
-        const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : { finalScore: 0 };
+        const egoMedals = extractMedals(e.extended?.values ?? {});
+        const ego = e.values?.completed?.basic?.value === 1 ? calcEgo({ ...stats, medals: egoMedals }) : { finalScore: 0 };
         
-        // medalList logic: resolve RAW keys from PGCR against normalized manifest
-        const medalList = [];
-        for (const [key, val] of Object.entries(e.extended?.values ?? {})) {
-            if (key.toLowerCase().startsWith('medal')) {
-                const count = typeof val === 'object' ? val.basic?.value : val;
-                if (count > 0) {
-                    const def = medalDefs[key.toLowerCase()];
-                    medalList.push({
-                        key, count,
-                        label: def?.statName || key.replace('medal', ''),
-                        icon: def?.iconImage ? BUNGIE_ROOT + def.iconImage : null
-                    });
-                }
-            }
-        }
+        // medalList logic: Prioritize high-res local Jadestone icons
+        const medalList = Object.entries(egoMedals).map(([key, count]) => {
+            const lowKey = key.toLowerCase();
+            const hasLocal = LOCAL_MEDALS.includes(lowKey);
+            
+            // Fallback to manifest if not in local set
+            const def = medalDefs[key] || Object.values(medalDefs).find(d => d.statId === key);
+            
+            return {
+                key, count,
+                label: def?.statName || key,
+                icon: hasLocal ? `/icons/${lowKey}.png` : (def?.iconImage ? BUNGIE_ROOT + def.iconImage : null)
+            };
+        });
 
         const weapons = [];
         for (const w of e.extended?.weapons ?? []) {

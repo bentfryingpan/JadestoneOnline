@@ -22,6 +22,13 @@ const SLOT_BUCKETS = {
     95395402:   'Power'
 };
 
+const LOCAL_MEDALS = [
+    'armyofone', 'massacre', 'locksmith', 'blockbuster', 'halfbanked', 
+    'firsttoblock', 'notonmywatch', 'moteshavebeen', 'fastfill', 
+    'killmonger', 'overkillmonger', 'thrillmonger', 'biggamehunter', 
+    'lastguardianstanding', 'killafterinvasion', 'noescape', 'payback'
+];
+
 async function fetchPgcr(id) {
     const key = `pgcr:${id}`;
     const cached = cacheGet(key);
@@ -80,7 +87,7 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
         const team = teamMap[e.values?.team?.basic?.value ?? 0] ?? 'Alpha';
 
         const isTarget = pId === String(targetId) || 
-                         (pName.split('#')[0].toLowerCase() === targetPrefix && pCode === targetCodeStr);
+                         (targetPrefix && pName.split('#')[0].toLowerCase() === targetPrefix && pCode === targetCodeStr);
 
         const stats = {
             assists: sv(e, 'assists'),
@@ -90,7 +97,6 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
             efficiency: sv(e, 'efficiency'),
             killsDeathsRatio: sv(e, 'killsDeathsRatio'),
             killsDeathsAssists: sv(e, 'killsDeathsAssists'),
-            score: sv(e, 'score'),
             precisionKills: sv(e, 'precisionKills'),
             weaponKillsGrenade: sv(e, 'weaponKillsGrenade'),
             weaponKillsMelee: sv(e, 'weaponKillsMelee'),
@@ -116,11 +122,19 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
             primevalDamage: sv(e, 'primevalDamage'),
             primevalHealing: sv(e, 'primevalHealing'),
             fireteamSize: ftSize,
-            medals: _extractMedals(e.extended?.values ?? {}),
-            raw_medals: e.extended?.values ?? {}
         };
 
-        const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : null;
+        const egoMedals = _extractMedals(e.extended?.values ?? {});
+        const ego = e.values?.completed?.basic?.value === 1 ? calcEgo({ ...stats, medals: egoMedals }) : null;
+
+        // Add local icon paths to medals for frontend
+        const medalList = Object.entries(egoMedals).map(([key, count]) => {
+            const lowKey = key.toLowerCase();
+            return {
+                key, count,
+                icon: LOCAL_MEDALS.includes(lowKey) ? `/icons/${lowKey}.png` : null
+            };
+        });
 
         const playerWeapons = [];
         for (const w of e.extended?.weapons ?? []) {
@@ -142,13 +156,14 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
             className: { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' }[e.player?.classType ?? -1] ?? 'Unknown',
             score: ego?.finalScore ?? 0, fireteam_size: ftSize, is_target: isTarget,
             stats,
-            weapons: playerWeapons
+            weapons: playerWeapons,
+            medals: medalList
         };
         roster.push(rosterItem);
 
         if (isTarget && e.values?.completed?.basic?.value === 1) {
             targetEntryData = { 
-                stats: { ...stats, top_weapons: playerWeapons }, 
+                stats: { ...stats, top_weapons: playerWeapons, medals: medalList }, 
                 ego, 
                 outcome: e.values?.standing?.basic?.value === 0 ? 'Win' : 'Loss' 
             };
@@ -201,10 +216,7 @@ export async function POST({ request }) {
                 played_at: pgcrRes.Response.period,
                 created_at: new Date().toISOString()
             };
-        } catch (e) {
-            console.error(`[enrich] Match ${id} failed:`, e.message);
-            return null;
-        }
+        } catch { return null; }
     }));
 
     const toUpsert = results.filter(Boolean);
