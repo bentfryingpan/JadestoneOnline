@@ -237,17 +237,17 @@ export async function POST({ request }) {
 					.trim();
 
 				return {
-					id,
+					pgcr_id: id,
 					player_id: String(membershipId),
 					map_name: mapName,
 					outcome: enriched.outcome,
 					ego_score: enriched.ego.finalScore,
-					base_score: enriched.ego.basePps,
-					pem: enriched.ego.pem,
+					ego_base: enriched.ego.basePps,
+					ego_pem: enriched.ego.pem,
 					kd: enriched.ego.simpleKd,
-					mote_efficiency: enriched.ego.moteEff,
+					mote_eff: enriched.ego.moteEff,
 					fireteam_size: enriched.stats_json.fireteamSize,
-					stats_json: enriched.stats_json,
+					stats: enriched.stats_json,
 					played_at: pgcrRes.Response.period,
 					created_at: new Date().toISOString()
 				};
@@ -274,8 +274,8 @@ export async function POST({ request }) {
 	} catch {}
 
 	const { error: mErr } = await supabaseAdmin
-		.from('matches')
-		.upsert(toUpsert, { onConflict: 'id,player_id' });
+		.from('player_matches')
+		.upsert(toUpsert, { onConflict: 'pgcr_id,player_id' });
 	if (mErr) return json({ error: mErr.message }, { status: 500 });
 
 	const { data: p } = await supabaseAdmin

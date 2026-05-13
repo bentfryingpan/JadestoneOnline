@@ -18,10 +18,10 @@ export async function GET({ url }) {
 
 		// Robust query: Target both exact ID and potential rounded BigInts
 		const { data: rows, error } = await supabaseAdmin
-			.from('matches')
-			.select('id, map_name, played_at, outcome, ego_score, stats_json, player_id')
+			.from('player_matches')
+			.select('pgcr_id, map_name, played_at, outcome, ego_score, stats, player_id')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-			.not('stats_json', 'is', null)
+			.not('stats', 'is', null)
 			.order('played_at', { ascending: false })
 			.limit(10000);
 
@@ -65,7 +65,7 @@ export async function GET({ url }) {
 			totalMotesDenied = 0;
 
 		for (const row of rows) {
-			const stats = row.stats_json ?? {};
+			const stats = row.stats ?? {};
 			const roster = stats.roster ?? [];
 
 			// 1:1 Identity Matching

@@ -133,19 +133,19 @@ export async function GET({ url, setHeaders }) {
 			const prefix = idStr.substring(0, 15);
 
 			const { data: enriched } = await supabaseAdmin
-				.from('matches')
-				.select('id, ego_score, stats_json')
+				.from('player_matches')
+				.select('pgcr_id, ego_score, stats')
 				.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-				.in('id', instanceIds);
+				.in('pgcr_id', instanceIds);
 
 			if (enriched?.length) {
-				const byId = Object.fromEntries(enriched.map((r) => [String(r.id), r]));
+				const byId = Object.fromEntries(enriched.map((r) => [String(r.pgcr_id), r]));
 				for (const m of matches) {
 					const e = byId[m.instanceId];
 					if (e) {
 						m.isEnriched = true;
 						if (e.ego_score != null) m.ego = { ...m.ego, finalScore: e.ego_score };
-						if (e.stats_json) m.stats_json = e.stats_json;
+						if (e.stats) m.stats_json = e.stats;
 					}
 				}
 			}
