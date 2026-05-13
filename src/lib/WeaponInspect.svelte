@@ -29,25 +29,25 @@
 
 {#snippet perkIcon({ perk, large = false })}
     <div class="group/perk relative {large ? 'w-12 h-12' : 'w-10 h-10'} flex items-center justify-center cursor-help overflow-visible">
-        <!-- The Diamond Border (Handles Rotation) -->
-        <div class="absolute inset-0 bg-zinc-950 border {perk.isEnhanced ? 'border-amber-500/40 shadow-[inset_0_0_10px_rgba(245,158,11,0.1)]' : 'border-zinc-800'} rotate-45 group-hover:border-emerald-500/50 transition-all duration-300"></div>
+        <!-- Circular Border (Glows Sky Blue) -->
+        <div class="absolute inset-0 bg-zinc-950 border {perk.isEnhanced ? 'border-amber-500/40' : 'border-zinc-800'} rounded-full group-hover:border-sky-400 group-hover:shadow-[0_0_15px_rgba(56,189,248,0.4)] transition-all duration-300"></div>
         
-        <!-- The Icon (Stays level) -->
+        <!-- The Icon -->
         <img src={perk.icon} alt={perk.name} class="{large ? 'w-10 h-10' : 'w-8 h-8'} relative z-10 opacity-80 group-hover/perk:opacity-100 transition-opacity" />
         
         {#if perk.isEnhanced}
-            <div class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 z-20 flex items-center justify-center shadow-lg">
+            <div class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 z-20 flex items-center justify-center rounded-full shadow-lg">
                 <span class="text-[7px] font-black text-black">E</span>
             </div>
         {/if}
 
         <!-- Hover Tooltip (Static/Level) -->
         <div class="absolute bottom-[calc(100%+18px)] left-1/2 -translate-x-1/2 p-4 bg-[#0a0a0a] border border-zinc-800 w-64 opacity-0 group-hover/perk:opacity-100 transition-all pointer-events-none z-[400] shadow-2xl scale-95 group-hover/perk:scale-100">
-            <p class="text-xs font-black italic uppercase {perk.isEnhanced ? 'text-amber-500' : 'text-emerald-400'} mb-1">
+            <p class="text-xs font-black italic uppercase {perk.isEnhanced ? 'text-amber-500' : 'text-sky-400'} mb-1">
                 {perk.name}
             </p>
             <p class="text-[10px] text-zinc-400 leading-relaxed font-serif italic">{perk.description || "No tactical data available."}</p>
-            <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 {perk.isEnhanced ? 'bg-amber-500/20' : 'bg-emerald-500/20'}"></div>
+            <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 {perk.isEnhanced ? 'bg-amber-500/20' : 'bg-sky-400/20'}"></div>
         </div>
     </div>
 {/snippet}
@@ -76,7 +76,6 @@
 
                 <div class="absolute bottom-0 left-0 w-full p-8 flex items-end justify-between">
                     <div class="flex items-center gap-8">
-                        <!-- Squared Icon Container -->
                         <div class="w-24 h-24 bg-zinc-900 border border-zinc-700 relative overflow-hidden shrink-0 shadow-2xl">
                             <img src={details.icon} alt={details.name} class="w-full h-full object-cover p-1" />
                             <div class="absolute top-0 left-0 w-full h-[2px] {details.isExotic ? 'bg-amber-500' : 'bg-zinc-500'}"></div>
@@ -116,7 +115,7 @@
                                             <div class="absolute inset-y-0 left-0 {getStatColor()} transition-all duration-1000 ease-out" style="width: {Math.min(stat.value, 100)}%"></div>
                                         </div>
                                     {:else}
-                                        <div class="h-[1px] bg-zinc-800/50 w-full"></div>
+                                        <div class="h-[1px] bg-zinc-800/50 w-full mt-1"></div>
                                     {/if}
                                 </div>
                             {/each}

@@ -127,7 +127,7 @@ export async function GET({ params, url }) {
         });
     }
 
-    // 3. Categorize Stats (Comprehensive Universal List)
+    // 3. Categorize Stats (Comprehensive Universal List with Priority)
     const stats = [];
     const statSource = liveStats || item.stats?.stats || {};
     
@@ -156,12 +156,39 @@ export async function GET({ params, url }) {
     ];
 
     const valueStatHashes = [
+        3893976251, // Magazine
         4284893193, // Rounds Per Minute
         3614671103, // Charge Time
-        3893976251, // Magazine
         2961396640, // Draw Time
         2837207746, // Swing Speed
     ];
+
+    // Priority map for ordering like in-game
+    const PRIORITY = {
+        [4043527740]: 1,  // Impact
+        [1240592695]: 2,  // Range
+        [155624089]:  3,  // Stability
+        [943540823]:  4,  // Handling
+        [943549884]:  4,
+        [4188034523]: 5,  // Reload Speed
+        [4188031367]: 5,
+        [4254817677]: 6,  // Aim Assistance
+        [1345609583]: 6,
+        [3555963035]: 7,  // Zoom
+        [1931675084]: 7,
+        [2715839340]: 8,  // Recoil
+        [3871231018]: 9,  // AE
+        [3871231066]: 9,
+        // Launcher-specific
+        [2523465841]: 2,  // Velocity
+        [446212391]:  3,  // Blast Radius
+        // Sword-specific
+        [2837207746]: 2,  // Swing Speed
+        [2766642535]: 3,  // Guard Efficiency
+        [105267050]:  4,  // Guard Resistance
+        [1842278914]: 5,  // Guard Endurance
+        [3022301684]: 6,  // Charge Rate
+    };
 
     for (const sHash of Object.keys(statSource)) {
         const h = Number(sHash);
@@ -172,9 +199,11 @@ export async function GET({ params, url }) {
         const sDef = await getStatDef(sHash);
         if (sDef && sDef.displayProperties.name) {
             stats.push({
+                hash: h,
                 name: sDef.displayProperties.name,
                 value: statSource[sHash].value ?? statSource[sHash],
                 isBar,
+                priority: PRIORITY[h] ?? 99,
                 icon: sDef.displayProperties.hasIcon ? BUNGIE_ROOT + sDef.displayProperties.icon : null
             });
         }
@@ -197,6 +226,10 @@ export async function GET({ params, url }) {
         description: item.displayProperties.description,
         stats: stats.sort((a, b) => {
             if (a.isBar !== b.isBar) return a.isBar ? -1 : 1;
+            if (a.isBar && b.isBar) return a.priority - b.priority;
+            // Value stats: Magazine first, then RPM, etc.
+            if (a.hash === 3893976251) return -1;
+            if (b.hash === 3893976251) return 1;
             return a.name.localeCompare(b.name);
         }),
         livePerks,
