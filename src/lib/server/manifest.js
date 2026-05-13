@@ -7,10 +7,10 @@
 
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { supabaseAdmin } from '$lib/supabase-server.js';
-import { cacheGet, cacheSet } from './cache.js';
+import { redisGet, redisSet } from './redis.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
-const TABLE_TTL   = 86_400_000; // 24 hours
+const TABLE_TTL   = 86_400_000 * 7; // 7 days in Redis
 
 /** Robust Bungie Fetch with BigInt Shield. */
 async function bungieFetch(url) {
@@ -21,16 +21,17 @@ async function bungieFetch(url) {
     return JSON.parse(fixed);
 }
 
-/** The Core Lookup Engine. */
+/** The Core Lookup Engine (Redis Optimized). */
 async function getDef(tableName, hash) {
     if (!hash) return null;
     const hStr = String(hash >>> 0);
-    const cacheKey = `manifest:${tableName}:${hStr}`;
+    const redisKey = `manifest:${tableName}:${hStr}`;
 
-    const cached = cacheGet(cacheKey);
-    if (cached !== undefined) return cached;
+    // 1. Check Redis Cache
+    const cached = await redisGet(redisKey);
+    if (cached) return cached;
 
-    // 1. Query Supabase Mirror
+    // 2. Query Supabase Mirror
     try {
         const { data: row } = await supabaseAdmin
             .from('manifest_definitions')
@@ -40,17 +41,17 @@ async function getDef(tableName, hash) {
             .single();
         
         if (row?.data) {
-            cacheSet(cacheKey, row.data, TABLE_TTL);
+            await redisSet(redisKey, row.data, TABLE_TTL);
             return row.data;
         }
     } catch { }
 
-    // 2. Fallback: Live Bungie API
+    // 3. Fallback: Live Bungie API
     try {
         const data = await bungieFetch(`/Platform/Destiny2/Manifest/${tableName}/${hStr}/`);
         const def = data?.Response;
         if (def) {
-            cacheSet(cacheKey, def, TABLE_TTL);
+            await redisSet(redisKey, def, TABLE_TTL);
             // Proactively cache back to DB
             supabaseAdmin.from('manifest_definitions').upsert({
                 table_name: tableName,
