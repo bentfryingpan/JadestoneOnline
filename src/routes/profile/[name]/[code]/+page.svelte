@@ -99,50 +99,13 @@
         }
     });
 
-    // ── Match history ──────────────────────────────────────────────────────────
-    const HISTORY_COUNT_OPTIONS = [100, 250, 500, 1000];
-    let historyCount   = $state(100);
-    let history        = $state(null);
+    // ── Match history (Muted/Clean Slate) ──────────────────────────────────────
+    let history        = $state({ matches: [] });
     let historyLoading = $state(false);
-    let historyFor     = $state(0);
 
-    async function fetchHistory() {
-        if (historyLoading) return;
-        if (history && historyFor === historyCount) return;
-        historyLoading = true;
-        try {
-            const charIds = data.characterIds.join(',');
-            const res = await fetch(
-                `/api/history?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&count=${historyCount}`
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            history    = await res.json();
-            historyFor = historyCount;
-        } catch (e) { console.error('History fetch failed', e); }
-        finally { historyLoading = false; }
-    }
-
-    // ── Lazy career analytics ──────────────────────────────────────────────────
+    // ── Lazy career analytics (Muted/Clean Slate) ──────────────────────────────
     let career        = $state(null);
     let careerLoading = $state(false);
-    let careerError   = $state(null);
-
-    async function fetchCareer() {
-        if (careerLoading) return;
-        careerLoading = true;
-        careerError   = null;
-        try {
-            const res = await fetch(
-                `/api/career?membershipId=${data.membershipId}&name=${encodeURIComponent(data.player.bungieGlobalDisplayName)}&code=${data.player.bungieGlobalDisplayNameCode}&count=5000`
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            career = await res.json();
-        } catch (e) {
-            console.error('Career fetch failed', e);
-            careerError = 'Could not load career analytics.';
-        }
-        finally { careerLoading = false; }
-    }
 
     // ── Favorites ──────────────────────────────────────────────────────────────
     let favorites    = $state(new Set());
@@ -156,148 +119,6 @@
             favorites  = new Set(d.favorites ?? []);
             favsLoaded = true;
         } catch { }
-    }
-
-    // ── PGCR enrichment ────────────────────────────────────────────────────────
-    let enriching      = $state(false);
-    let enrichProgress = $state({ stored: 0, total: 0 });
-
-    async function triggerEnrichment() {
-        if (enriching || !history?.matches) return;
-        const unenriched = history.matches
-            .filter(m => m.instanceId && (m.fireteam_size == null || !m.mapName))
-            .map(m => m.instanceId)
-            .slice(0, 40);
-        if (!unenriched.length) return;
-
-        enriching = true;
-        enrichProgress = { stored: 0, total: unenriched.length };
-
-        try {
-            const res = await fetch('/api/pgcr-enrich', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    membershipId: data.membershipId,
-                    membershipType: data.membershipType,
-                    bungieDisplayName: data.player.bungieGlobalDisplayName,
-                    bungieDisplayCode: data.player.bungieGlobalDisplayNameCode,
-                    instanceIds: unenriched,
-                }),
-            });
-            const r = await res.json();
-            if (r.stored) {
-                historyFor = 0;
-                fetchHistory();
-                fetchCareer();
-            }
-        } catch { }
-        finally { enriching = false; }
-    }
-
-    // ── Deep Career Scan ───────────────────────────────────────────────────────
-    let deepScanning      = $state(false);
-    let deepScanStatus    = $state(''); // 'discovering' | 'enriching'
-    let deepScanProgress  = $state({ current: 0, total: 0 });
-
-    async function triggerDeepScan() {
-        if (deepScanning) return;
-        deepScanning = true;
-        deepScanStatus = 'discovering';
-        deepScanProgress = { current: 0, total: 0 };
-
-        try {
-            // 0. Manifest Sync (Small tables & Medals) - ensure metadata is in DB
-            await fetch('/api/admin/sync-manifest?mode=medals', { method: 'POST' });
-            await fetch('/api/admin/sync-manifest?mode=small',  { method: 'POST' });
-
-            // 1. Discovery
-            const discRes = await fetch('/api/sync/discovery', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    membershipId: data.membershipId,
-                    membershipType: data.membershipType,
-                    characterIds: data.characterIds,
-                }),
-            });
-            const { missing, total } = await discRes.json();
-            
-            if (!missing || missing.length === 0) {
-                deepScanning = false;
-                fetchHistory();
-                fetchCareer();
-                return;
-            }
-
-            deepScanStatus = 'enriching';
-            deepScanProgress = { current: 0, total: missing.length };
-
-            // 2. Optimized Parallel Batch Enrichment
-            const CHUNK_SIZE = 40;
-            const CONCURRENCY = 5; 
-            
-            const chunks = [];
-            for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
-                chunks.push(missing.slice(i, i + CHUNK_SIZE));
-            }
-
-            let chunkIdx = 0;
-            const workers = Array(CONCURRENCY).fill(null).map(async () => {
-                while (chunkIdx < chunks.length) {
-                    const idx = chunkIdx++;
-                    const chunk = chunks[idx];
-                    try {
-                        const res = await fetch('/api/pgcr-enrich', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                membershipId: data.membershipId,
-                                membershipType: data.membershipType,
-                                bungieDisplayName: data.player.bungieGlobalDisplayName,
-                                bungieDisplayCode: data.player.bungieGlobalDisplayNameCode,
-                                instanceIds: chunk,
-                            }),
-                        });
-                        const r = await res.json();
-                        deepScanProgress.current += (r.stored ?? chunk.length);
-                    } catch (err) {
-                        console.error('Chunk enrichment failed', err);
-                        deepScanProgress.current += chunk.length;
-                    }
-                }
-            });
-
-            await Promise.all(workers);
-
-            historyFor = 0;
-            fetchHistory();
-            fetchCareer();
-        } catch (e) {
-            console.error('Deep scan failed', e);
-        } finally {
-            deepScanning = false;
-        }
-    }
-
-    async function repairData() {
-        if (!confirm('This will clear your local match history and restart the Deep Scan to fix corrupted data. Proceed?')) return;
-        
-        deepScanning = true;
-        deepScanStatus = 'repairing';
-        
-        try {
-            await fetch('/api/sync/wipe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ membershipId: data.membershipId }),
-            });
-            // Force discovery cache clear and restart scan
-            triggerDeepScan();
-        } catch (e) {
-            console.error('Repair failed', e);
-            deepScanning = false;
-        }
     }
 
     // ── Pursuits (Triumphs/Collectibles) ──────────────────────────────────────
@@ -323,22 +144,6 @@
     $effect(() => {
         if ((tab === 'loadout' || tab === 'subclass') && activeChar && activeChar !== loadoutCharId) {
             fetchLoadout();
-        }
-    });
-    $effect(() => {
-        if (tab === 'matches' || !career || career.needsEnrichment) {
-            fetchHistory();
-            loadFavorites();
-        }
-    });
-    $effect(() => {
-        if (history && !enriching && (tab === 'matches' || !career || career.needsEnrichment)) {
-            triggerEnrichment();
-        }
-    });
-    $effect(() => {
-        if (!career && !careerLoading) {
-            fetchCareer();
         }
     });
 
@@ -439,75 +244,42 @@
         id: s.season, label: SEASON_NAMES[s.seasonNumber] ?? `Season ${s.seasonNumber}`
     })) ?? []);
 
-    const matchesList = $derived((history?.matches ?? []).map(m => ({
-        instanceId: m.id || m.instanceId,
-        result: (m.outcome === 'Win' || m.win) ? 'WIN' : 'LOSS',
-        mode: 'Gambit',
-        map: m.map_name || m.mapName || 'Gambit',
-        kd: m.kd,
-        motes: m.mote_efficiency || m.motesDeposited || 0,
-        damage: fmt(m.stats_json?.primevalDamage || m.primevalDamage || 0),
-        date: m.played_at ? timeAgo(m.played_at) : (m.period ? timeAgo(m.period) : ''),
-        ego: m.ego_score
-    })));
+    const matchesList = $derived([]);
 
-    const weaponData = $derived((() => {
-        const grouped = { kinetic: [], energy: [], power: [] };
-        if (career?.weapons) {
-            career.weapons.forEach((w) => {
-                const item = {
-                    name: w.name, 
-                    type: w.type || 'Combat Weapon', 
-                    kills: w.kills, 
-                    precision: fmtF(w.precRate, 1) + '%',
-                    color: (w.winRate ?? 0) >= 60 ? 'text-emerald-400' : 'text-zinc-200',
-                    icon: w.icon,
-                    hash: w.hash
-                };
-                const slot = (w.slot ?? '').toLowerCase();
-                if (slot === 'kinetic') grouped.kinetic.push(item);
-                else if (slot === 'energy') grouped.energy.push(item);
-                else if (slot === 'power') grouped.power.push(item);
-                else grouped.kinetic.push(item);
-            });
-        }
-        return grouped;
-    })());
+    const weaponData = $derived({ kinetic: [], energy: [], power: [] });
 
     const playerData = $derived({
         identity: {
             name: data.player.bungieGlobalDisplayName,
             code: data.player.bungieGlobalDisplayNameCode,
             clan: data.clan?.name ?? null,
-            rating: (data.statsSource === 'supabase' && career?.avgScore) ? career.avgScore : egoRating,
+            rating: egoRating,
             level: data.gambitProgression?.level ?? 0,
             rank: gambitRank, rankValue: gambitPct,
         },
         overview: {
-            winRatio: (data.statsSource === 'supabase' && career?.winRate) ? career.winRate + '%' : (dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'),
-            wins: (data.statsSource === 'supabase' && career?.totalMatches) ? Math.round(career.totalMatches * (career.winRate/100)) : dWon,
-            kd: dKD != null ? fmtF(dKD, 2) : '—', 
-            kills: dKills,
-            motesAvg: (data.statsSource === 'supabase' && career?.avgMotes) ? career.avgMotes : (dEntered > 0 ? fmtF(dAvgMotes, 1) : '—'),
+            winRatio: dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—',
+            wins: dWon, kd: dKD != null ? fmtF(dKD, 2) : '—', kills: dKills,
+            motesAvg: dEntered > 0 ? fmtF(dAvgMotes, 1) : '—',
             dps: dEntered > 0 && dPrimevalDmg > 0 ? fmt(Math.round(dPrimevalDmg / dEntered)) : '—',
             combat: { total: fmt(dKills), precision: dKills + dDeaths > 0 ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%' : '—', ability: '—', super: fmt(seasonalTotal?.superKills ?? ltSuperKills) },
             objectives: { deposited: fmt(dMotes), lost: fmt(dMotesLost), denied: fmt(dMotesDenied), blockers: '—', healed: '—' },
-            invasion: { guardians: fmt(dInvKills), armyOfOne: career?.medals?.find(m => m.key === 'armyOfOne')?.count ?? '0', efficiency: '—', winPct: '—', invasions: '—', shutDown: '—' },
+            invasion: { guardians: fmt(dInvKills), armyOfOne: '0', efficiency: '—', winPct: '—', invasions: '—', shutDown: '—' },
         },
         loadout: {
             subclass: classNames[char?.classType] ?? 'Guardian',
             stats: { Mobility: char?.stats?.[2996146975] ?? 0, Resilience: char?.stats?.[3927053327] ?? 0, Recovery: char?.stats?.[1943323491] ?? 0, Discipline: char?.stats?.[1735777505] ?? 0, Intellect: char?.stats?.[144602215] ?? 0, Strength: char?.stats?.[4244567218] ?? 0 },
             bonuses: { Mobility: 0, Resilience: 0, Recovery: 0, Discipline: 0, Intellect: 0, Strength: 0 },
             weapons: [
-                { slot: 'KINETIC', name: eq.kinetic?.name ?? '—', quality: eq.kinetic?.tierTypeName ?? '', icon: eq.kinetic?.icon ?? null },
-                { slot: 'ENERGY', name: eq.energy?.name ?? '—', quality: eq.energy?.tierTypeName ?? '', icon: eq.energy?.icon ?? null },
-                { slot: 'POWER', name: eq.power?.name ?? '—', quality: eq.power?.tierTypeName ?? '', icon: eq.power?.icon ?? null },
+                { slot: 'KINETIC', name: eq.kinetic?.name ?? '—', quality: eq.kinetic?.tierTypeName ?? '', icon: eq.kinetic?.icon ?? null, hash: eq.kinetic?.itemHash ?? null },
+                { slot: 'ENERGY', name: eq.energy?.name ?? '—', quality: eq.energy?.tierTypeName ?? '', icon: eq.energy?.icon ?? null, hash: eq.energy?.itemHash ?? null },
+                { slot: 'POWER', name: eq.power?.name ?? '—', quality: eq.power?.tierTypeName ?? '', icon: eq.power?.icon ?? null, hash: eq.power?.itemHash ?? null },
             ],
             armor: [
-                { slot: 'HELMET', name: eq.helmet?.name ?? '—', quality: eq.helmet?.tierTypeName ?? '', icon: eq.helmet?.icon ?? null },
-                { slot: 'ARMS', name: eq.gauntlets?.name ?? '—', quality: eq.gauntlets?.tierTypeName ?? '', icon: eq.gauntlets?.icon ?? null },
-                { slot: 'CHEST', name: eq.chest?.name ?? '—', quality: eq.chest?.tierTypeName ?? '', icon: eq.chest?.icon ?? null },
-                { slot: 'LEGS', name: eq.legs?.name ?? '—', quality: eq.legs?.tierTypeName ?? '', icon: eq.legs?.icon ?? null },
+                { slot: 'HELMET', name: eq.helmet?.name ?? '—', quality: eq.helmet?.tierTypeName ?? '', icon: eq.helmet?.icon ?? null, hash: eq.helmet?.itemHash ?? null },
+                { slot: 'ARMS', name: eq.gauntlets?.name ?? '—', quality: eq.gauntlets?.tierTypeName ?? '', icon: eq.gauntlets?.icon ?? null, hash: eq.gauntlets?.itemHash ?? null },
+                { slot: 'CHEST', name: eq.chest?.name ?? '—', quality: eq.chest?.tierTypeName ?? '', icon: eq.chest?.icon ?? null, hash: eq.chest?.itemHash ?? null },
+                { slot: 'LEGS', name: eq.legs?.name ?? '—', quality: eq.legs?.tierTypeName ?? '', icon: eq.legs?.icon ?? null, hash: eq.legs?.itemHash ?? null },
             ],
         },
     });
@@ -712,23 +484,6 @@
                     </div>
                     <div class="flex gap-14 mb-2 relative z-10 text-right font-sans shrink-0">
                          <div class="flex flex-col items-end gap-6">
-                            <div class="flex items-center gap-3">
-                                <button onclick={triggerDeepScan} disabled={deepScanning} 
-                                        class="group flex items-center gap-3 px-6 py-2 border {deepScanning ? 'border-zinc-800 text-zinc-600' : 'border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10'} transition-all duration-300">
-                                    <span class="text-[10px] font-sans font-bold uppercase tracking-[0.2em]">{deepScanning ? 'Scanning...' : 'Deep Career Scan'}</span>
-                                    <div class="w-4 h-4 border border-current rotate-45 flex items-center justify-center {deepScanning ? 'animate-spin' : 'group-hover:rotate-90 transition-transform duration-500'}">
-                                        <div class="w-1.5 h-1.5 bg-current"></div>
-                                    </div>
-                                </button>
-                                {#if !deepScanning}
-                                    <button onclick={repairData} class="flex items-center gap-2 px-4 py-2 border border-rose-900/30 hover:border-rose-500 hover:bg-rose-500/10 transition-all group/repair" title="Repair & Clear Corrupted Data">
-                                        <span class="text-[10px] font-sans font-bold uppercase tracking-[0.2em] text-rose-800 group-hover:text-rose-500">Repair Data</span>
-                                        <div class="w-4 h-4 border border-current rotate-45 flex items-center justify-center">
-                                            <span class="text-[10px] -rotate-45 font-black">!</span>
-                                        </div>
-                                    </button>
-                                {/if}
-                            </div>
                             <div>
                                     {@render ghostLabel({ text: "RATING" })}
                                     <div class="flex flex-col items-end">
@@ -758,35 +513,6 @@
              <div class="max-w-6xl mx-auto">
                 {#key profileTab}
                 <div in:fly={{ y: 10, duration: 400 }}>
-                    {#if deepScanning}
-                        <div class="mb-10 bg-emerald-950/10 border border-emerald-500/20 p-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 shadow-2xl">
-                            <div class="absolute inset-0 bg-emerald-500/5 animate-pulse"></div>
-                            <div class="flex items-center justify-between relative z-10">
-                                <div class="flex items-center gap-6">
-                                    <div class="w-10 h-10 border border-emerald-500 flex items-center justify-center rotate-45 animate-[spin_4s_linear_infinite]">
-                                        <div class="w-5 h-5 border border-emerald-400 rotate-45"></div>
-                                    </div>
-                                    <div>
-                                        <p class="text-[12px] font-sans font-black text-emerald-500 uppercase tracking-[0.3em]">
-                                            {deepScanStatus === 'discovering' ? 'Discovering History...' : 'Enriching Career Intelligence...'}
-                                        </p>
-                                        <p class="text-[10px] font-sans text-emerald-600/80 uppercase tracking-[0.2em] font-bold mt-1">
-                                            {deepScanProgress.current} / {deepScanProgress.total} segments processed
-                                        </p>
-                                    </div>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-3xl font-light italic text-emerald-400 font-sans tracking-tighter">
-                                        {deepScanProgress.total > 0 ? Math.round((deepScanProgress.current / deepScanProgress.total) * 100) : 0}%
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="mt-6 h-[1px] bg-zinc-800 w-full relative overflow-hidden">
-                                <div class="absolute inset-y-0 left-0 bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,1)] transition-all duration-700 ease-out" 
-                                     style="width: {deepScanProgress.total > 0 ? (deepScanProgress.current / deepScanProgress.total) * 100 : 0}%"></div>
-                            </div>
-                        </div>
-                    {/if}
                     {#if profileTab === 'overview'}
                         <div class="space-y-4 animate-in fade-in duration-700">
                             <div class="relative border-b border-zinc-800/50 pb-2">
@@ -845,25 +571,8 @@
                         <div class="space-y-3 animate-in slide-in-from-bottom-2 duration-500 max-w-5xl mx-auto">
                             <div class="flex items-center justify-between">
                                 {@render ghostLabel({ text: "RECENT MATCH HISTORY" })}
-                                <button onclick={() => { historyFor = 0; fetchHistory(); }} class="text-[9px] font-sans text-emerald-500 border border-emerald-500/30 px-3 py-1 hover:bg-emerald-500/10 transition-colors uppercase tracking-widest font-bold">Refresh Scanner</button>
                             </div>
-                            {#each matchesList as m, i}
-                                <a href="/match/{m.instanceId}" class="bg-[#0c0c0c] border border-zinc-800 p-3 group relative hover:border-emerald-500/50 transition-all flex items-center gap-6 font-sans block no-underline">
-                                    <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 {m.result === 'WIN' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'}"></div>
-                                    <div class="w-12 text-center"><p class="text-xs font-black italic {m.result === 'WIN' ? 'text-emerald-500' : 'text-rose-500'}">{m.result}</p></div>
-                                    <div class="flex-1"><p class="text-[10px] font-sans text-zinc-300 uppercase tracking-widest">{m.mode}</p><p class="text-sm font-bold text-zinc-100 uppercase">{m.map}</p></div>
-                                    <div class="grid grid-cols-3 gap-8 px-6 border-x border-zinc-800/50">
-                                         <div><p class="text-[8px] font-sans text-zinc-600 uppercase tracking-widest">Efficiency</p><p class="text-xs font-bold text-emerald-400">{m.kd} KD</p></div>
-                                         <div><p class="text-[8px] font-sans text-zinc-600 uppercase tracking-widest">Motes</p><p class="text-xs font-bold text-zinc-100">{m.motes}</p></div>
-                                         <div><p class="text-[8px] font-sans text-zinc-600 uppercase tracking-widest">Damage</p><p class="text-xs font-bold text-amber-500">{m.damage}</p></div>
-                                    </div>
-                                    <div class="w-20 text-right"><p class="text-[9px] font-sans text-zinc-700 uppercase">{m.date}</p></div>
-                                    <div class="w-6 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <span class="text-emerald-500">→</span>
-                                    </div>
-                                </a>
-                            {/each}
-                            {#if enriching} <div class="text-center py-4 text-[10px] text-emerald-500 animate-pulse uppercase tracking-widest">Enriching Match Data... {enrichProgress.stored}/{enrichProgress.total}</div> {/if}
+                            <div class="col-span-full py-20 text-center text-zinc-700 uppercase tracking-[0.3em] text-[10px]">No matches loaded. Rebuilding system...</div>
                         </div>
 
                     {:else if profileTab === 'weaponry'}
@@ -880,122 +589,38 @@
                                  </div>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {#each (weaponData[activeWeaponSlot] || []) as w}
-                                    <div class="bg-[#111111] border border-zinc-800 p-5 relative shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] group overflow-hidden transition-all duration-500 hover:border-zinc-600 font-sans stone-card">
-                                         <div class="sheen-overlay"></div>
-                                         <div class="flex justify-between items-start mb-6">
-                                                <div><h3 class="text-sm font-black italic uppercase {w.color}">{w.name}</h3><p class="text-[8px] text-zinc-600 uppercase tracking-widest font-sans">{w.type}</p></div>
-                                                <div class="w-10 h-10 bg-zinc-900 border border-zinc-800 flex items-center justify-center rotate-45 group-hover:rotate-90 transition-transform duration-700"></div>
-                                         </div>
-                                         <div class="grid grid-cols-2 gap-4 relative z-10">
-                                                <div><p class="text-[7px] text-zinc-700 uppercase font-bold tracking-widest font-sans">Hostiles Slain</p><p class="text-sm font-bold text-zinc-200">{w.kills}</p></div>
-                                                <div><p class="text-[7px] text-zinc-700 uppercase font-bold tracking-widest font-sans">Precision Resonance</p><p class="text-sm font-bold text-emerald-500">{w.precision}</p></div>
-                                         </div>
-                                    </div>
-                                {/each}
-                                {#if !(weaponData[activeWeaponSlot]?.length)}
-                                    <div class="col-span-full py-20 text-center text-zinc-700 uppercase tracking-[0.3em] text-[10px]">No recorded data for this slot. Visit 'Matches' to enrich history.</div>
-                                {/if}
+                                <div class="col-span-full py-20 text-center text-zinc-700 uppercase tracking-[0.3em] text-[10px]">No recorded data. Rebuilding system...</div>
                             </div>
                         </div>
 
                     {:else if profileTab === 'synergy'}
                         <div class="space-y-8 animate-in slide-in-from-bottom-2 duration-500 max-w-6xl mx-auto">
-                            <div>
-                                {@render engravedHeader({ text: "BATTLE BROTHERS (ALLIES)" })}
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {#each (career?.allies ?? []) as teammate}
-                                        <div class="bg-[#111111] border border-zinc-800 p-5 relative shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] group hover:border-emerald-700/50 transition-all duration-500 stone-card">
-                                            <div class="sheen-overlay"></div>
-                                            <div class="flex items-center relative z-10">
-                                                <div class="w-12 h-12 bg-zinc-900 border border-zinc-800 flex items-center justify-center rotate-45 shrink-0 ml-2">
-                                                    <span class="text-[10px] font-black italic text-emerald-500 -rotate-45">{teammate.winRate}%</span>
-                                                </div>
-                                                <div class="ml-12 flex-1 font-sans">
-                                                     <a href="/profile/{teammate.name}/{teammate.code}" class="text-sm font-bold text-zinc-100 tracking-wide uppercase hover:text-emerald-400 transition-colors">{teammate.name}</a>
-                                                     <div class="flex items-center gap-4 mt-1">
-                                                            <span class="text-[9px] font-sans text-emerald-600 uppercase font-bold tracking-widest">{teammate.games} GAMES TOGETHER</span>
-                                                            <div class="w-1 h-1 bg-zinc-800 rotate-45"></div>
-                                                            <span class="text-[9px] font-sans text-zinc-500 uppercase">{teammate.winRate}% TEAM WIN RATE</span>
-                                                     </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {/each}
-                                    {#if !(career?.allies?.length)}
-                                        <div class="col-span-full py-10 text-center text-zinc-800 uppercase tracking-widest text-[9px]">No frequent allies found.</div>
-                                    {/if}
-                                </div>
-                            </div>
-                            <div>
-                                {@render engravedHeader({ text: "NEMESIS TRACKER (RIVALS)", className: "text-rose-500" })}
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {#each (career?.rivals ?? []) as rival}
-                                        <div class="bg-[#111111] border border-zinc-800 p-5 relative shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] group hover:border-rose-900/50 transition-all duration-500 stone-card">
-                                            <div class="sheen-overlay"></div>
-                                            <div class="flex items-center relative z-10">
-                                                <div class="w-12 h-12 bg-zinc-900 border border-zinc-800 flex items-center justify-center rotate-45 shrink-0 ml-2">
-                                                    <span class="text-[10px] font-black italic text-rose-500 -rotate-45">{rival.winRate}%</span>
-                                                </div>
-                                                <div class="ml-12 flex-1 font-sans">
-                                                     <a href="/profile/{rival.name}/{rival.code}" class="text-sm font-bold text-zinc-100 tracking-wide uppercase hover:text-rose-400 transition-colors">{rival.name}</a>
-                                                     <div class="flex items-center gap-4 mt-1">
-                                                            <span class="text-[9px] font-sans text-rose-600 uppercase font-bold tracking-widest">{rival.games} ENCOUNTERS</span>
-                                                            <div class="w-1 h-1 bg-zinc-800 rotate-45"></div>
-                                                            <span class="text-[9px] font-sans text-zinc-500 uppercase">{rival.winRate}% YOUR WIN RATE</span>
-                                                     </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {/each}
-                                    {#if !(career?.rivals?.length)}
-                                        <div class="col-span-full py-10 text-center text-zinc-800 uppercase tracking-widest text-[9px]">No frequent rivals found.</div>
-                                    {/if}
-                                </div>
-                            </div>
+                            <div class="col-span-full py-20 text-center text-zinc-700 uppercase tracking-[0.3em] text-[10px]">No synergy data. Rebuilding system...</div>
                         </div>
 
                     {:else if profileTab === 'maps'}
                         <div class="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto">
-                            {@render engravedHeader({ text: "MAP EFFICIENCY" })}
-                            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 font-sans">
-                                {#each (career?.maps ?? []) as map}
-                                    <div class="bg-[#111111] border border-zinc-800 p-5 relative shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] group hover:border-emerald-500/50 transition-all duration-500 text-center stone-card overflow-hidden">
-                                         <div class="sheen-overlay"></div>
-                                         {#if map.map_image} <div class="absolute inset-0 bg-cover bg-center opacity-10 group-hover:opacity-25 transition-opacity" style="background-image:url('{map.map_image}')"></div> {/if}
-                                         <div class="relative z-10">
-                                             <div class="w-full h-16 bg-zinc-950/50 mb-3 flex items-center justify-center overflow-hidden border border-zinc-800 relative">
-                                                <div class="w-8 h-8 border border-zinc-800 rotate-45 group-hover:border-emerald-500/30 transition-colors"></div>
-                                             </div>
-                                             <p class="text-xs font-black italic text-zinc-300 uppercase tracking-tighter">{map.name}</p>
-                                             <p class="text-sm font-bold text-emerald-500 mt-2">{map.winRate}% WIN RATE</p>
-                                             <p class="text-[8px] text-zinc-600 uppercase tracking-widest mt-1">{map.games} matches</p>
-                                         </div>
-                                    </div>
-                                {/each}
-                                {#if !(career?.maps?.length)}
-                                    <div class="col-span-full py-20 text-center text-zinc-800 uppercase tracking-widest text-[9px]">No map data available.</div>
-                                {/if}
-                            </div>
+                            <div class="col-span-full py-20 text-center text-zinc-700 uppercase tracking-[0.3em] text-[10px]">No map data. Rebuilding system...</div>
                         </div>
 
                     {:else if profileTab === 'pursuits'}
                         <div class="space-y-6 animate-in slide-in-from-bottom-2 duration-700 max-w-6xl mx-auto">
                             {@render engravedHeader({ text: "CAREER ACHIEVEMENTS" })}
                             <div class="grid gap-3">
-                                {#each (career?.medals?.slice(0, 10) ?? []) as m}
+                                {#each (pursuits?.records?.slice(0, 10) ?? []) as m}
                                     <div class="bg-[#111111] border border-zinc-800 p-5 relative group hover:border-zinc-600 transition-all font-sans stone-card">
                                          <div class="sheen-overlay"></div>
                                          <div class="flex justify-between items-start mb-2 relative z-10">
-                                                <div><h3 class="text-sm font-black italic text-zinc-100 uppercase">{m.key}</h3><p class="text-[10px] text-zinc-500 italic mt-1 font-serif">"Mastery of {m.key} mechanics."</p></div>
-                                                <p class="text-[9px] font-bold text-emerald-500 font-sans uppercase">{m.count} EARNED</p>
+                                                <div><h3 class="text-sm font-black italic text-zinc-100 uppercase">{m.name}</h3><p class="text-[10px] text-zinc-500 italic mt-1 font-serif">"{m.description}"</p></div>
+                                                <p class="text-[9px] font-bold text-emerald-500 font-sans uppercase">{m.isCompleted ? 'EARNED' : 'IN PROGRESS'}</p>
                                          </div>
-                                         <div class="flex items-center gap-4 mt-4 font-sans relative z-10"><div class="flex-1 h-[2px] bg-zinc-900 overflow-hidden"><div class="h-full bg-emerald-500 transition-all duration-1000" style="width: {Math.min(100, m.count * 5)}%;"></div></div></div>
+                                         <div class="flex items-center gap-4 mt-4 font-sans relative z-10">
+                                            <div class="flex-1 h-[2px] bg-zinc-900 overflow-hidden">
+                                                <div class="h-full bg-emerald-500 transition-all duration-1000" style="width: {m.isCompleted ? 100 : (m.objectives[0]?.progress / m.objectives[0]?.completionValue * 100)}%;"></div>
+                                            </div>
+                                         </div>
                                     </div>
                                 {/each}
-                                {#if !career?.medals?.length}
-                                    <div class="text-center py-20 text-zinc-700 uppercase tracking-widest text-[10px]">No major achievements recorded yet.</div>
-                                {/if}
                             </div>
                         </div>
 
@@ -1088,3 +713,22 @@
         </main>
     </div>
 </div>
+
+<style>
+    .stone-card {
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
+    }
+    .sheen-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%, rgba(255,255,255,0.02) 100%);
+        pointer-events: none;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style>
