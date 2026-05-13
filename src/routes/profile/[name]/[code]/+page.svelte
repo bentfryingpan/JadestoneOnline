@@ -311,45 +311,47 @@
 	const ltInvaderDeaths = $derived(sv('invaderDeaths'));
 
 	const seasonalTotal = $derived(
-		seasonal?.seasons?.reduce(
-			(acc, s) => {
-				acc.activitiesEntered += s.activitiesEntered ?? 0;
-				acc.wins += s.wins ?? 0;
-				acc.kills += s.kills ?? 0;
-				acc.deaths += s.deaths ?? 0;
-				acc.motesDeposited += s.motesDeposited ?? 0;
-				acc.motesLost += s.motesLost ?? 0;
-				acc.motesDenied += s.motesDenied ?? 0;
-				acc.invasionKills += s.invasionKills ?? 0;
-				acc.invaderDeaths += s.invaderDeaths ?? 0;
-				acc.primevalDamage += s.primevalDamage ?? 0;
-				acc.superKills += s.superKills ?? 0;
-				acc.meleeKills += s.meleeKills ?? 0;
-				acc.grenadeKills += s.grenadeKills ?? 0;
-				acc.smallBlockersSent += s.smallBlockersSent ?? 0;
-				acc.mediumBlockersSent += s.mediumBlockersSent ?? 0;
-				acc.largeBlockersSent += s.largeBlockersSent ?? 0;
-				return acc;
-			},
-			{
-				activitiesEntered: 0,
-				wins: 0,
-				kills: 0,
-				deaths: 0,
-				motesDeposited: 0,
-				motesLost: 0,
-				motesDenied: 0,
-				invasionKills: 0,
-				invaderDeaths: 0,
-				primevalDamage: 0,
-				superKills: 0,
-				meleeKills: 0,
-				grenadeKills: 0,
-				smallBlockersSent: 0,
-				mediumBlockersSent: 0,
-				largeBlockersSent: 0
-			}
-		) ?? null
+		seasonal?.seasons?.length > 0
+			? seasonal.seasons.reduce(
+					(acc, s) => {
+						acc.activitiesEntered += s.activitiesEntered ?? 0;
+						acc.wins += s.wins ?? 0;
+						acc.kills += s.kills ?? 0;
+						acc.deaths += s.deaths ?? 0;
+						acc.motesDeposited += s.motesDeposited ?? 0;
+						acc.motesLost += s.motesLost ?? 0;
+						acc.motesDenied += s.motesDenied ?? 0;
+						acc.invasionKills += s.invasionKills ?? 0;
+						acc.invaderDeaths += s.invaderDeaths ?? 0;
+						acc.primevalDamage += s.primevalDamage ?? 0;
+						acc.superKills += s.superKills ?? 0;
+						acc.meleeKills += s.meleeKills ?? 0;
+						acc.grenadeKills += s.grenadeKills ?? 0;
+						acc.smallBlockersSent += s.smallBlockersSent ?? 0;
+						acc.mediumBlockersSent += s.mediumBlockersSent ?? 0;
+						acc.largeBlockersSent += s.largeBlockersSent ?? 0;
+						return acc;
+					},
+					{
+						activitiesEntered: 0,
+						wins: 0,
+						kills: 0,
+						deaths: 0,
+						motesDeposited: 0,
+						motesLost: 0,
+						motesDenied: 0,
+						invasionKills: 0,
+						invaderDeaths: 0,
+						primevalDamage: 0,
+						superKills: 0,
+						meleeKills: 0,
+						grenadeKills: 0,
+						smallBlockersSent: 0,
+						mediumBlockersSent: 0,
+						largeBlockersSent: 0
+					}
+				)
+			: null
 	);
 
 	const egoRating = $derived(

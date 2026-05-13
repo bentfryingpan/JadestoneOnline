@@ -132,7 +132,7 @@ async function paginateChar(membershipType, membershipId, charId, maxPages) {
  */
 export async function computeSeasonal(membershipType, membershipId, charIds, maxPages = 25) {
 	const sortedIds = [...charIds].sort();
-	const cacheKey = `seasonal:${membershipId}:${sortedIds.join(',')}`;
+	const cacheKey = `seasonal:v2:${membershipId}:${sortedIds.join(',')}`;
 
 	const cached = cacheGet(cacheKey);
 	if (cached) return cached;
