@@ -58,9 +58,15 @@ export async function GET({ url }) {
 			totalScore = 0,
 			totalKills = 0,
 			totalDeaths = 0,
+			totalAssists = 0,
+			totalPrecision = 0,
 			totalMotes = 0,
 			totalMotesLost = 0,
+			totalMotesPickedUp = 0,
 			totalPrimevalDmg = 0,
+			totalPrimevalHeal = 0,
+			totalInvasions = 0,
+			totalShutDowns = 0,
 			totalAbility = 0,
 			totalSuper = 0,
 			totalBlockers = 0,
@@ -96,9 +102,15 @@ export async function GET({ url }) {
 			totalScore += score;
 			totalKills += stats.kills ?? ((stats.mobKills ?? 0) + (stats.invasionKills ?? 0));
 			totalDeaths += stats.deaths ?? 0;
+			totalAssists += stats.assists ?? 0;
+			totalPrecision += stats.precisionKills ?? 0;
 			totalMotes += stats.motesDeposited ?? 0;
 			totalMotesLost += stats.motesLost ?? 0;
+			totalMotesPickedUp += stats.motesPickedUp ?? 0;
 			totalPrimevalDmg += stats.primevalDamage ?? 0;
+			totalPrimevalHeal += stats.primevalHealing ?? 0;
+			totalInvasions += stats.invasions ?? 0;
+			totalShutDowns += stats.invasionsDefeated ?? 0;
 			totalAbility += 
 				(stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + 
 				(stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
@@ -202,9 +214,15 @@ export async function GET({ url }) {
 				wins: totalWins,
 				kills: totalKills,
 				deaths: totalDeaths,
+				assists: totalAssists,
+				precision: totalPrecision,
 				motes: totalMotes,
 				motesLost: totalMotesLost,
+				motesPickedUp: totalMotesPickedUp,
 				primevalDmg: totalPrimevalDmg,
+				primevalHeal: totalPrimevalHeal,
+				invasions: totalInvasions,
+				shutDowns: totalShutDowns,
 				ability: totalAbility,
 				super: totalSuper,
 				blockers: totalBlockers,

@@ -203,14 +203,20 @@
 		wins: 0,
 		kills: 0,
 		deaths: 0,
+		assists: 0,
+		precision: 0,
 		motes: 0,
 		motesLost: 0,
+		motesPickedUp: 0,
 		primevalDmg: 0,
+		primevalHeal: 0,
 		ability: 0,
 		super: 0,
 		blockers: 0,
 		invKills: 0,
 		invDeaths: 0,
+		invasions: 0,
+		shutDowns: 0,
 		motesDenied: 0,
 		armyOfOne: 0
 	});
@@ -236,6 +242,8 @@
 		);
 		statsCache.kills = Math.max(statsCache.kills, db.kills || 0, car.kills || 0, dKills || 0);
 		statsCache.deaths = Math.max(statsCache.deaths, db.deaths || 0, car.deaths || 0, dDeaths || 0);
+		statsCache.assists = Math.max(statsCache.assists, db.assists || 0, car.assists || 0);
+		statsCache.precision = Math.max(statsCache.precision, db.precision || 0, car.precision || 0);
 		statsCache.motes = Math.max(statsCache.motes, db.motes || 0, car.motes || 0, dMotes || 0);
 		statsCache.motesLost = Math.max(
 			statsCache.motesLost,
@@ -243,25 +251,32 @@
 			car.motesLost || 0,
 			dMotesLost || 0
 		);
+		statsCache.motesPickedUp = Math.max(statsCache.motesPickedUp, db.motesPickedUp || 0, car.motesPickedUp || 0);
 		statsCache.primevalDmg = Math.max(
 			statsCache.primevalDmg,
 			db.primevalDmg || 0,
 			car.primevalDmg || 0,
 			dPrimevalDmg || 0
 		);
+		statsCache.primevalHeal = Math.max(
+			statsCache.primevalHeal, 
+			db.primevalHeal || 0, 
+			car.primevalHeal || 0,
+			dHealed || 0
+		);
 
 		statsCache.ability = Math.max(
 			statsCache.ability,
 			db.ability || 0,
 			car.ability || 0,
-			dMeleeKills + dGrenadeKills || 0
+			(dMeleeKills + dGrenadeKills) || 0
 		);
 		statsCache.super = Math.max(statsCache.super, db.super || 0, car.super || 0, dSuperKills || 0);
 		statsCache.blockers = Math.max(
 			statsCache.blockers,
 			db.blockers || 0,
 			car.blockers || 0,
-			dSmallBlockers + dMediumBlockers + dLargeBlockers || 0
+			(dSmallBlockers + dMediumBlockers + dLargeBlockers) || 0
 		);
 		statsCache.invKills = Math.max(
 			statsCache.invKills,
@@ -274,6 +289,18 @@
 			db.invDeaths || 0,
 			car.invDeaths || 0,
 			dInvaderDeaths || 0
+		);
+		statsCache.invasions = Math.max(
+			statsCache.invasions, 
+			db.invasions || 0, 
+			car.invasions || 0,
+			dInvasions || 0
+		);
+		statsCache.shutDowns = Math.max(
+			statsCache.shutDowns, 
+			db.shutDowns || 0, 
+			car.shutDowns || 0,
+			dShutDowns || 0
 		);
 		statsCache.motesDenied = Math.max(
 			statsCache.motesDenied,
@@ -386,6 +413,8 @@
 	const ltWon = $derived(sv('activitiesWon'));
 	const ltKills = $derived(sv('kills'));
 	const ltDeaths = $derived(sv('deaths'));
+	const ltAssists = $derived(sv('assists'));
+	const ltPrecision = $derived(sv('precisionKills'));
 	const ltInvasions = $derived(sv('invasions'));
 	const ltInvKills = $derived(sv('invasionKills'));
 	const ltMotes = $derived(sv('motesBanked') || sv('motesDeposited'));
@@ -393,12 +422,30 @@
 	const ltMotesDenied = $derived(sv('motesDenied'));
 	const ltPrimevalDmg = $derived(sv('primevalDamage'));
 	const ltSuperKills = $derived(sv('weaponKillsSuper') || sv('superKills'));
-	const ltMeleeKills = $derived(sv('weaponKillsMelee'));
-	const ltGrenadeKills = $derived(sv('weaponKillsGrenade'));
+	const ltMeleeKills = $derived(sv('weaponKillsMelee') || sv('meleeKills'));
+	const ltGrenadeKills = $derived(sv('weaponKillsGrenade') || sv('grenadeKills'));
 	const ltSmallBlockers = $derived(sv('smallBlockersSent'));
 	const ltMediumBlockers = $derived(sv('mediumBlockersSent'));
 	const ltLargeBlockers = $derived(sv('largeBlockersSent'));
 	const ltInvaderDeaths = $derived(sv('invaderDeaths'));
+	const ltShutDowns = $derived(sv('invasionsDefeated'));
+	const ltHealed = $derived(sv('primevalHealing'));
+
+	const dInvasions = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.invasions ?? ltInvasions)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invasions ?? 0)
+	);
+	const dShutDowns = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.invasionsDefeated ?? ltShutDowns)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invasionsDefeated ?? 0)
+	);
+	const dHealed = $derived(
+		seasonFilter === 'all'
+			? (seasonalTotal?.primevalHealing ?? ltHealed)
+			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.primevalHealing ?? 0)
+	);
 
 	const seasonalTotal = $derived(
 		seasonal?.seasons?.length > 0
@@ -408,12 +455,17 @@
 						acc.wins += s.wins ?? 0;
 						acc.kills += s.kills ?? 0;
 						acc.deaths += s.deaths ?? 0;
+						acc.assists += s.assists ?? 0;
+						acc.precisionKills += s.precisionKills ?? 0;
 						acc.motesDeposited += s.motesDeposited ?? 0;
 						acc.motesLost += s.motesLost ?? 0;
 						acc.motesDenied += s.motesDenied ?? 0;
 						acc.invasionKills += s.invasionKills ?? 0;
 						acc.invaderDeaths += s.invaderDeaths ?? 0;
 						acc.primevalDamage += s.primevalDamage ?? 0;
+						acc.primevalHealing += s.primevalHealing ?? 0;
+						acc.invasions += s.invasions ?? 0;
+						acc.invasionsDefeated += s.invasionsDefeated ?? 0;
 						acc.superKills += s.superKills ?? 0;
 						acc.meleeKills += s.meleeKills ?? 0;
 						acc.grenadeKills += s.grenadeKills ?? 0;
@@ -427,12 +479,17 @@
 						wins: 0,
 						kills: 0,
 						deaths: 0,
+						assists: 0,
+						precisionKills: 0,
 						motesDeposited: 0,
 						motesLost: 0,
 						motesDenied: 0,
 						invasionKills: 0,
 						invaderDeaths: 0,
 						primevalDamage: 0,
+						primevalHealing: 0,
+						invasions: 0,
+						invasionsDefeated: 0,
 						superKills: 0,
 						meleeKills: 0,
 						grenadeKills: 0,
@@ -648,11 +705,11 @@
 				: dKD != null ? fmtF(dKD, 2) : '—',
 			kills: statsCache.kills,
 			motesAvg:
-				statsCache.entered > 0 ? fmtF(statsCache.motes / statsCache.entered, 1) : career?.source === 'supabase' ? career.avgMotes : '—',
+				statsCache.entered > 0 ? fmtF(statsCache.motes / statsCache.entered, 1) : career?.source === 'supabase' ? career.avgMotes : dAvgMotes ? fmtF(dAvgMotes, 1) : '—',
 			dps: statsCache.entered > 0 && statsCache.primevalDmg > 0 ? fmt(Math.round(statsCache.primevalDmg / statsCache.entered)) : '—',
 			combat: {
 				total: fmt(statsCache.kills),
-				precision: statsCache.kills + statsCache.deaths > 0 ? fmtF((statsCache.kills / (statsCache.kills + statsCache.deaths)) * 100, 1) + '%' : '—',
+				precision: statsCache.kills > 0 ? fmtF((statsCache.precision / statsCache.kills) * 100, 1) + '%' : '—',
 				ability: fmt(statsCache.ability),
 				super: fmt(statsCache.super)
 			},
@@ -661,15 +718,15 @@
 				lost: fmt(statsCache.motesLost),
 				denied: fmt(statsCache.motesDenied),
 				blockers: fmt(statsCache.blockers),
-				healed: '—'
+				healed: statsCache.primevalHeal > 0 ? fmt(statsCache.primevalHeal) : '—'
 			},
 			invasion: {
 				guardians: fmt(statsCache.invKills),
 				armyOfOne: fmt(statsCache.armyOfOne),
 				motesDenied: fmt(statsCache.motesDenied),
 				invaderDeaths: fmt(statsCache.invDeaths),
-				invasions: '—',
-				shutDown: '—'
+				invasions: statsCache.invasions > 0 ? fmt(statsCache.invasions) : '—',
+				shutDown: statsCache.shutDowns > 0 ? fmt(statsCache.shutDowns) : '—'
 			}
 		},
 		loadout: {
@@ -1062,6 +1119,14 @@
 	{@render detailStatCompact({
 		label: 'Invader Deaths',
 		value: playerData.overview.invasion.invaderDeaths ?? '—'
+	})}
+	{@render detailStatCompact({
+		label: 'Invasions',
+		value: playerData.overview.invasion.invasions ?? '—'
+	})}
+	{@render detailStatCompact({
+		label: 'Shut Down',
+		value: playerData.overview.invasion.shutDown ?? '—'
 	})}
 {/snippet}
 

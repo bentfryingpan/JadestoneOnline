@@ -60,6 +60,7 @@ function accumulate(bucket, entry) {
 	bucket.kills += n(v, 'kills');
 	bucket.deaths += n(v, 'deaths');
 	bucket.assists += n(v, 'assists');
+	bucket.precisionKills += n(v, 'precisionKills');
 	bucket.motesDeposited += n(ext, 'motesDeposited') || n(ext, 'motesBanked');
 	bucket.motesDenied += n(ext, 'motesDenied');
 	bucket.motesPickedUp += n(ext, 'motesPickedUp');
@@ -69,6 +70,7 @@ function accumulate(bucket, entry) {
 	bucket.invasionsDefeated += n(ext, 'invasionsDefeated');
 	bucket.invaderDeaths += n(ext, 'invaderDeaths') || n(ext, 'invasionDeaths');
 	bucket.primevalDamage += n(ext, 'primevalDamage');
+	bucket.primevalHealing += n(ext, 'primevalHealing');
 	bucket.durationSeconds += n(v, 'activityDurationSeconds');
 
 	bucket.meleeKills += n(ext, 'weaponKillsMelee');
@@ -88,6 +90,7 @@ function emptyBucket(season) {
 		kills: 0,
 		deaths: 0,
 		assists: 0,
+		precisionKills: 0,
 		motesDeposited: 0,
 		motesDenied: 0,
 		motesPickedUp: 0,
@@ -97,6 +100,7 @@ function emptyBucket(season) {
 		invasionsDefeated: 0,
 		invaderDeaths: 0,
 		primevalDamage: 0,
+		primevalHealing: 0,
 		durationSeconds: 0,
 		meleeKills: 0,
 		grenadeKills: 0,

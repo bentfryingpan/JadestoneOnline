@@ -107,22 +107,28 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
 
 		const totalKills = sv(e, 'kills');
 		const invKills = sv(e, 'invasionKills') || sv(e, 'invaderKills');
+		const mDep = sv(e, 'motesDeposited') || sv(e, 'motesBanked');
+		const mLost = sv(e, 'motesLost');
 
 		const stats = {
 			assists: sv(e, 'assists'),
 			deaths: sv(e, 'deaths'),
 			kills: totalKills,
 			mobKills: Math.max(0, totalKills - invKills),
+			precisionKills: sv(e, 'precisionKills'),
 			invasionKills: invKills,
 			invasionDeaths: sv(e, 'invasionDeaths') || sv(e, 'invaderDeaths'),
-			motesDeposited: sv(e, 'motesDeposited') || sv(e, 'motesBanked'),
+			invasions: sv(e, 'invasions'),
+			invasionsDefeated: sv(e, 'invasionsDefeated'),
+			motesDeposited: mDep,
 			motesDenied: sv(e, 'motesDenied'),
-			motesLost: sv(e, 'motesLost'),
-			motesPickedUp: sv(e, 'motesPickedUp') || (sv(e, 'motesDeposited') + sv(e, 'motesLost')),
+			motesLost: mLost,
+			motesPickedUp: sv(e, 'motesPickedUp') || mDep + mLost,
 			superKills: sv(e, 'weaponKillsSuper'),
 			grenadeKills: sv(e, 'weaponKillsGrenade'),
 			meleeKills: sv(e, 'weaponKillsMelee'),
 			primevalDamage: sv(e, 'primevalDamage'),
+			primevalHealing: sv(e, 'primevalHealing'),
 			smallBlockersSent: sv(e, 'smallBlockersSent'),
 			mediumBlockersSent: sv(e, 'mediumBlockersSent'),
 			largeBlockersSent: sv(e, 'largeBlockersSent'),

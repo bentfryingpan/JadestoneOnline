@@ -214,9 +214,15 @@ export async function load({ params, parent, url, setHeaders }) {
 					if (isWin) acc.wins++;
 					acc.kills += stats.kills ?? ((stats.mobKills ?? 0) + (stats.invasionKills ?? 0));
 					acc.deaths += stats.deaths ?? 0;
+					acc.assists += stats.assists ?? 0;
+					acc.precision += stats.precisionKills ?? 0;
 					acc.motes += stats.motesDeposited ?? 0;
 					acc.motesLost += stats.motesLost ?? 0;
+					acc.motesPickedUp += stats.motesPickedUp ?? 0;
 					acc.primevalDmg += stats.primevalDamage ?? 0;
+					acc.primevalHeal += stats.primevalHealing ?? 0;
+					acc.invasions += stats.invasions ?? 0;
+					acc.shutDowns += stats.invasionsDefeated ?? 0;
 					acc.ability += 
 						(stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + 
 						(stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
@@ -232,9 +238,15 @@ export async function load({ params, parent, url, setHeaders }) {
 					wins: 0,
 					kills: 0,
 					deaths: 0,
+					assists: 0,
+					precision: 0,
 					motes: 0,
 					motesLost: 0,
+					motesPickedUp: 0,
 					primevalDmg: 0,
+					primevalHeal: 0,
+					invasions: 0,
+					shutDowns: 0,
 					ability: 0,
 					super: 0,
 					blockers: 0,
