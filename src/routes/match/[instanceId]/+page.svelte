@@ -44,9 +44,9 @@
 
     const ABILITY_STATS = [
         { key: 'precisionKills', label: 'Precision', color: 'text-emerald-500' },
-        { key: 'grenadeKills', label: 'Grenade', color: 'text-sky-400' },
-        { key: 'meleeKills', label: 'Melee', color: 'text-orange-400' },
-        { key: 'superKills', label: 'Super', color: 'text-amber-300' },
+        { key: 'weaponKillsGrenade', label: 'Grenade', color: 'text-sky-400' },
+        { key: 'weaponKillsMelee', label: 'Melee', color: 'text-orange-400' },
+        { key: 'weaponKillsSuper', label: 'Super', color: 'text-amber-300' },
     ];
 
     const LOSS_STATS = [

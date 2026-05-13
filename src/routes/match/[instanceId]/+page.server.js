@@ -43,7 +43,11 @@ export async function load({ params }) {
     const actDef = await getActivityDef(refId);
     const mapName = (actDef?.displayProperties?.name ?? 'Gambit').replace(/^Gambit[:\-]\s*/i, '').trim();
 
-    const medalDefs = await getAllMedals();
+    // Load medal definitions and normalize keys to lowercase for robust lookup
+    const rawMedalDefs = await getAllMedals();
+    const medalDefs = Object.fromEntries(
+        Object.entries(rawMedalDefs).map(([k, v]) => [k.toLowerCase(), v])
+    );
 
     const teams = { Alpha: [], Bravo: [] };
     const teamValues = [...new Set(pgcr.entries.map(e => e.values?.team?.basic?.value ?? 0))];
@@ -90,14 +94,13 @@ export async function load({ params }) {
 
         const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : { finalScore: 0 };
         
-        // Robust Medal Resolution
+        // medalList logic: resolve RAW keys from PGCR against normalized manifest
         const medalList = [];
         for (const [key, val] of Object.entries(e.extended?.values ?? {})) {
-            // Check for stats starting with 'medal'
             if (key.toLowerCase().startsWith('medal')) {
                 const count = typeof val === 'object' ? val.basic?.value : val;
                 if (count > 0) {
-                    const def = medalDefs[key];
+                    const def = medalDefs[key.toLowerCase()];
                     medalList.push({
                         key, count,
                         label: def?.statName || key.replace('medal', ''),
