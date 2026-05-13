@@ -1367,20 +1367,35 @@
 						{/if}
 
 						{#if profileTab === 'overview'}
-							<div class="animate-in fade-in space-y-4 duration-700">
+							<div class="animate-in fade-in space-y-8 duration-700">
+								<!-- Seasonal Navigation -->
 								<div class="relative border-b border-zinc-800/50 pb-2">
-									{@render ghostLabel({ text: 'SEASONAL HISTORY' })}
+									{@render ghostLabel({ text: 'SEASONAL ARCHIVE ACCESS' })}
 									<div
 										bind:this={scrollRef}
 										onwheel={handleWheel}
-										class="no-scrollbar flex cursor-grab gap-1 overflow-x-auto scroll-smooth py-1 active:cursor-grabbing"
+										class="no-scrollbar flex gap-2 overflow-x-auto scroll-smooth py-1"
 									>
+										<button
+											onclick={() => (seasonFilter = 'all')}
+											class="relative flex-shrink-0 border border-zinc-800/50 px-6 py-2.5 font-sans text-[10px] tracking-[0.2em] uppercase transition-all {seasonFilter ===
+											'all'
+												? 'border-emerald-500/30 bg-emerald-500/10 font-black text-emerald-400'
+												: 'text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'}"
+										>
+											GLOBAL HISTORY
+											{#if seasonFilter === 'all'}
+												<div
+													class="absolute bottom-0 left-0 h-[2px] w-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]"
+												></div>
+											{/if}
+										</button>
 										{#each seasons as s}
 											<button
 												onclick={() => (seasonFilter = s.id)}
-												class="relative flex-shrink-0 overflow-hidden border border-zinc-800/50 px-5 py-2 font-sans text-[9px] tracking-[0.2em] uppercase transition-all {seasonFilter ===
+												class="relative flex-shrink-0 border border-zinc-800/50 px-6 py-2.5 font-sans text-[10px] tracking-[0.2em] uppercase transition-all {seasonFilter ===
 												s.id
-													? 'border-zinc-700 bg-zinc-900 font-bold text-emerald-400'
+													? 'border-emerald-500/30 bg-emerald-500/10 font-black text-emerald-400'
 													: 'text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'}"
 											>
 												{s.label}
@@ -1393,106 +1408,178 @@
 										{/each}
 									</div>
 								</div>
+
+								<!-- Summary Bar -->
 								<div class="grid grid-cols-4 gap-4">
 									<div
-										class="relative border border-zinc-800 bg-[#111111] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"
+										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
 									>
-										<div class="flex items-center justify-between gap-4">
-											<div class="flex flex-col">
-												<span
-													class="font-sans text-[8px] font-bold tracking-[0.2em] text-zinc-500 uppercase"
-													>Win Ratio</span
-												>
-												<div class="flex items-baseline gap-1.5">
-													<span
-														class="font-sans text-2xl font-light tracking-tighter text-white italic"
-														>{playerData.overview.winRatio}</span
-													>
-												</div>
-											</div>
-											<div class="text-right">
-												<p
-													class="font-sans text-[8px] font-bold tracking-widest text-zinc-700 uppercase"
-												>
-													{playerData.overview.wins} Wins
-												</p>
-											</div>
-										</div>
-									</div>
-									<div
-										class="relative border border-zinc-800 bg-[#111111] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"
-									>
-										<div class="flex items-center justify-between gap-4">
-											<div class="flex flex-col">
-												<span
-													class="font-sans text-[8px] font-bold tracking-[0.2em] text-zinc-500 uppercase"
-													>K/D/A</span
-												>
-												<div class="flex items-baseline gap-1.5">
-													<span
-														class="font-sans text-2xl font-light tracking-tighter text-white italic"
-														>{playerData.overview.kd}</span
-													>
-												</div>
-											</div>
-											<div class="text-right">
-												<p
-													class="font-sans text-[8px] font-bold tracking-widest text-zinc-700 uppercase"
-												>
-													{playerData.overview.kills} Kills
-												</p>
-											</div>
-										</div>
-									</div>
-									<div
-										class="relative border border-zinc-800 bg-[#111111] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"
-									>
-										<div class="flex items-center justify-between gap-4">
-											<div class="flex flex-col">
-												<span
-													class="font-sans text-[8px] font-bold tracking-[0.2em] text-zinc-500 uppercase"
-													>Motes Avg</span
-												>
-												<div class="flex items-baseline gap-1.5">
-													<span
-														class="font-sans text-2xl font-light tracking-tighter text-emerald-400 italic"
-														>{playerData.overview.motesAvg}</span
-													>
-												</div>
-											</div>
-											<div class="text-right">
-												<p
-													class="font-sans text-[8px] font-bold tracking-widest text-zinc-700 uppercase"
-												>
-													Top 1%
-												</p>
-											</div>
-										</div>
-									</div>
-									<div
-										class="stone-card group relative border border-zinc-800 bg-gradient-to-br from-[#111111] to-[#0a0a0a] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"
-									>
-										<div class="sheen-overlay"></div>
-										{@render ghostLabel({ text: 'Primeval DPS', className: 'text-[8px]' })}
-										<div class="relative z-10 mt-1 flex w-full items-baseline gap-2 font-sans">
-											<span class="text-2xl font-light tracking-tighter text-amber-500 italic"
-												>{playerData.overview.dps}</span
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
+											>Deployment Count</span
+										>
+										<div class="mt-1 flex items-baseline gap-2">
+											<span class="text-3xl font-light tracking-tighter text-white italic"
+												>{fmt(dEntered)}</span
 											>
-											<div class="relative bottom-1 h-[1px] flex-1 bg-zinc-800">
-												<div
-													class="h-full w-[75%] bg-amber-600 shadow-[0_0_8px_rgba(217,119,6,0.3)]"
-												></div>
+											<span class="text-[9px] font-bold text-zinc-700 uppercase">Matches</span>
+										</div>
+									</div>
+									<div
+										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
+									>
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
+											>Success Probability</span
+										>
+										<div class="mt-1 flex items-baseline gap-2">
+											<span class="text-3xl font-light tracking-tighter text-emerald-500 italic"
+												>{dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'}</span
+											>
+										</div>
+									</div>
+									<div
+										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
+									>
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
+											>Lethality Index</span
+										>
+										<div class="mt-1 flex items-baseline gap-2">
+											<span class="text-3xl font-light tracking-tighter text-white italic"
+												>{dKD != null ? fmtF(dKD, 2) : '—'}</span
+											>
+											<span class="text-[9px] font-bold text-zinc-700 uppercase">K/D</span>
+										</div>
+									</div>
+									<div
+										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
+									>
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
+											>EGO Rating</span
+										>
+										<div class="mt-1 flex items-baseline gap-2">
+											<span class="text-3xl font-light tracking-tighter text-amber-500 italic"
+												>{fmt(egoRating)}</span
+											>
+										</div>
+									</div>
+								</div>
+
+								<!-- Data Information Tables -->
+								<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
+									<!-- Combat & Efficiency -->
+									<div class="space-y-8">
+										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
+											{@render ghostLabel({ text: 'COMBAT_EFFICIENCY_MATRIX', className: 'mb-6' })}
+											<div class="space-y-4">
+												{#if dKills > 0}
+													{@render detailStatCompact({ label: 'Hostiles Defeated', value: fmt(dKills), awakened: true })}
+												{/if}
+												{#if dDeaths > 0}
+													{@render detailStatCompact({ label: 'Casualties Sustained', value: fmt(dDeaths) })}
+												{/if}
+												{#if dKD > 0}
+													{@render detailStatCompact({ label: 'Combat Effectiveness (K/D)', value: fmtF(dKD, 2), awakened: true })}
+												{/if}
+												{#if dEntered > 0}
+													{@render detailStatCompact({ label: 'Average Kills / Match', value: fmtF(dKills / dEntered, 1) })}
+												{/if}
+												{#if (seasonalTotal?.precisionKills ?? ltPrecision) > 0}
+													{@render detailStatCompact({ 
+														label: 'Precision Resonance', 
+														value: fmt(seasonFilter === 'all' ? (seasonalTotal?.precisionKills ?? ltPrecision) : (seasonal?.seasons?.find(s => s.season === seasonFilter)?.precisionKills ?? 0))
+													})}
+												{/if}
+											</div>
+										</div>
+
+										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
+											{@render ghostLabel({ text: 'TACTICAL_ABILITY_REPORTS', className: 'mb-6' })}
+											<div class="space-y-4">
+												{#if dSuperKills > 0}
+													{@render detailStatCompact({ label: 'Super Ability Kills', value: fmt(dSuperKills), awakened: true })}
+												{/if}
+												{#if dMeleeKills > 0}
+													{@render detailStatCompact({ label: 'Melee Neutralizations', value: fmt(dMeleeKills) })}
+												{/if}
+												{#if dGrenadeKills > 0}
+													{@render detailStatCompact({ label: 'Grenade Discharges', value: fmt(dGrenadeKills) })}
+												{/if}
+												{#if (dSuperKills + dMeleeKills + dGrenadeKills) > 0}
+													{@render detailStatCompact({ 
+														label: 'Total Ability Output', 
+														value: fmt(dSuperKills + dMeleeKills + dGrenadeKills),
+														awakened: true
+													})}
+												{/if}
+											</div>
+										</div>
+									</div>
+
+									<!-- Objectives & Invasion -->
+									<div class="space-y-8">
+										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
+											{@render ghostLabel({ text: 'RESOURCE_COLLECTION_ANALYSIS', className: 'mb-6' })}
+											<div class="space-y-4">
+												{#if dMotes > 0}
+													{@render detailStatCompact({ label: 'Motes Synchronized', value: fmt(dMotes), awakened: true })}
+												{/if}
+												{#if dMotesLost > 0}
+													{@render detailStatCompact({ label: 'Motes De-synchronized (Lost)', value: fmt(dMotesLost) })}
+												{/if}
+												{#if dMotes > 0 && dMotesLost >= 0}
+													{@render detailStatCompact({ 
+														label: 'Sync Efficiency', 
+														value: fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%',
+														awakened: true
+													})}
+												{/if}
+												{#if dAvgMotes > 0}
+													{@render detailStatCompact({ label: 'Average Motes / Match', value: fmtF(dAvgMotes, 1) })}
+												{/if}
+												{#if (dSmallBlockers + dMediumBlockers + dLargeBlockers) > 0}
+													{@render detailStatCompact({ 
+														label: 'Blocker Units Deployed', 
+														value: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers)
+													})}
+												{/if}
+												{#if dPrimevalDmg > 0}
+													{@render detailStatCompact({ label: 'Primeval Structural Damage', value: fmt(dPrimevalDmg), awakened: true })}
+												{/if}
+											</div>
+										</div>
+
+										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
+											{@render ghostLabel({ text: 'INCURSION_INTEL_REPORTS', className: 'mb-6' })}
+											<div class="space-y-4">
+												{#if dInvasions > 0}
+													{@render detailStatCompact({ label: 'Dimensional Incursions', value: fmt(dInvasions), awakened: true })}
+												{/if}
+												{#if dInvKills > 0}
+													{@render detailStatCompact({ label: 'Guardian Neutralizations', value: fmt(dInvKills), awakened: true })}
+												{/if}
+												{#if dInvasions > 0}
+													{@render detailStatCompact({ label: 'Kills Per Incursion', value: fmtF(dInvKills / dInvasions, 1) })}
+												{/if}
+												{#if dMotesDenied > 0}
+													{@render detailStatCompact({ label: 'Hostile Motes Denied', value: fmt(dMotesDenied), awakened: true })}
+												{/if}
+												{#if dShutDowns > 0}
+													{@render detailStatCompact({ label: 'Invader Interceptions', value: fmt(dShutDowns) })}
+												{/if}
+												{#if dInvaderDeaths > 0}
+													{@render detailStatCompact({ label: 'Incursion Casualties', value: fmt(dInvaderDeaths) })}
+												{/if}
 											</div>
 										</div>
 									</div>
 								</div>
-								<div class="grid grid-cols-3 gap-6">
-									{@render stoneCard({ title: 'Combat', compact: true }, combatContent)}
-									{@render stoneCard({ title: 'Objectives', compact: true }, objectivesContent)}
-									{@render stoneCard(
-										{ title: 'Invasion', compact: true, className: 'border-rose-900/10' },
-										invasionContent
-									)}
+
+								<!-- Visual Disclaimer -->
+								<div class="mt-12 flex items-center justify-center gap-4 border-t border-zinc-800 pt-8 opacity-40">
+									<div class="h-1 w-1 rounded-full bg-emerald-500 animate-pulse"></div>
+									<span class="text-[8px] font-bold tracking-[0.5em] text-zinc-600 uppercase">
+										End of Tactical Archive Section _UID_{data.membershipId}
+									</span>
+									<div class="h-1 w-1 rounded-full bg-emerald-500 animate-pulse"></div>
 								</div>
 							</div>
 						{:else if profileTab === 'matches'}
