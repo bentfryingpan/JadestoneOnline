@@ -167,13 +167,40 @@ export async function load({ params, parent, url, setHeaders }) {
 	let source = !lifetimeStats ? 'none' : lifetimeStats._synthetic ? 'recent' : 'bungie';
 
 	// Attempt to switch to Supabase source if enough data exists
+	let dbTotals = null;
 	try {
+		const idStr = String(membershipId);
+		const prefix = idStr.substring(0, 15);
+
 		const { data: pData } = await supabaseAdmin
 			.from('players')
 			.select('ngr, games_played')
 			.eq('id', membershipId)
 			.single();
 		if (pData && pData.games_played > 5) source = 'supabase';
+
+		// Fetch aggregated totals from player_matches for immediate non-zero fallbacks
+		const { data: mData } = await supabaseAdmin
+			.from('player_matches')
+			.select('stats, ego_score')
+			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`);
+
+		if (mData?.length) {
+			dbTotals = mData.reduce(
+				(acc, m) => {
+					const s = m.stats ?? {};
+					acc.ability += (s.weaponKillsMelee ?? 0) + (s.weaponKillsGrenade ?? 0);
+					acc.super += s.weaponKillsSuper ?? 0;
+					acc.blockers +=
+						(s.smallBlockersSent ?? 0) + (s.mediumBlockersSent ?? 0) + (s.largeBlockersSent ?? 0);
+					acc.invKills += s.invasionKills ?? 0;
+					acc.invDeaths += s.invaderDeaths ?? 0;
+					acc.motesDenied += s.motesDenied ?? 0;
+					return acc;
+				},
+				{ ability: 0, super: 0, blockers: 0, invKills: 0, invDeaths: 0, motesDenied: 0 }
+			);
+		}
 	} catch {}
 
 	if (lifetimeStats) {
@@ -238,6 +265,7 @@ export async function load({ params, parent, url, setHeaders }) {
 		isClaimed: !!dbPlayer?.claimed_by,
 		isOwner: user?.membershipId === membershipId,
 		canClaim: user?.membershipId === membershipId && !dbPlayer?.claimed_by,
-		seasonal: seasonalStream
+		seasonal: seasonalStream,
+		dbTotals
 	};
 }

@@ -194,6 +194,57 @@
 	let career = $state(null);
 	let careerLoading = $state(false);
 
+	// ── Stats Persistence ──────────────────────────────────────────────────────
+	let statsCache = $state({
+		ability: 0,
+		super: 0,
+		blockers: 0,
+		invKills: 0,
+		invDeaths: 0,
+		motesDenied: 0,
+		armyOfOne: 0
+	});
+
+	$effect(() => {
+		const db = data.dbTotals ?? {};
+		const car = career?.totals ?? {};
+		const medals = career?.medals ?? [];
+		const aoo = medals.find((m) => m.key === 'armyOfOne')?.count ?? 0;
+
+		statsCache.ability = Math.max(
+			statsCache.ability,
+			db.ability || 0,
+			car.ability || 0,
+			dMeleeKills + dGrenadeKills || 0
+		);
+		statsCache.super = Math.max(statsCache.super, db.super || 0, car.super || 0, dSuperKills || 0);
+		statsCache.blockers = Math.max(
+			statsCache.blockers,
+			db.blockers || 0,
+			car.blockers || 0,
+			ltSmallBlockers + ltMediumBlockers + ltLargeBlockers || 0
+		);
+		statsCache.invKills = Math.max(
+			statsCache.invKills,
+			db.invKills || 0,
+			car.invKills || 0,
+			dInvKills || 0
+		);
+		statsCache.invDeaths = Math.max(
+			statsCache.invDeaths,
+			db.invDeaths || 0,
+			car.invDeaths || 0,
+			dInvaderDeaths || 0
+		);
+		statsCache.motesDenied = Math.max(
+			statsCache.motesDenied,
+			db.motesDenied || 0,
+			car.motesDenied || 0,
+			dMotesDenied || 0
+		);
+		statsCache.armyOfOne = Math.max(statsCache.armyOfOne, parseInt(aoo));
+	});
+
 	async function fetchCareer() {
 		if (careerLoading) return;
 		careerLoading = true;
@@ -499,6 +550,8 @@
 			mode: 'Gambit',
 			map: m.mapName,
 			kd: m.kd,
+			invKills: m.stats_json?.invasionKills ?? 0,
+			invDeaths: m.stats_json?.invaderDeaths ?? 0,
 			motes: m.motesDeposited,
 			damage: m.primevalDamage,
 			date: m.period ? timeAgo(m.period) : '',
@@ -560,39 +613,21 @@
 			combat: {
 				total: fmt(dKills),
 				precision: dKills + dDeaths > 0 ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%' : '—',
-				ability:
-					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.ability
-						? fmt(career.totals.ability)
-						: fmt(dMeleeKills + dGrenadeKills || 0),
-				super:
-					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.super
-						? fmt(career.totals.super)
-						: fmt(dSuperKills || 0)
+				ability: fmt(statsCache.ability),
+				super: fmt(statsCache.super)
 			},
 			objectives: {
 				deposited: fmt(dMotes),
 				lost: fmt(dMotesLost),
-				denied: fmt(dMotesDenied),
-				blockers:
-					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.blockers
-						? fmt(career.totals.blockers)
-						: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers || 0),
+				denied: fmt(statsCache.motesDenied),
+				blockers: fmt(statsCache.blockers),
 				healed: '—'
 			},
 			invasion: {
-				guardians:
-					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.invKills
-						? fmt(career.totals.invKills)
-						: fmt(dInvKills || 0),
-				armyOfOne: career?.medals?.find((m) => m.key === 'armyOfOne')?.count ?? '0',
-				motesDenied:
-					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.motesDenied
-						? fmt(career.totals.motesDenied)
-						: fmt(dMotesDenied || 0),
-				invaderDeaths:
-					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.invDeaths
-						? fmt(career.totals.invDeaths)
-						: fmt(dInvaderDeaths || 0),
+				guardians: fmt(statsCache.invKills),
+				armyOfOne: fmt(statsCache.armyOfOne),
+				motesDenied: fmt(statsCache.motesDenied),
+				invaderDeaths: fmt(statsCache.invDeaths),
 				invasions: '—',
 				shutDown: '—'
 			}
@@ -1385,9 +1420,9 @@
 										<div class="grid grid-cols-3 gap-8 border-x border-zinc-800/50 px-6">
 											<div>
 												<p class="font-sans text-[8px] tracking-widest text-zinc-600 uppercase">
-													Efficiency
+													Invasion
 												</p>
-												<p class="text-xs font-bold text-emerald-400">{m.kd} KD</p>
+												<p class="text-xs font-bold text-rose-500">{m.invKills} / {m.invDeaths}</p>
 											</div>
 											<div>
 												<p class="font-sans text-[8px] tracking-widest text-zinc-600 uppercase">
