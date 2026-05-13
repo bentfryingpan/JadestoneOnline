@@ -70,7 +70,7 @@ export async function GET({ url }) {
 
 		for (const row of rows) {
 			const stats = row.stats ?? {};
-			const roster = row.roster ?? [];
+			const roster = row.roster ?? stats.roster ?? [];
 
 			// 1:1 Identity Matching
 			const myEntry = roster.find(

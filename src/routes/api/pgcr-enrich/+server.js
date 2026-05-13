@@ -248,6 +248,7 @@ export async function POST({ request }) {
 					mote_eff: enriched.ego.moteEff,
 					fireteam_size: enriched.stats_json.fireteamSize,
 					stats: enriched.stats_json,
+					roster: enriched.stats_json.roster,
 					played_at: pgcrRes.Response.period,
 					created_at: new Date().toISOString()
 				};

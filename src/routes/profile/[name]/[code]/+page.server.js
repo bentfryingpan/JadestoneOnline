@@ -192,7 +192,7 @@ export async function load({ params, parent, url, setHeaders }) {
 			dbTotals = mData.reduce(
 				(acc, m) => {
 					const stats = m.stats ?? {};
-					const roster = m.roster ?? [];
+					const roster = m.roster ?? stats.roster ?? [];
 
 					// 1:1 Identity Matching
 					const myEntry = roster.find(
