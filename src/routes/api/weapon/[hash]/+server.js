@@ -49,7 +49,7 @@ export async function GET({ params, url }) {
                     
                     for (const pHash of plugHashes) {
                         const pDef = plugDefs[pHash];
-                        if (pDef && (pDef.itemTypeDisplayName?.includes('Perk') || pDef.itemTypeDisplayName?.includes('Frame') || pDef.itemTypeDisplayName?.includes('Intrinsic'))) {
+                        if (pDef && (pDef.itemTypeDisplayName?.includes('Perk') || pDef.itemTypeDisplayName?.includes('Frame') || pDef.itemTypeDisplayName?.includes('Intrinsic') || pDef.itemTypeDisplayName?.includes('Trait'))) {
                             livePerks.push({
                                 name: pDef.displayProperties.name,
                                 icon: BUNGIE_ROOT + pDef.displayProperties.icon,
@@ -66,6 +66,8 @@ export async function GET({ params, url }) {
 
     // 2. Resolve Possible Perk Pools (Manifest Sockets)
     const perkPools = [];
+    const originTraits = [];
+
     if (item.sockets?.socketEntries) {
         const psHashes = item.sockets.socketEntries
             .map(e => e.randomizedPlugSetHash || e.reusablePlugSetHash)
@@ -82,8 +84,8 @@ export async function GET({ params, url }) {
 
         const allPerkDefs = await getDefs('DestinyInventoryItemDefinition', Array.from(allPotentialPerkHashes));
 
-        for (const entry of item.sockets.socketEntries) {
-            const pool = { socketType: entry.socketTypeHash, perks: [] };
+        item.sockets.socketEntries.forEach((entry, idx) => {
+            const pool = { perks: [] };
             const hashes = new Set();
             if (entry.singleInitialItemHash) hashes.add(entry.singleInitialItemHash);
             const ps = plugSets[entry.randomizedPlugSetHash || entry.reusablePlugSetHash];
@@ -95,57 +97,47 @@ export async function GET({ params, url }) {
                 if (pDef && pDef.displayProperties?.name && !pDef.displayProperties.name.includes('Empty')) {
                     const type = pDef.itemTypeDisplayName || '';
                     if (type.includes('Perk') || type.includes('Frame') || type.includes('Barrel') || type.includes('Magazine') || type.includes('Intrinsic') || type.includes('Trait')) {
-                        // Deduplicate by name and icon (stripping enhanced tag for deduplication logic if needed, but here we just use name)
                         const key = `${pDef.displayProperties.name}_${pDef.displayProperties.icon}`;
                         if (seenPerks.has(key)) continue;
                         seenPerks.add(key);
 
-                        pool.perks.push({
+                        const perkData = {
                             name: pDef.displayProperties.name,
                             icon: BUNGIE_ROOT + pDef.displayProperties.icon,
                             description: pDef.displayProperties.description,
                             hash: pHash,
                             isEnhanced: pDef.displayProperties.name.includes('(Enhanced)') || pDef.inventory?.tierType === 3
-                        });
+                        };
+
+                        if (type.includes('Origin Trait')) {
+                            originTraits.push(perkData);
+                        } else {
+                            pool.perks.push(perkData);
+                        }
                     }
                 }
             }
+
             if (pool.perks.length > 0) {
-                // Filter out pools that are just empty slots or generic mods
                 const firstPerk = pool.perks[0].name.toLowerCase();
                 if (!firstPerk.includes('empty') && !firstPerk.includes('tracker')) {
                     perkPools.push(pool);
                 }
             }
-        }
+        });
     }
 
     // 3. Categorize Stats (Bar vs Value)
     const stats = [];
     const statSource = liveStats || item.stats?.stats || {};
     
-    // Stats that should be displayed as progress bars (0-100)
     const barStatHashes = [
-        4043527740, // Impact
-        1240592695, // Range
-        155624089,  // Stability
-        943540823,  // Handling
-        4188034523, // Reload Speed
-        4254817677, // Aim Assistance
-        1345609583, // Aim Assist (Alt)
-        2715839340, // Recoil Direction
-        3871231018, // Airborne Effectiveness
-        446212391,  // Blast Radius
-        2523465841, // Velocity
+        4043527740, 1240592695, 155624089, 943540823, 4188034523, 
+        4254817677, 1345609583, 2715839340, 3871231018, 446212391, 2523465841,
     ];
 
-    // Stats that are just numeric values
     const valueStatHashes = [
-        4284893193, // Rounds Per Minute
-        3614671103, // Charge Time
-        3893976251, // Magazine
-        2961396640, // Draw Time
-        2837207746, // Swing Speed
+        4284893193, 3614671103, 3893976251, 2961396640, 2837207746,
     ];
 
     for (const sHash of Object.keys(statSource)) {
@@ -165,7 +157,6 @@ export async function GET({ params, url }) {
         }
     }
 
-    // Resolve Damage Type
     let dmgType = null;
     if (item.defaultDamageTypeHash) {
         const dDef = await getDamageTypeDef(item.defaultDamageTypeHash);
@@ -187,6 +178,7 @@ export async function GET({ params, url }) {
         }),
         livePerks,
         perkPools,
+        originTraits,
         damageType: dmgType,
         tier: item.inventory?.tierTypeName,
         isExotic: item.inventory?.tierType === 6,
