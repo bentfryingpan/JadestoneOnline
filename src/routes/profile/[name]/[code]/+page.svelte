@@ -1483,24 +1483,24 @@
 									<!-- Combat & Efficiency -->
 									<div class="space-y-8">
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'COMBAT_EFFICIENCY_MATRIX', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'COMBAT_PERFORMANCE', className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Hostiles Defeated', value: fmt(dKills), awakened: dKills > 1000 })}
-												{@render detailStatCompact({ label: 'Casualties Sustained', value: fmt(dDeaths) })}
-												{@render detailStatCompact({ label: 'Combat Effectiveness (K/D)', value: fmtF(dKD, 2), awakened: dKD >= 1.0 })}
-												{@render detailStatCompact({ label: 'Average Kills / Match', value: fmtF(dEntered > 0 ? dKills / dEntered : 0, 1) })}
-												{@render detailStatCompact({ label: 'Precision Resonance', value: fmt(dPrecision) })}
+												{@render detailStatCompact({ label: 'Kills', value: fmt(dKills), awakened: dKills > 1000 })}
+												{@render detailStatCompact({ label: 'Deaths', value: fmt(dDeaths) })}
+												{@render detailStatCompact({ label: 'K/D Ratio', value: fmtF(dKD, 2), awakened: dKD >= 1.0 })}
+												{@render detailStatCompact({ label: 'Avg Kills / Match', value: fmtF(dEntered > 0 ? dKills / dEntered : 0, 1) })}
+												{@render detailStatCompact({ label: 'Precision Kills', value: fmt(dPrecision) })}
 											</div>
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'TACTICAL_ABILITY_REPORTS', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'ABILITY_METRICS', className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Super Ability Kills', value: fmt(dSuperKills), awakened: dSuperKills > 100 })}
-												{@render detailStatCompact({ label: 'Melee Neutralizations', value: fmt(dMeleeKills) })}
-												{@render detailStatCompact({ label: 'Grenade Discharges', value: fmt(dGrenadeKills) })}
+												{@render detailStatCompact({ label: 'Super Kills', value: fmt(dSuperKills), awakened: dSuperKills > 100 })}
+												{@render detailStatCompact({ label: 'Melee Kills', value: fmt(dMeleeKills) })}
+												{@render detailStatCompact({ label: 'Grenade Kills', value: fmt(dGrenadeKills) })}
 												{@render detailStatCompact({ 
-													label: 'Total Ability Output', 
+													label: 'Total Ability Kills', 
 													value: fmt(dAbility),
 													awakened: dAbility > 500
 												})}
@@ -1511,30 +1511,30 @@
 									<!-- Objectives & Invasion -->
 									<div class="space-y-8">
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'RESOURCE_COLLECTION_ANALYSIS', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'MOTE_ANALYSIS', className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Motes Synchronized', value: fmt(dMotes), awakened: dMotes > 5000 })}
-												{@render detailStatCompact({ label: 'Motes De-synchronized (Lost)', value: fmt(dMotesLost) })}
+												{@render detailStatCompact({ label: 'Motes Deposited', value: fmt(dMotes), awakened: dMotes > 5000 })}
+												{@render detailStatCompact({ label: 'Motes Lost', value: fmt(dMotesLost) })}
 												{@render detailStatCompact({ 
-													label: 'Sync Efficiency', 
+													label: 'Mote Efficiency', 
 													value: (dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '100%',
 													awakened: (dMotes / (dMotes + (dMotesLost || 1))) > 0.9
 												})}
-												{@render detailStatCompact({ label: 'Average Motes / Match', value: fmtF(dAvgMotes, 1) })}
-												{@render detailStatCompact({ label: 'Primeval Structural Damage', value: fmt(dPrimevalDmg), awakened: dPrimevalDmg > 1000000 })}
+												{@render detailStatCompact({ label: 'Avg Motes / Match', value: fmtF(dAvgMotes, 1) })}
+												{@render detailStatCompact({ label: 'Primeval Damage', value: fmt(dPrimevalDmg), awakened: dPrimevalDmg > 1000000 })}
 											</div>
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'INCURSION_INTEL_REPORTS', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'INVASION_REPORT', className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Dimensional Incursions', value: fmt(dInvasions), awakened: dInvasions > 100 })}
-												{@render detailStatCompact({ label: 'Guardian Neutralizations', value: fmt(dInvKills), awakened: dInvKills > 200 })}
+												{@render detailStatCompact({ label: 'Invasions', value: fmt(dInvasions), awakened: dInvasions > 100 })}
+												{@render detailStatCompact({ label: 'Invasion Kills', value: fmt(dInvKills), awakened: dInvKills > 200 })}
 												{@render detailStatCompact({ label: 'Army of One Medals', value: fmt(dArmyOfOne), awakened: dArmyOfOne > 0 })}
-												{@render detailStatCompact({ label: 'Kills Per Incursion', value: fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
-												{@render detailStatCompact({ label: 'Hostile Motes Denied', value: fmt(dMotesDenied), awakened: dMotesDenied > 500 })}
-												{@render detailStatCompact({ label: 'Invader Interceptions', value: fmt(dShutDowns) })}
-												{@render detailStatCompact({ label: 'Incursion Casualties', value: fmt(dInvaderDeaths) })}
+												{@render detailStatCompact({ label: 'Kills / Invasion', value: fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
+												{@render detailStatCompact({ label: 'Motes Denied', value: fmt(dMotesDenied), awakened: dMotesDenied > 500 })}
+												{@render detailStatCompact({ label: 'Invaders Defeated', value: fmt(dShutDowns) })}
+												{@render detailStatCompact({ label: 'Invasion Deaths', value: fmt(dInvaderDeaths) })}
 											</div>
 										</div>
 									</div>
