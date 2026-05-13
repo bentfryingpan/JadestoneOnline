@@ -23,9 +23,6 @@
         if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'K';
         return String(Math.round(n));
     }
-    function teamTotal(players, key) {
-        return players.reduce((sum, p) => sum + (p.stats[key] ?? 0), 0);
-    }
     function teamAvgEgo(players) {
         const done = players.filter(p => p.score > 0);
         if (!done.length) return 0;
@@ -72,8 +69,10 @@
                 <span class="text-[8px] font-black text-amber-400 leading-none">x{medal.count}</span>
             </div>
         {/if}
-        <div class="absolute bottom-full mb-4 px-3 py-1.5 bg-[#0a0a0a] border border-zinc-800 text-[9px] uppercase tracking-[0.2em] text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[100] shadow-2xl rotate-[-45deg] group-hover:rotate-[-90deg] font-sans">
+        <!-- Tooltip: Increased distance and Z-index to prevent rotation blocking -->
+        <div class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 px-3 py-2 bg-[#0a0a0a] border border-zinc-800 text-[10px] uppercase tracking-[0.2em] text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[200] shadow-2xl rotate-[-45deg] group-hover:rotate-[-90deg] font-sans">
             {medal.label}
+            <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-3 bg-amber-500/30"></div>
         </div>
     </div>
 {/snippet}

@@ -61,6 +61,8 @@ export async function load({ params }) {
         const pInfo = e.player?.destinyUserInfo ?? {};
         const team = teamMap[e.values?.team?.basic?.value ?? 0] || 'Alpha';
 
+        const rawMedals = extractMedals(e.extended?.values ?? {});
+
         const stats = {
             assists: sv(e, 'assists'),
             deaths: sv(e, 'deaths'),
@@ -94,17 +96,17 @@ export async function load({ params }) {
             largeBlockersSent: sv(e, 'largeBlockersSent'),
             primevalDamage: sv(e, 'primevalDamage'),
             primevalHealing: sv(e, 'primevalHealing'),
+            medals: rawMedals,
+            fireteamSize: pgcr.entries.filter(oe => oe.values?.fireteamId?.basic?.value === e.values?.fireteamId?.basic?.value).length
         };
 
-        const egoMedals = extractMedals(e.extended?.values ?? {});
-        const ego = e.values?.completed?.basic?.value === 1 ? calcEgo({ ...stats, medals: egoMedals }) : { finalScore: 0 };
+        const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : { finalScore: 0 };
         
         // medalList logic: Prioritize high-res local Jadestone icons
-        const medalList = Object.entries(egoMedals).map(([key, count]) => {
+        const medalList = Object.entries(rawMedals).map(([key, count]) => {
             const lowKey = key.toLowerCase();
             const hasLocal = LOCAL_MEDALS.includes(lowKey);
             
-            // Fallback to manifest if not in local set
             const def = medalDefs[key] || Object.values(medalDefs).find(d => d.statId === key);
             
             return {
