@@ -58,21 +58,29 @@
 {/snippet}
 
 {#snippet medalIcon({ medal })}
-    <div class="group relative flex items-center justify-center w-12 h-12 border border-amber-500/20 bg-amber-950/10 rotate-45 transition-all hover:scale-110 hover:rotate-90 cursor-help overflow-hidden">
-        {#if medal.icon}
-            <img src={medal.icon} alt={medal.label} class="w-10 h-10 -rotate-45 group-hover:-rotate-90 transition-transform object-contain" />
-        {:else}
-            <span class="text-[10px] font-bold text-amber-500 -rotate-45 group-hover:-rotate-90 transition-all">★</span>
-        {/if}
-        {#if medal.count > 1}
-            <div class="absolute bottom-1 right-1 bg-black/80 border border-amber-500/40 px-1 py-0.5 -rotate-45 group-hover:-rotate-90 transition-all">
-                <span class="text-[8px] font-black text-amber-400 leading-none">x{medal.count}</span>
-            </div>
-        {/if}
-        <!-- Tooltip: Increased distance and Z-index to prevent rotation blocking -->
-        <div class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 px-3 py-2 bg-[#0a0a0a] border border-zinc-800 text-[10px] uppercase tracking-[0.2em] text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[200] shadow-2xl rotate-[-45deg] group-hover:rotate-[-90deg] font-sans">
-            {medal.label}
-            <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-3 bg-amber-500/30"></div>
+    <div class="group relative flex items-center justify-center w-12 h-12">
+        <!-- The Diamond Border (Handles Rotation) -->
+        <div class="absolute inset-0 border border-amber-500/20 bg-amber-950/10 rotate-45 transition-all duration-500 group-hover:scale-110 group-hover:rotate-90 cursor-help overflow-hidden">
+            {#if medal.icon}
+                <img src={medal.icon} alt={medal.label} class="w-full h-full -rotate-45 group-hover:-rotate-90 transition-transform duration-500 object-contain p-1" />
+            {:else}
+                <div class="w-full h-full flex items-center justify-center -rotate-45 group-hover:-rotate-90 transition-all duration-500">
+                    <span class="text-[10px] font-bold text-amber-500">★</span>
+                </div>
+            {/if}
+            {#if medal.count > 1}
+                <div class="absolute bottom-1 right-1 bg-black/80 border border-amber-500/40 px-1 py-0.5 -rotate-45 group-hover:-rotate-90 transition-all">
+                    <span class="text-[8px] font-black text-amber-400 leading-none">x{medal.count}</span>
+                </div>
+            {/if}
+        </div>
+
+        <!-- Tooltip (Outside rotation and overflow for maximum visibility) -->
+        <div class="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 px-3 py-2 bg-[#0a0a0a] border border-zinc-800 text-[10px] uppercase tracking-[0.2em] text-zinc-100 opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap pointer-events-none z-[300] shadow-2xl scale-95 group-hover:scale-100 font-sans">
+            <div class="relative z-10">{medal.label}</div>
+            <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 bg-amber-500/40"></div>
+            <!-- Tooltip Backlight -->
+            <div class="absolute inset-0 bg-amber-500/5 blur-sm -z-10"></div>
         </div>
     </div>
 {/snippet}
