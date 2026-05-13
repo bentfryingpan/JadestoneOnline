@@ -1,11 +1,12 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
-import { getItemDef, getStatDef, getDamageTypeDef, getRawTable } from '$lib/server/manifest.js';
+import { getItemDef, getStatDef, getDamageTypeDef, getDefs } from '$lib/server/manifest.js';
 import { json } from '@sveltejs/kit';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
 async function bungieGet(url) {
     const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
+    if (!res.ok) return null;
     const text = await res.text();
     const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
     return JSON.parse(fixed);
@@ -35,10 +36,7 @@ export async function GET({ params, url }) {
             let instanceId = null;
             for (const charId in equipment) {
                 const match = equipment[charId].items.find(i => String(i.itemHash) === String(hash));
-                if (match) {
-                    instanceId = match.itemInstanceId;
-                    break;
-                }
+                if (match) { instanceId = match.itemInstanceId; break; }
             }
 
             if (instanceId) {
@@ -46,17 +44,18 @@ export async function GET({ params, url }) {
                 if (instData) liveStats = instData.stats;
                 const plugData = profile.Response?.itemComponents?.sockets?.data?.[instanceId];
                 if (plugData) {
-                    for (const s of plugData.sockets) {
-                        if (s.plugHash) {
-                            const pDef = await getItemDef(s.plugHash);
-                            if (pDef && (pDef.itemTypeDisplayName?.includes('Perk') || pDef.itemTypeDisplayName?.includes('Frame'))) {
-                                livePerks.push({
-                                    name: pDef.displayProperties.name,
-                                    icon: BUNGIE_ROOT + pDef.displayProperties.icon,
-                                    description: pDef.displayProperties.description,
-                                    hash: s.plugHash
-                                });
-                            }
+                    const plugHashes = plugData.sockets.map(s => s.plugHash).filter(Boolean);
+                    const plugDefs = await getDefs('DestinyInventoryItemDefinition', plugHashes);
+                    
+                    for (const pHash of plugHashes) {
+                        const pDef = plugDefs[pHash];
+                        if (pDef && (pDef.itemTypeDisplayName?.includes('Perk') || pDef.itemTypeDisplayName?.includes('Frame') || pDef.itemTypeDisplayName?.includes('Intrinsic'))) {
+                            livePerks.push({
+                                name: pDef.displayProperties.name,
+                                icon: BUNGIE_ROOT + pDef.displayProperties.icon,
+                                description: pDef.displayProperties.description,
+                                hash: pHash
+                            });
                         }
                     }
                 }
@@ -67,26 +66,35 @@ export async function GET({ params, url }) {
     // 2. Resolve Possible Perk Pools (Manifest Sockets)
     const perkPools = [];
     if (item.sockets?.socketEntries) {
-        const plugSets = await getRawTable('DestinyPlugSetDefinition');
+        // Collect all PlugSet hashes to bulk fetch
+        const psHashes = item.sockets.socketEntries
+            .map(e => e.randomizedPlugSetHash || e.reusablePlugSetHash)
+            .filter(Boolean);
         
+        const plugSets = await getDefs('DestinyPlugSetDefinition', psHashes);
+        
+        // Collect all potential Perk hashes
+        const allPotentialPerkHashes = new Set();
+        for (const entry of item.sockets.socketEntries) {
+            if (entry.singleInitialItemHash) allPotentialPerkHashes.add(entry.singleInitialItemHash);
+            const ps = plugSets[entry.randomizedPlugSetHash || entry.reusablePlugSetHash];
+            if (ps) ps.reusablePlugItems?.forEach(p => allPotentialPerkHashes.add(p.plugItemHash));
+        }
+
+        const allPerkDefs = await getDefs('DestinyInventoryItemDefinition', Array.from(allPotentialPerkHashes));
+
         for (const entry of item.sockets.socketEntries) {
             const pool = { socketType: entry.socketTypeHash, perks: [] };
             const hashes = new Set();
-
-            // Collect curated/initial
             if (entry.singleInitialItemHash) hashes.add(entry.singleInitialItemHash);
-            
-            // Collect reusable/random pools
-            const setHash = entry.randomizedPlugSetHash || entry.reusablePlugSetHash;
-            if (setHash && plugSets[setHash]) {
-                plugSets[setHash].reusablePlugItems?.forEach(p => hashes.add(p.plugItemHash));
-            }
+            const ps = plugSets[entry.randomizedPlugSetHash || entry.reusablePlugSetHash];
+            if (ps) ps.reusablePlugItems?.forEach(p => hashes.add(p.plugItemHash));
 
             for (const pHash of hashes) {
-                const pDef = await getItemDef(pHash);
-                // Filter for actual meaningful perks (ignore trackers/empty sockets)
-                if (pDef && (pDef.itemTypeDisplayName?.includes('Perk') || pDef.itemTypeDisplayName?.includes('Frame') || pDef.itemTypeDisplayName?.includes('Barrel') || pDef.itemTypeDisplayName?.includes('Magazine'))) {
-                    if (pDef.displayProperties?.name && !pDef.displayProperties.name.includes('Empty')) {
+                const pDef = allPerkDefs[pHash];
+                if (pDef && pDef.displayProperties?.name && !pDef.displayProperties.name.includes('Empty')) {
+                    const type = pDef.itemTypeDisplayName || '';
+                    if (type.includes('Perk') || type.includes('Frame') || type.includes('Barrel') || type.includes('Magazine') || type.includes('Intrinsic')) {
                         pool.perks.push({
                             name: pDef.displayProperties.name,
                             icon: BUNGIE_ROOT + pDef.displayProperties.icon,
@@ -96,33 +104,18 @@ export async function GET({ params, url }) {
                     }
                 }
             }
-
             if (pool.perks.length > 0) perkPools.push(pool);
         }
     }
 
-    // 3. Filter and Resolve Stats (Filter out hidden/irrelevant ones)
+    // 3. Filter and Resolve Stats (Visible Stats Only)
     const stats = [];
     const statSource = liveStats || item.stats?.stats || {};
     const visibleStats = [
-        4284893193, // Rounds Per Minute
-        3614671103, // Charge Time
-        2523465841, // Velocity
-        4043527740, // Impact
-        1240592695, // Range
-        155624089,  // Stability
-        943540823,  // Handling
-        4188034523, // Reload Speed
-        4254817677, // Aim Assistance
-        1345609583, // Aim Assist (Alternate)
-        3555963035, // Combat Readiness
-        2715839340, // Recoil Direction
-        2837207746, // Swing Speed
-        209426660,  // Guard Defense
-        105267050,  // Guard Resistance
-        1842278914, // Guard Endurance
-        2961396640, // Draw Time
-        446212391,  // Blast Radius
+        4284893193, 3614671103, 2523465841, 4043527740, 1240592695, 155624089, 
+        943540823, 4188034523, 4254817677, 1345609583, 3555963035, 2715839340, 
+        2837207746, 209426660, 105267050, 1842278914, 2961396640, 446212391,
+        3871231018, // Airborne Effectiveness
     ];
 
     for (const sHash of Object.keys(statSource)) {
@@ -138,7 +131,7 @@ export async function GET({ params, url }) {
         }
     }
 
-    // Resolve Damage Type
+    // Damage Type
     let dmgType = null;
     if (item.defaultDamageTypeHash) {
         const dDef = await getDamageTypeDef(item.defaultDamageTypeHash);

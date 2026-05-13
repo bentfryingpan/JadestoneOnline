@@ -74,6 +74,21 @@ export const getTraitDef            = (h) => getDef('DestinyTraitDefinition', h)
 export const getClassDef            = (h) => getDef('DestinyClassDefinition', h);
 export const getRaceDef             = (h) => getDef('DestinyRaceDefinition', h);
 
+/** Bulk resolve definitions for a table. */
+export async function getDefs(tableName, hashes) {
+    if (!hashes?.length) return {};
+    const hStrings = hashes.map(h => String(h >>> 0));
+    try {
+        const { data } = await supabaseAdmin
+            .from('manifest_definitions')
+            .select('hash, data')
+            .eq('table_name', tableName)
+            .in('hash', hStrings);
+        if (data) return Object.fromEntries(data.map(r => [r.hash, r.data]));
+    } catch { }
+    return {};
+}
+
 /** Resolves historical stats/medals by string key (e.g. medalMassacre). */
 export async function getMedalDef(statId) {
     if (!statId) return null;
