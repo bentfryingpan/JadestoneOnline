@@ -19,7 +19,7 @@ export async function GET({ url }) {
 		// Robust query: Target both exact ID and potential rounded BigInts
 		const { data: rows, error } = await supabaseAdmin
 			.from('player_matches')
-			.select('pgcr_id, map_name, played_at, outcome, ego_score, stats, player_id')
+			.select('pgcr_id, map_name, played_at, outcome, ego_score, stats, player_id, roster')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
 			.not('stats', 'is', null)
 			.order('played_at', { ascending: false })
@@ -56,7 +56,11 @@ export async function GET({ url }) {
 		let totalMatches = 0,
 			totalWins = 0,
 			totalScore = 0,
+			totalKills = 0,
+			totalDeaths = 0,
 			totalMotes = 0,
+			totalMotesLost = 0,
+			totalPrimevalDmg = 0,
 			totalAbility = 0,
 			totalSuper = 0,
 			totalBlockers = 0,
@@ -66,7 +70,7 @@ export async function GET({ url }) {
 
 		for (const row of rows) {
 			const stats = row.stats ?? {};
-			const roster = stats.roster ?? [];
+			const roster = row.roster ?? [];
 
 			// 1:1 Identity Matching
 			const myEntry = roster.find(
@@ -90,7 +94,11 @@ export async function GET({ url }) {
 			totalMatches++;
 			if (isWin) totalWins++;
 			totalScore += score;
+			totalKills += stats.kills ?? 0;
+			totalDeaths += stats.deaths ?? 0;
 			totalMotes += stats.motesDeposited ?? 0;
+			totalMotesLost += stats.motesLost ?? 0;
+			totalPrimevalDmg += stats.primevalDamage ?? 0;
 			totalAbility += (stats.weaponKillsMelee ?? 0) + (stats.weaponKillsGrenade ?? 0);
 			totalSuper += stats.weaponKillsSuper ?? 0;
 			totalBlockers +=
@@ -189,6 +197,12 @@ export async function GET({ url }) {
 			winRate: totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
 			avgMotes: totalMatches > 0 ? +(totalMotes / totalMatches).toFixed(1) : 0,
 			totals: {
+				wins: totalWins,
+				kills: totalKills,
+				deaths: totalDeaths,
+				motes: totalMotes,
+				motesLost: totalMotesLost,
+				primevalDmg: totalPrimevalDmg,
 				ability: totalAbility,
 				super: totalSuper,
 				blockers: totalBlockers,

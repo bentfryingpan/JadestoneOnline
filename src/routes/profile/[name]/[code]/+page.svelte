@@ -199,6 +199,7 @@
 
 	// ── Stats Persistence ──────────────────────────────────────────────────────
 	let statsCache = $state({
+		entered: 0,
 		wins: 0,
 		kills: 0,
 		deaths: 0,
@@ -221,6 +222,11 @@
 		const aoo = medals.find((m) => m.key === 'armyOfOne')?.count ?? 0;
 
 		// We use Math.max to ensure stats only ever go UP during a session refresh
+		statsCache.entered = Math.max(
+			statsCache.entered,
+			career?.totalMatches || 0,
+			dEntered || 0
+		);
 		statsCache.wins = Math.max(
 			statsCache.wins,
 			db.wins || 0,
@@ -629,8 +635,8 @@
 		},
 		overview: {
 			winRatio:
-				statsCache.wins > 0 && dEntered > 0
-					? fmtF((statsCache.wins / dEntered) * 100, 1) + '%'
+				statsCache.wins > 0 && statsCache.entered > 0
+					? fmtF((statsCache.wins / statsCache.entered) * 100, 1) + '%'
 					: career?.source === 'supabase'
 						? career.winRate + '%'
 						: dWinRate != null
@@ -642,8 +648,8 @@
 				: dKD != null ? fmtF(dKD, 2) : '—',
 			kills: statsCache.kills,
 			motesAvg:
-				career?.source === 'supabase' ? career.avgMotes : dEntered > 0 ? fmtF(statsCache.motes / dEntered, 1) : '—',
-			dps: dEntered > 0 && statsCache.primevalDmg > 0 ? fmt(Math.round(statsCache.primevalDmg / dEntered)) : '—',
+				statsCache.entered > 0 ? fmtF(statsCache.motes / statsCache.entered, 1) : career?.source === 'supabase' ? career.avgMotes : '—',
+			dps: statsCache.entered > 0 && statsCache.primevalDmg > 0 ? fmt(Math.round(statsCache.primevalDmg / statsCache.entered)) : '—',
 			combat: {
 				total: fmt(statsCache.kills),
 				precision: statsCache.kills + statsCache.deaths > 0 ? fmtF((statsCache.kills / (statsCache.kills + statsCache.deaths)) * 100, 1) + '%' : '—',

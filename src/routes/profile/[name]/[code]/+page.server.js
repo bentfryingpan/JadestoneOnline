@@ -182,23 +182,64 @@ export async function load({ params, parent, url, setHeaders }) {
 		// Fetch aggregated totals from player_matches for immediate non-zero fallbacks
 		const { data: mData } = await supabaseAdmin
 			.from('player_matches')
-			.select('stats, ego_score')
+			.select('stats, ego_score, outcome, roster')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`);
 
 		if (mData?.length) {
+			const targetPrefix = name ? String(name).split('#')[0].toLowerCase() : null;
+			const targetCodeStr = code ? String(code).padStart(4, '0') : null;
+
 			dbTotals = mData.reduce(
 				(acc, m) => {
-					const s = m.stats ?? {};
-					acc.ability += (s.weaponKillsMelee ?? 0) + (s.weaponKillsGrenade ?? 0);
-					acc.super += s.weaponKillsSuper ?? 0;
+					const stats = m.stats ?? {};
+					const roster = m.roster ?? [];
+
+					// 1:1 Identity Matching
+					const myEntry = roster.find(
+						(r) =>
+							r.is_target ||
+							String(r.id) === idStr ||
+							(targetPrefix &&
+								String(r.name).split('#')[0].toLowerCase() === targetPrefix &&
+								String(r.code) === targetCodeStr)
+					);
+
+					if (!myEntry) return acc;
+
+					const isWin =
+						m.outcome === 'Win' ||
+						m.outcome === 'WIN' ||
+						myEntry.team === (stats.standing === 0 ? myEntry.team : null);
+
+					if (isWin) acc.wins++;
+					acc.kills += stats.kills ?? 0;
+					acc.deaths += stats.deaths ?? 0;
+					acc.motes += stats.motesDeposited ?? 0;
+					acc.motesLost += stats.motesLost ?? 0;
+					acc.primevalDmg += stats.primevalDamage ?? 0;
+					acc.ability += (stats.weaponKillsMelee ?? 0) + (stats.weaponKillsGrenade ?? 0);
+					acc.super += stats.weaponKillsSuper ?? 0;
 					acc.blockers +=
-						(s.smallBlockersSent ?? 0) + (s.mediumBlockersSent ?? 0) + (s.largeBlockersSent ?? 0);
-					acc.invKills += s.invasionKills ?? 0;
-					acc.invDeaths += s.invaderDeaths ?? 0;
-					acc.motesDenied += s.motesDenied ?? 0;
+						(stats.smallBlockersSent ?? 0) + (stats.mediumBlockersSent ?? 0) + (stats.largeBlockersSent ?? 0);
+					acc.invKills += stats.invasionKills ?? 0;
+					acc.invDeaths += stats.invaderDeaths ?? 0;
+					acc.motesDenied += stats.motesDenied ?? 0;
 					return acc;
 				},
-				{ ability: 0, super: 0, blockers: 0, invKills: 0, invDeaths: 0, motesDenied: 0 }
+				{
+					wins: 0,
+					kills: 0,
+					deaths: 0,
+					motes: 0,
+					motesLost: 0,
+					primevalDmg: 0,
+					ability: 0,
+					super: 0,
+					blockers: 0,
+					invKills: 0,
+					invDeaths: 0,
+					motesDenied: 0
+				}
 			);
 		}
 	} catch {}
