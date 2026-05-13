@@ -80,6 +80,8 @@ export async function GET({ params, url }) {
             if (entry.singleInitialItemHash) allPotentialPerkHashes.add(entry.singleInitialItemHash);
             const ps = plugSets[entry.randomizedPlugSetHash || entry.reusablePlugSetHash];
             if (ps) ps.reusablePlugItems?.forEach(p => allPotentialPerkHashes.add(p.plugItemHash));
+            // Check reusablePlugItems directly on entry too
+            entry.reusablePlugItems?.forEach(p => allPotentialPerkHashes.add(p.plugItemHash));
         }
 
         const allPerkDefs = await getDefs('DestinyInventoryItemDefinition', Array.from(allPotentialPerkHashes));
@@ -90,6 +92,7 @@ export async function GET({ params, url }) {
             if (entry.singleInitialItemHash) hashes.add(entry.singleInitialItemHash);
             const ps = plugSets[entry.randomizedPlugSetHash || entry.reusablePlugSetHash];
             if (ps) ps.reusablePlugItems?.forEach(p => hashes.add(p.plugItemHash));
+            entry.reusablePlugItems?.forEach(p => hashes.add(p.plugItemHash));
 
             const seenPerks = new Set();
             for (const pHash of hashes) {
@@ -111,8 +114,7 @@ export async function GET({ params, url }) {
                             isEnhanced: name.includes('(Enhanced)') || pDef.inventory?.tierType === 3
                         };
 
-                        // Specific check for Origin Traits (including selection pools)
-                        if (type.includes('Origin Trait') || name.includes('Origin Trait')) {
+                        if (type.toLowerCase().includes('origin trait') || name.toLowerCase().includes('origin trait')) {
                             originTraits.push(perkData);
                         } else {
                             pool.perks.push(perkData);

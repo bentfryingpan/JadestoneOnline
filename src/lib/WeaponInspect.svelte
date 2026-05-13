@@ -45,10 +45,12 @@
          onmouseenter={(e) => onPerkEnter(e, perk)}
          onmouseleave={() => hoveredPerk = null}>
         
+        <!-- Circular Border (Glows Sky Blue) -->
         <div class="absolute inset-0 bg-zinc-950 border {perk.isEnhanced ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : 'border-zinc-800'} rounded-full 
                     group-hover/perk:border-sky-400 group-hover/perk:bg-sky-500/25 group-hover/perk:shadow-[0_0_35px_rgba(56,189,248,0.7)] 
                     transition-all duration-300"></div>
         
+        <!-- The Icon -->
         <img src={perk.icon} alt={perk.name} class="{large ? 'w-11 h-11' : 'w-9 h-9'} relative z-10 opacity-85 group-hover/perk:opacity-100 transition-opacity" />
         
         {#if perk.isEnhanced}
@@ -70,10 +72,11 @@
     {:else if details}
         <div class="relative z-10 w-full max-w-6xl bg-[#0a0a0a] border border-zinc-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" in:fly={{ y: 20, duration: 400 }}>
             
+            <!-- Banner / Screenshot -->
             <div class="h-64 relative shrink-0 border-b border-zinc-800 bg-zinc-950 z-50">
                 {#if details.screenshot}
                     <img src={details.screenshot} alt={details.name} class="w-full h-full object-cover opacity-60 contrast-125 grayscale-[0.1]" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent"></div>
                 {:else}
                     <div class="w-full h-full flex items-center justify-center opacity-10">
                         <div class="w-32 h-32 border border-zinc-500"></div>
@@ -82,6 +85,7 @@
 
                 <div class="absolute bottom-0 left-0 w-full p-6 flex items-end justify-between">
                     <div class="flex items-center gap-6">
+                        <!-- Squared Icon Container -->
                         <div class="w-20 h-20 bg-zinc-900 border border-zinc-700 relative overflow-hidden shrink-0 shadow-2xl">
                             <img src={details.icon} alt={details.name} class="w-full h-full object-cover p-1" />
                             <div class="absolute top-0 left-0 w-full h-[2px] {details.isExotic ? 'bg-amber-500' : 'bg-zinc-500'}"></div>
@@ -102,8 +106,11 @@
                 </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-8 grid grid-cols-12 gap-10 scrollbar-hide bg-[#0a0a0a] z-10">
-                <div class="col-span-12 lg:col-span-4 space-y-6 border-r border-zinc-800/30 pr-8">
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-8 grid grid-cols-12 gap-8 scrollbar-hide bg-[#0a0a0a] z-10">
+                
+                <!-- Col 1: Stats (Col 3) -->
+                <div class="col-span-12 lg:col-span-3 space-y-6 border-r border-zinc-800/30 pr-6">
                     <div>
                         <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.3em] font-bold block mb-6">BALLISTIC_DATA_MATRIX</span>
                         <div class="space-y-4">
@@ -126,7 +133,8 @@
                     </div>
                 </div>
 
-                <div class="col-span-12 lg:col-span-8 space-y-12">
+                <!-- Col 2: Main Perks (Col 6) -->
+                <div class="col-span-12 lg:col-span-6 space-y-12 pr-6">
                     {#if details.livePerks?.length > 0}
                         <div>
                             <span class="text-[9px] font-sans text-emerald-500 uppercase tracking-[0.4em] font-black block mb-6">ACTIVE_COMBAT_LOADOUT</span>
@@ -138,37 +146,52 @@
                         </div>
                     {/if}
 
-                    <div class="flex gap-12">
-                        <div class="flex-1">
-                            <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.4em] font-bold block mb-6">MANIFEST_POOL_ANALYSIS</span>
-                            <div class="flex flex-wrap gap-x-6 gap-y-6">
-                                {#each (details.perkPools || []) as pool}
-                                    <div class="flex flex-col gap-3">
-                                        {#each pool.perks as perk}
-                                            {@render perkIcon({ perk })}
-                                        {/each}
-                                    </div>
-                                {/each}
-                            </div>
-                        </div>
-
-                        {#if details.originTraits?.length > 0}
-                            <div class="w-32 shrink-0 border-l border-zinc-800/50 pl-8">
-                                <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.4em] font-bold block mb-6">ORIGIN_ARCHIVE</span>
-                                <div class="flex flex-col gap-4">
-                                    {#each details.originTraits as perk}
-                                        {@render perkIcon({ perk, large: true })}
+                    <div>
+                        <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.4em] font-bold block mb-6">MANIFEST_POOL_ANALYSIS</span>
+                        <div class="flex flex-wrap gap-x-6 gap-y-6">
+                            {#each (details.perkPools || []) as pool}
+                                <div class="flex flex-col gap-3">
+                                    {#each pool.perks as perk}
+                                        {@render perkIcon({ perk })}
                                     {/each}
                                 </div>
-                            </div>
-                        {/if}
+                            {/each}
+                        </div>
                     </div>
 
                     <div class="pt-8 border-t border-zinc-800/50">
                         <span class="text-[9px] font-sans text-zinc-600 uppercase tracking-[0.4em] font-black block mb-4">TACTICAL_ARCHIVE_DATA</span>
-                        <p class="text-xs font-serif italic text-zinc-400 leading-relaxed indent-6 max-w-2xl">
+                        <p class="text-xs font-serif italic text-zinc-400 leading-relaxed indent-6">
                             {details.description || "No classification data found in tactical archives."}
                         </p>
+                    </div>
+                </div>
+
+                <!-- Col 3: Origin Traits (Col 3) -->
+                <div class="col-span-12 lg:col-span-3 border-l border-zinc-800/30 pl-8 space-y-10">
+                    {#if details.originTraits?.length > 0}
+                        <div>
+                            <span class="text-[9px] font-sans text-emerald-500 uppercase tracking-[0.4em] font-black block mb-6">ORIGIN_ARCHIVE</span>
+                            <div class="flex flex-col gap-6">
+                                {#each details.originTraits as perk}
+                                    <div class="flex items-center gap-4 group/ot">
+                                        {@render perkIcon({ perk, large: true })}
+                                        <div class="min-w-0">
+                                            <p class="text-[10px] font-black italic uppercase text-zinc-200 truncate">{perk.name}</p>
+                                            <p class="text-[7px] text-zinc-600 uppercase font-bold tracking-widest">TACTICAL_ORIGIN</p>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/if}
+                    
+                    <div class="bg-zinc-900/20 border border-zinc-800/50 p-4">
+                        <span class="text-[7px] font-black text-zinc-700 tracking-[0.3em] uppercase block mb-2">SYSTEM_INTEGRITY</span>
+                        <div class="flex items-center gap-2">
+                            <div class="w-1 h-1 bg-emerald-500 rounded-full animate-ping"></div>
+                            <span class="text-[8px] font-bold text-emerald-900 uppercase tracking-widest">LINK_STABLE</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -185,6 +208,7 @@
             </div>
         </div>
 
+        <!-- Global Smart Tooltip -->
         {#if hoveredPerk}
             <div class="fixed pointer-events-none z-[2000] -translate-x-1/2 -translate-y-full mb-6"
                  style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
