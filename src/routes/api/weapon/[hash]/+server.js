@@ -84,7 +84,7 @@ export async function GET({ params, url }) {
 
         const allPerkDefs = await getDefs('DestinyInventoryItemDefinition', Array.from(allPotentialPerkHashes));
 
-        item.sockets.socketEntries.forEach((entry, idx) => {
+        item.sockets.socketEntries.forEach((entry) => {
             const pool = { perks: [] };
             const hashes = new Set();
             if (entry.singleInitialItemHash) hashes.add(entry.singleInitialItemHash);
@@ -127,17 +127,40 @@ export async function GET({ params, url }) {
         });
     }
 
-    // 3. Categorize Stats (Bar vs Value)
+    // 3. Categorize Stats (Comprehensive Universal List)
     const stats = [];
     const statSource = liveStats || item.stats?.stats || {};
     
     const barStatHashes = [
-        4043527740, 1240592695, 155624089, 943540823, 4188034523, 
-        4254817677, 1345609583, 2715839340, 3871231018, 446212391, 2523465841,
+        4043527740, // Impact
+        1240592695, // Range
+        155624089,  // Stability
+        943540823,  // Handling
+        943549884,  // Handling (Alt)
+        4188034523, // Reload Speed
+        4188031367, // Reload Speed (Alt)
+        4254817677, // Aim Assistance
+        1345609583, // Aim Assistance (Alt)
+        2715839340, // Recoil Direction
+        3871231018, // Airborne Effectiveness
+        3871231066, // Airborne Effectiveness (Alt)
+        446212391,  // Blast Radius
+        2523465841, // Velocity
+        1591432999, // Accuracy
+        3555963035, // Zoom
+        1931675084, // Zoom (Alt)
+        105267050,  // Guard Resistance
+        2766642535, // Guard Efficiency
+        1842278914, // Guard Endurance
+        3022301684, // Charge Rate
     ];
 
     const valueStatHashes = [
-        4284893193, 3614671103, 3893976251, 2961396640, 2837207746,
+        4284893193, // Rounds Per Minute
+        3614671103, // Charge Time
+        3893976251, // Magazine
+        2961396640, // Draw Time
+        2837207746, // Swing Speed
     ];
 
     for (const sHash of Object.keys(statSource)) {
