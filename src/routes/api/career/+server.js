@@ -1,5 +1,5 @@
 /**
- * /api/career — Database-Aligned Career Analytics (Robust 1:1)
+ * /api/career — Robust Career Analytics (Aligned with Live BigInt Schema)
  */
 
 import { json } from '@sveltejs/kit';
@@ -30,13 +30,15 @@ export async function GET({ url }) {
 
 async function careerFromSupabase(membershipId, targetName, targetCode, count) {
     const idStr = String(membershipId);
-    const idPrefix = idStr.substring(0, 13);
+    const prefix = idStr.substring(0, 15);
+    const minId = prefix + "0000";
+    const maxId = prefix + "9999";
     
-    // Optimized fetch from 'matches' table
+    // Robust query: check exact ID OR the likely rounded BigInt range
     const { data: rows, error } = await supabaseAdmin
         .from('matches')
         .select('id, map_name, played_at, outcome, ego_score, stats_json, player_id')
-        .or(`player_id.eq.${idStr},player_id.like.${idPrefix}%`)
+        .or(`player_id.eq.${idStr},and(player_id.gte.${minId},player_id.lte.${maxId})`)
         .not('stats_json', 'is', null) 
         .not('outcome', 'eq', 'DNF')
         .order('played_at', { ascending: false })
@@ -65,7 +67,7 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
         const mapName = row.map_name ?? 'Gambit';
         const score = row.ego_score ?? 0;
 
-        // Robust Target Matching inside the stored roster
+        // Robust matching fallback (exact ID or name#code)
         const myEntry = roster.find(r => 
             r.is_target || 
             String(r.id) === idStr ||
@@ -79,13 +81,11 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
         totalScore += score;
         totalMotes += (s_json.motesDeposited ?? 0);
 
-        // 1. Map Aggregation
         if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0, scoreSum: 0 };
         mapsAgg[mapName].games++;
         if (isWin) mapsAgg[mapName].wins++;
         mapsAgg[mapName].scoreSum += score;
 
-        // 2. Weapon Aggregation
         for (const w of weapons) {
             const wn = w.name ?? 'Unknown';
             if (!weaponsAgg[wn]) {
@@ -98,7 +98,6 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
             weaponsAgg[wn].scoreSum += score;
         }
 
-        // 3. Synergy Aggregation (Allies/Rivals)
         const myTeam = myEntry.team;
         for (const p of roster) {
             const isMe = String(p.id) === idStr || 
@@ -114,22 +113,14 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
             const pa = playersAgg[key];
             pa.games++;
             if (isWin) pa.wins++;
-            
-            if (p.team === myTeam) {
-                pa.as_ally++;
-                if (isWin) pa.ally_wins++;
-            } else {
-                pa.as_enemy++;
-                if (isWin) pa.enemy_wins++;
-            }
+            if (p.team === myTeam) { pa.as_ally++; if (isWin) pa.ally_wins++; }
+            else { pa.as_enemy++; if (isWin) pa.enemy_wins++; }
         }
 
-        // 4. Medals
         for (const [mKey, count] of Object.entries(medals)) {
             medalsAgg[mKey] = (medalsAgg[mKey] ?? 0) + count;
         }
 
-        // 5. Hourly Distribution
         if (row.played_at) {
             const h = new Date(row.played_at).getHours();
             hourlyAgg[h].games++;
@@ -138,37 +129,25 @@ async function careerFromSupabase(membershipId, targetName, targetCode, count) {
         }
     }
 
-    // Finalize Results
     const maps = Object.entries(mapsAgg).map(([name, s]) => ({
-        name, games: s.games, wins: s.wins, 
-        winRate: +((s.wins / s.games) * 100).toFixed(1),
-        avgScore: +(s.scoreSum / s.games).toFixed(1)
+        name, games: s.games, wins: s.wins, winRate: +((s.wins / s.games) * 100).toFixed(1), avgScore: +(s.scoreSum / s.games).toFixed(1)
     })).sort((a, b) => b.games - a.games);
 
     const weapons = Object.entries(weaponsAgg).map(([name, s]) => ({
-        name, games: s.games, wins: s.wins, kills: s.kills,
-        precRate: s.kills > 0 ? +((s.precision / s.kills) * 100).toFixed(1) : 0,
-        winRate: +((s.wins / s.games) * 100).toFixed(1),
-        avgScore: +(s.scoreSum / s.games).toFixed(1),
-        slot: s.slot, icon: s.icon, hash: s.hash
+        name, games: s.games, wins: s.wins, kills: s.kills, precRate: s.kills > 0 ? +((s.precision / s.kills) * 100).toFixed(1) : 0,
+        winRate: +((s.wins / s.games) * 100).toFixed(1), avgScore: +(s.scoreSum / s.games).toFixed(1), slot: s.slot, icon: s.icon, hash: s.hash
     })).sort((a, b) => b.kills - a.kills);
 
     const playersList = Object.values(playersAgg);
-    const allies = playersList.filter(p => p.as_ally >= 1).map(p => ({
-        name: p.name, code: p.code, games: p.as_ally, winRate: +((p.ally_wins / p.as_ally) * 100).toFixed(1)
-    })).sort((a, b) => b.games - a.games).slice(0, 15);
-
-    const rivals = playersList.filter(p => p.as_enemy >= 1).map(p => ({
-        name: p.name, code: p.code, games: p.as_enemy, winRate: +((p.enemy_wins / p.as_enemy) * 100).toFixed(1)
-    })).sort((a, b) => b.games - a.games).slice(0, 15);
-
+    const allies = playersList.filter(p => p.as_ally >= 1).map(p => ({ name: p.name, code: p.code, games: p.as_ally, winRate: +((p.ally_wins / p.as_ally) * 100).toFixed(1) }))
+        .sort((a, b) => b.games - a.games).slice(0, 15);
+    const rivals = playersList.filter(p => p.as_enemy >= 1).map(p => ({ name: p.name, code: p.code, games: p.as_enemy, winRate: +((p.enemy_wins / p.as_enemy) * 100).toFixed(1) }))
+        .sort((a, b) => b.games - a.games).slice(0, 15);
     const medals = Object.entries(medalsAgg).map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count);
 
     return {
-        source: 'supabase', totalMatches, matchesAnalyzed: totalMatches,
-        avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
-        winRate:  totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
-        avgMotes: totalMatches > 0 ? +(totalMotes / totalMatches).toFixed(1) : 0,
+        source: 'supabase', totalMatches, matchesAnalyzed: totalMatches, avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
+        winRate:  totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0, avgMotes: totalMatches > 0 ? +(totalMotes / totalMatches).toFixed(1) : 0,
         maps, weapons, allies, rivals, medals, hourlyStats: hourlyAgg
     };
 }

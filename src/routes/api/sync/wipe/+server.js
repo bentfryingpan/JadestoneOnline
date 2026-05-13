@@ -1,5 +1,5 @@
 /**
- * /api/sync/wipe — Robust Wipe Utility to clear corrupted data.
+ * /api/sync/wipe — Robust BigInt-Aware Wipe Utility
  */
 
 import { json } from '@sveltejs/kit';
@@ -11,29 +11,40 @@ export async function POST({ request }) {
 
     try {
         const idStr = String(membershipId);
-        // Rounded IDs typically zero out the last 3-4 digits
-        const prefix = idStr.substring(0, 15); 
+        // Robust Range: Catch all variations of the ID (rounded or exact)
+        // BigInt IDs are 19 digits. First 15 are stable.
+        const prefix = idStr.substring(0, 15);
+        const minId = prefix + "0000";
+        const maxId = prefix + "9999";
         
-        console.log(`[wipe] Clearing data for ID ${idStr} and prefix ${prefix}...`);
+        console.log(`[wipe] Aggressive clear for range ${minId} to ${maxId}...`);
 
-        // 1. Reset player stats in the 'players' table
-        // We delete rounded variations too
+        // 1. Wipe from 'players' (removes both correct and rounded entries)
         await supabaseAdmin
             .from('players')
             .delete()
-            .or(`id.eq.${idStr},id.like.${prefix}%`);
+            .gte('id', minId)
+            .lte('id', maxId);
 
-        // 2. Wipe matches from the 'matches' table
+        // 2. Wipe from 'matches'
         const { count, error } = await supabaseAdmin
             .from('matches')
             .delete({ count: 'exact' })
-            .or(`player_id.eq.${idStr},player_id.like.${prefix}%`);
+            .gte('player_id', minId)
+            .lte('player_id', maxId);
 
         if (error) throw error;
 
+        // 3. Wipe from 'player_gambit_stats'
+        await supabaseAdmin
+            .from('player_gambit_stats')
+            .delete()
+            .gte('player_id', minId)
+            .lte('player_id', maxId);
+
         return json({ 
             success: true, 
-            message: `Cleared ${count ?? 0} matches and reset player profile.`,
+            message: `Cleared ${count ?? 0} matches and reset player profile across range.`,
             clearedCount: count 
         });
     } catch (e) {
