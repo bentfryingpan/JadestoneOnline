@@ -125,20 +125,27 @@ export async function GET({ url, setHeaders }) {
 		})
 	);
 
-	// ── Sync with Live 'matches' table ──────────────────────────────────────
+	// ── Sync with Live 'player_matches' table ──────────────────────────────────────
 	const instanceIds = matches.map((m) => m.instanceId).filter(Boolean);
 	if (instanceIds.length > 0) {
 		try {
 			const idStr = String(membershipId);
 			const prefix = idStr.substring(0, 15);
 
-			const { data: enriched } = await supabaseAdmin
-				.from('player_matches')
-				.select('pgcr_id, ego_score, stats')
-				.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-				.in('pgcr_id', instanceIds);
+			// Chunk the query to avoid URL length limits (PostgREST GET limit)
+			const CHUNK_SIZE = 100;
+			const enriched = [];
+			for (let i = 0; i < instanceIds.length; i += CHUNK_SIZE) {
+				const chunk = instanceIds.slice(i, i + CHUNK_SIZE);
+				const { data } = await supabaseAdmin
+					.from('player_matches')
+					.select('pgcr_id, ego_score, stats')
+					.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+					.in('pgcr_id', chunk);
+				if (data) enriched.push(...data);
+			}
 
-			if (enriched?.length) {
+			if (enriched.length) {
 				const byId = Object.fromEntries(enriched.map((r) => [String(r.pgcr_id), r]));
 				for (const m of matches) {
 					const e = byId[m.instanceId];

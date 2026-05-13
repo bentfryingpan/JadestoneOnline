@@ -561,38 +561,38 @@
 				total: fmt(dKills),
 				precision: dKills + dDeaths > 0 ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%' : '—',
 				ability:
-					career?.source === 'supabase' && seasonFilter === 'all'
-						? fmt(career.totals?.ability)
-						: fmt(dMeleeKills + dGrenadeKills),
+					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.ability
+						? fmt(career.totals.ability)
+						: fmt(dMeleeKills + dGrenadeKills || 0),
 				super:
-					career?.source === 'supabase' && seasonFilter === 'all'
-						? fmt(career.totals?.super)
-						: fmt(dSuperKills)
+					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.super
+						? fmt(career.totals.super)
+						: fmt(dSuperKills || 0)
 			},
 			objectives: {
 				deposited: fmt(dMotes),
 				lost: fmt(dMotesLost),
 				denied: fmt(dMotesDenied),
 				blockers:
-					career?.source === 'supabase' && seasonFilter === 'all'
-						? fmt(career.totals?.blockers)
-						: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers),
+					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.blockers
+						? fmt(career.totals.blockers)
+						: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers || 0),
 				healed: '—'
 			},
 			invasion: {
 				guardians:
-					career?.source === 'supabase' && seasonFilter === 'all'
-						? fmt(career.totals?.invKills)
-						: fmt(dInvKills),
+					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.invKills
+						? fmt(career.totals.invKills)
+						: fmt(dInvKills || 0),
 				armyOfOne: career?.medals?.find((m) => m.key === 'armyOfOne')?.count ?? '0',
 				motesDenied:
-					career?.source === 'supabase' && seasonFilter === 'all'
-						? fmt(career.totals?.motesDenied)
-						: fmt(dMotesDenied),
+					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.motesDenied
+						? fmt(career.totals.motesDenied)
+						: fmt(dMotesDenied || 0),
 				invaderDeaths:
-					career?.source === 'supabase' && seasonFilter === 'all'
-						? fmt(career.totals?.invDeaths)
-						: fmt(dInvaderDeaths),
+					career?.source === 'supabase' && seasonFilter === 'all' && career.totals?.invDeaths
+						? fmt(career.totals.invDeaths)
+						: fmt(dInvaderDeaths || 0),
 				invasions: '—',
 				shutDown: '—'
 			}
