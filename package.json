@@ -27,9 +27,9 @@
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "^2.105.3",
-		"@upstash/redis": "^1.38.0",
 		"adm-zip": "^0.5.16",
-		"dotenv": "^17.4.2"
+		"dotenv": "^17.4.2",
+		"ioredis": "^5.10.1"
 	},
 	"optionalDependencies": {
 		"better-sqlite3": "^11.7.0"

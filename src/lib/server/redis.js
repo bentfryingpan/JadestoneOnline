@@ -1,39 +1,42 @@
 /**
- * Redis Cache Service (Upstash)
+ * Redis Cache Service (ioredis)
  * 
- * Provides ultra-fast, persistent caching for manifest definitions, 
- * player stats, and background task orchestration.
+ * High-performance, persistent caching using standard Redis protocol.
  */
 
-import { Redis } from '@upstash/redis';
-import { UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN } from '$env/static/private';
+import Redis from 'ioredis';
+import { REDIS_URL } from '$env/static/private';
 import { cacheGet as memGet, cacheSet as memSet } from './cache.js';
 
 let redis = null;
 
-if (UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN) {
-    redis = new Redis({
-        url: UPSTASH_REDIS_REST_URL,
-        token: UPSTASH_REDIS_REST_TOKEN,
-    });
+if (REDIS_URL) {
+    try {
+        redis = new Redis(REDIS_URL, {
+            maxRetriesPerRequest: 1,
+            connectTimeout: 5000,
+        });
+        redis.on('error', (err) => console.error('[redis] Connection error:', err.message));
+    } catch (e) {
+        console.error('[redis] Initialization failed:', e.message);
+    }
 }
 
 /** Get from Redis with local Memory fallback. */
 export async function redisGet(key) {
-    // 1. Check local memory (L1)
     const mem = memGet(key);
     if (mem !== undefined) return mem;
 
-    // 2. Check Redis (L2)
     if (redis) {
         try {
             const data = await redis.get(key);
             if (data) {
-                memSet(key, data, 600_000); // Cache in RAM for 10m
-                return data;
+                const parsed = JSON.parse(data);
+                memSet(key, parsed, 600_000); // 10m L1 cache
+                return parsed;
             }
         } catch (e) {
-            console.error('[redis] GET failed:', e.message);
+            console.warn('[redis] GET failed:', e.message);
         }
     }
     return undefined;
@@ -44,23 +47,21 @@ export async function redisSet(key, value, ttlMs = 86_400_000) {
     memSet(key, value, ttlMs);
     if (redis) {
         try {
-            // Redis expects TTL in seconds
-            await redis.set(key, value, { px: ttlMs });
+            const str = JSON.stringify(value);
+            await redis.set(key, str, 'PX', ttlMs);
         } catch (e) {
-            console.error('[redis] SET failed:', e.message);
+            console.warn('[redis] SET failed:', e.message);
         }
     }
 }
 
-/** Simple distributed lock using Redis. */
+/** Distributed Lock. */
 export async function redisLock(key, ttlSec = 60) {
-    if (!redis) return true; // Assume success if no Redis
+    if (!redis) return true;
     try {
-        const set = await redis.set(`lock:${key}`, '1', { nx: true, ex: ttlSec });
-        return set === 'OK';
-    } catch {
-        return true;
-    }
+        const result = await redis.set(`lock:${key}`, '1', 'EX', ttlSec, 'NX');
+        return result === 'OK';
+    } catch { return true; }
 }
 
 export async function redisUnlock(key) {
