@@ -1,5 +1,5 @@
 /**
- * /api/sync/discovery — Full history crawler discovery phase.
+ * /api/sync/discovery — Full history crawler discovery phase (Aligned with matches table)
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
@@ -9,17 +9,12 @@ import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
-/**
- * Robust JSON parser that handles Bungie's BigInt membershipIds by quoting them
- * before standard JSON.parse() can corrupt them.
- */
 async function bungieFetch(url) {
     const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
     if (!res.ok) return null;
     const text = await res.text();
-    // Quote all numeric values that are likely BigInts (15+ digits)
-    const fixedText = text.replace(/:\s*(\d{15,})/g, ': "$1"');
-    return JSON.parse(fixedText);
+    const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
+    return JSON.parse(fixed);
 }
 
 export async function POST({ request }) {
@@ -67,25 +62,27 @@ export async function POST({ request }) {
     const allIdsArray = Array.from(allInstanceIds);
     const missingIds = [];
     
+    // Cross-reference with the ACTUAL 'matches' table
     const chunkSize = 500;
+    const idStr = String(membershipId);
+    const prefix = idStr.substring(0, 15);
+
     for (let i = 0; i < allIdsArray.length; i += chunkSize) {
         const chunk = allIdsArray.slice(i, i + chunkSize);
+        
+        // We look for matches assigned to the correct string ID or rounded ID range
         const { data, error } = await supabaseAdmin
-            .from('player_matches')
-            .select('pgcr_id,stats')
-            .eq('player_id', membershipId)
-            .in('pgcr_id', chunk);
+            .from('matches')
+            .select('id, stats_json')
+            .or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+            .in('id', chunk);
 
         if (!error && data) {
-            const existingMap = new Map(data.map(r => [r.pgcr_id, r.stats]));
+            const existingMap = new Map(data.map(r => [String(r.id), r.stats_json]));
             for (const id of chunk) {
-                const stats = existingMap.get(id);
-                if (!stats) {
+                const stats = existingMap.get(String(id));
+                if (!stats || !stats.top_weapons || !stats.roster) {
                     missingIds.push(id);
-                } else {
-                    const weapons = stats.top_weapons ?? [];
-                    const isLegacy = weapons.length > 0 && weapons.some(w => !w.slot || w.slot === 'Unknown' || w.precision === undefined);
-                    if (isLegacy) missingIds.push(id);
                 }
             }
         } else {
