@@ -90,26 +90,31 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
             efficiency: sv(e, 'efficiency'),
             killsDeathsRatio: sv(e, 'killsDeathsRatio'),
             killsDeathsAssists: sv(e, 'killsDeathsAssists'),
+            score: sv(e, 'score'),
             precisionKills: sv(e, 'precisionKills'),
-            grenadeKills: sv(e, 'weaponKillsGrenade'),
-            meleeKills: sv(e, 'weaponKillsMelee'),
-            superKills: sv(e, 'weaponKillsSuper'),
+            weaponKillsGrenade: sv(e, 'weaponKillsGrenade'),
+            weaponKillsMelee: sv(e, 'weaponKillsMelee'),
+            weaponKillsSuper: sv(e, 'weaponKillsSuper'),
+            weaponKillsAbility: sv(e, 'weaponKillsAbility'),
             invasions: sv(e, 'invasions'),
             invasionKills: sv(e, 'invasionKills') || sv(e, 'invaderKills'),
-            invasionsDefeated: sv(e, 'invasionsDefeated'),
+            invasionDeaths: sv(e, 'invasionDeaths'),
+            invaderKills: sv(e, 'invaderKills'),
+            invaderDeaths: sv(e, 'invaderDeaths'),
+            primevalKills: sv(e, 'primevalKills'),
+            blockerKills: sv(e, 'blockerKills'),
+            mobKills: sv(e, 'mobKills'),
+            highValueKills: sv(e, 'highValueKills'),
+            motesPickedUp: sv(e, 'motesPickedUp'),
             motesDeposited: sv(e, 'motesDeposited') || sv(e, 'motesBanked'),
             motesDenied: sv(e, 'motesDenied'),
-            motesPickedUp: sv(e, 'motesPickedUp'),
             motesLost: sv(e, 'motesLost'),
             bankOverage: sv(e, 'bankOverage'),
-            primevalDamage: sv(e, 'primevalDamage'),
-            primevalHealing: sv(e, 'primevalHealing'),
-            blockerKills: sv(e, 'blockerKills'),
-            highValueKills: sv(e, 'highValueKills'),
-            mobKills: sv(e, 'mobKills'),
             smallBlockersSent: sv(e, 'smallBlockersSent'),
             mediumBlockersSent: sv(e, 'mediumBlockersSent'),
             largeBlockersSent: sv(e, 'largeBlockersSent'),
+            primevalDamage: sv(e, 'primevalDamage'),
+            primevalHealing: sv(e, 'primevalHealing'),
             fireteamSize: ftSize,
             medals: _extractMedals(e.extended?.values ?? {}),
             raw_medals: e.extended?.values ?? {}
@@ -124,6 +129,7 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
                 playerWeapons.push({
                     name: def.displayProperties.name,
                     hash: w.referenceId,
+                    slot: SLOT_BUCKETS[def.inventory?.bucketTypeHash] ?? 'Unknown',
                     kills: sv(w, 'uniqueWeaponKills'),
                     precision: sv(w, 'uniqueWeaponPrecisionKills'),
                     icon: BUNGIE_ROOT + def.displayProperties.icon
@@ -195,7 +201,10 @@ export async function POST({ request }) {
                 played_at: pgcrRes.Response.period,
                 created_at: new Date().toISOString()
             };
-        } catch { return null; }
+        } catch (e) {
+            console.error(`[enrich] Match ${id} failed:`, e.message);
+            return null;
+        }
     }));
 
     const toUpsert = results.filter(Boolean);

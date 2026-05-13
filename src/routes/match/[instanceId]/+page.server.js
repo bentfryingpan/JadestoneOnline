@@ -90,10 +90,11 @@ export async function load({ params }) {
 
         const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : { finalScore: 0 };
         
-        // medalList logic: resolve RAW keys from PGCR against manifest
+        // Robust Medal Resolution
         const medalList = [];
         for (const [key, val] of Object.entries(e.extended?.values ?? {})) {
-            if (key.startsWith('medal')) {
+            // Check for stats starting with 'medal'
+            if (key.toLowerCase().startsWith('medal')) {
                 const count = typeof val === 'object' ? val.basic?.value : val;
                 if (count > 0) {
                     const def = medalDefs[key];
