@@ -1,17 +1,7 @@
 /**
  * /api/history — Full Gambit match history with per-match EGO scores.
- *
- * Does NOT fetch PGCRs.  All stats come from the activity-history endpoint's
- * extended.values, which carries every Gambit-specific field needed for EGO
- * (motes, invasions, primeval damage).  This scales to 10 000 matches without
- * 10 000 extra API calls.  Medals and fireteam size (which require PGCRs) are
- * omitted; fireteamSize defaults to 1.
- *
- * Params:
- *   membershipType, membershipId, charIds (comma-separated), count (1–10000)
- *
- * Cache: rounds count up to nearest 250-match page boundary, so count=100 and
- * count=200 share the same 250-entry cache key.
+ * 
+ * Re-aligned with the live 'matches' table for flawless reconstruction.
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
@@ -22,11 +12,13 @@ import { getActivityDef } from '$lib/server/manifest.js';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
-const HISTORY_TTL = 120_000; // 2 min — recent matches change quickly
+const HISTORY_TTL = 120_000;
 
 async function bungieGet(url) {
     const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
-    return res.json();
+    const text = await res.text();
+    const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
+    return JSON.parse(fixed);
 }
 
 function n(entry, key) {
@@ -48,19 +40,13 @@ export async function GET({ url, setHeaders }) {
     }
 
     const charIds = charIdsParam.split(',').map(s => s.trim()).filter(Boolean);
-
-    // Round up to nearest 250-entry page boundary for cache efficiency
     const pageCount  = Math.ceil(count / 250);
     const cacheCount = pageCount * 250;
-    const cacheKey   = `history:${membershipId}:${[...charIds].sort().join(',')}:${cacheCount}`;
+    const cacheKey   = `history:v3:${membershipId}:${cacheCount}`;
 
     const cached = cacheGet(cacheKey);
-    if (cached) {
-        // Slice to requested count (cached result may be larger)
-        return json({ ...cached, matches: cached.matches.slice(0, count) });
-    }
+    if (cached) return json({ ...cached, matches: cached.matches.slice(0, count) });
 
-    // ── Fetch all characters in parallel ────────────────────────────────────
     const perCharData = await Promise.all(
         charIds.map(async charId => {
             const all = [];
@@ -71,13 +57,12 @@ export async function GET({ url, setHeaders }) {
                 if (data.ErrorCode !== 1) break;
                 const acts = data.Response?.activities ?? [];
                 all.push(...acts);
-                if (acts.length < 250) break; // exhausted
+                if (acts.length < 250) break;
             }
             return all;
         })
     );
 
-    // ── Merge + deduplicate by instanceId ────────────────────────────────────
     const seen   = new Set();
     const merged = [];
     for (const activities of perCharData) {
@@ -89,30 +74,19 @@ export async function GET({ url, setHeaders }) {
         }
     }
 
-    // Sort newest-first
     merged.sort((a, b) => new Date(b.period ?? 0) - new Date(a.period ?? 0));
 
-    // ── Warm activity-def table once (cached 24 h) ──────────────────────────
-    const refIds = [...new Set(merged.map(a => a.activityDetails?.referenceId).filter(Boolean))];
-    await Promise.all(refIds.map(id => getActivityDef(id)));
-
-    // ── Build per-match objects ──────────────────────────────────────────────
     const matches = await Promise.all(merged.map(async act => {
         const completed = n(act, 'completed');
-        const standing  = n(act, 'standing'); // 0 = win
+        const standing  = n(act, 'standing');
 
         const kills             = n(act, 'kills');
         const deaths            = n(act, 'deaths');
         const assists           = n(act, 'assists');
         const motesDeposited    = n(act, 'motesDeposited');
         const motesDenied       = n(act, 'motesDenied');
-        const motesPickedUp     = n(act, 'motesPickedUp');
         const motesLost         = n(act, 'motesLost');
-        const invasions         = n(act, 'invasions');
-        const invasionKills     = n(act, 'invasionKills');
-        const invasionsDefeated = n(act, 'invasionsDefeated');
         const primevalDamage    = n(act, 'primevalDamage');
-        const duration          = n(act, 'activityDurationSeconds');
 
         const refId  = act.activityDetails?.referenceId;
         const actDef = refId ? await getActivityDef(refId) : null;
@@ -120,67 +94,50 @@ export async function GET({ url, setHeaders }) {
         mapName      = mapName.replace(/^Gambit[:\-]\s*/i, '').trim() || 'Gambit';
 
         const ego = completed ? calcEgo({
-            kills, deaths, assists,
-            motesDeposited, motesDenied, motesPickedUp, motesLost,
-            invasions, invasionKills, invasionsDefeated, primevalDamage,
-            fireteamSize: 1, // not available without PGCR
-            medals: {},      // medals require PGCR — omitted for scale
+            kills, deaths, assists, motesDeposited, motesDenied, 
+            motesLost, primevalDamage, fireteamSize: 1, medals: {}
         }) : null;
 
         return {
-            instanceId:      act.activityDetails?.instanceId ?? null,
-            period:          act.period ?? null,
+            instanceId: act.activityDetails?.instanceId ?? null,
+            period: act.period ?? null,
             mapName,
             win:  completed === 1 && standing === 0,
-            loss: completed === 1 && standing !== 0,
-            dnf:  completed !== 1,
-            k:  kills,
-            d:  deaths,
-            a:  assists,
             kd: deaths > 0 ? +(kills / deaths).toFixed(2) : kills,
-            motesDeposited, motesDenied, motesPickedUp, motesLost,
-            invasions, invasionKills, invasionsDefeated,
-            primevalDamage, duration,
+            motesDeposited,
+            primevalDamage,
             ego,
         };
     }));
 
-    // ── Merge Supabase enriched data (fireteam size, carry flags, accurate EGO) ─
+    // ── Sync with Live 'matches' table ──────────────────────────────────────
     const instanceIds = matches.map(m => m.instanceId).filter(Boolean);
     if (instanceIds.length > 0) {
         try {
+            const idStr = String(membershipId);
+            const prefix = idStr.substring(0, 15);
+
             const { data: enriched } = await supabaseAdmin
-                .from('player_matches')
-                .select('pgcr_id,fireteam_size,is_hard_carry,is_carried,ego_score,map_name,map_image')
-                .eq('player_id', membershipId) // membershipId as string
-                .in('pgcr_id', instanceIds);
+                .from('matches')
+                .select('id, ego_score, stats_json')
+                .or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+                .in('id', instanceIds);
 
             if (enriched?.length) {
-                const byId = Object.fromEntries(enriched.map(r => [r.pgcr_id, r]));
+                const byId = Object.fromEntries(enriched.map(r => [String(r.id), r]));
                 for (const m of matches) {
                     const e = byId[m.instanceId];
                     if (e) {
-                        m.fireteam_size = e.fireteam_size ?? 1;
-                        m.is_hard_carry = e.is_hard_carry ?? false;
-                        m.is_carried    = e.is_carried    ?? false;
-                        if (e.ego_score != null) {
-                            m.ego = m.ego ? { ...m.ego, finalScore: e.ego_score } : { finalScore: e.ego_score };
-                        }
-                        if (e.map_name)  m.mapName  = e.map_name;
-                        if (e.map_image) m.mapImage = e.map_image;
-                        if (e.exotic_json) m.exotic = e.exotic_json;
+                        m.isEnriched = true;
+                        if (e.ego_score != null) m.ego = { ...m.ego, finalScore: e.ego_score };
+                        if (e.stats_json) m.stats_json = e.stats_json;
                     }
                 }
             }
-        } catch { /* table not yet created — harmless */ }
+        } catch { }
     }
 
-    const result = {
-        matches,
-        totalAvailable: merged.length,
-        fetched:        matches.length,
-    };
-
+    const result = { matches, totalAvailable: merged.length };
     if (matches.length > 0) cacheSet(cacheKey, result, HISTORY_TTL);
 
     return json({ ...result, matches: matches.slice(0, count) });
