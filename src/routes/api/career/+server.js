@@ -56,7 +56,13 @@ export async function GET({ url }) {
 		let totalMatches = 0,
 			totalWins = 0,
 			totalScore = 0,
-			totalMotes = 0;
+			totalMotes = 0,
+			totalAbility = 0,
+			totalSuper = 0,
+			totalBlockers = 0,
+			totalInvKills = 0,
+			totalInvDeaths = 0,
+			totalMotesDenied = 0;
 
 		for (const row of rows) {
 			const stats = row.stats_json ?? {};
@@ -85,6 +91,15 @@ export async function GET({ url }) {
 			if (isWin) totalWins++;
 			totalScore += score;
 			totalMotes += stats.motesDeposited ?? 0;
+			totalAbility += (stats.weaponKillsMelee ?? 0) + (stats.weaponKillsGrenade ?? 0);
+			totalSuper += stats.weaponKillsSuper ?? 0;
+			totalBlockers +=
+				(stats.smallBlockersSent ?? 0) +
+				(stats.mediumBlockersSent ?? 0) +
+				(stats.largeBlockersSent ?? 0);
+			totalInvKills += stats.invasionKills ?? 0;
+			totalInvDeaths += stats.invaderDeaths ?? 0;
+			totalMotesDenied += stats.motesDenied ?? 0;
 
 			// Maps
 			if (!mapsAgg[mapName]) mapsAgg[mapName] = { games: 0, wins: 0, scoreSum: 0 };
@@ -173,6 +188,14 @@ export async function GET({ url }) {
 			avgScore: totalMatches > 0 ? +(totalScore / totalMatches).toFixed(1) : 0,
 			winRate: totalMatches > 0 ? +((totalWins / totalMatches) * 100).toFixed(1) : 0,
 			avgMotes: totalMatches > 0 ? +(totalMotes / totalMatches).toFixed(1) : 0,
+			totals: {
+				ability: totalAbility,
+				super: totalSuper,
+				blockers: totalBlockers,
+				invKills: totalInvKills,
+				invDeaths: totalInvDeaths,
+				motesDenied: totalMotesDenied
+			},
 			maps: Object.entries(mapsAgg)
 				.map(([name, s]) => ({
 					name,

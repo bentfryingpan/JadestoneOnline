@@ -45,8 +45,11 @@ export async function GET({ url, setHeaders }) {
 	const cacheCount = pageCount * 250;
 	const cacheKey = `history:v3:${membershipId}:${cacheCount}`;
 
-	const cached = cacheGet(cacheKey);
-	if (cached) return json({ ...cached, matches: cached.matches.slice(0, count) });
+	const flush = url.searchParams.get('flush') === 'true';
+	if (!flush) {
+		const cached = cacheGet(cacheKey);
+		if (cached) return json({ ...cached, matches: cached.matches.slice(0, count) });
+	}
 
 	const perCharData = await Promise.all(
 		charIds.map(async (charId) => {

@@ -137,13 +137,13 @@
 	let history = $state({ matches: [] });
 	let historyLoading = $state(false);
 
-	async function fetchHistory() {
+	async function fetchHistory(flush = false) {
 		if (historyLoading) return;
 		historyLoading = true;
 		try {
 			const charIds = data.characterIds.join(',');
 			const res = await fetch(
-				`/api/history?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&count=250`
+				`/api/history?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charIds=${charIds}&count=250${flush ? '&flush=true' : ''}`
 			);
 			const d = await res.json();
 			history = d;
@@ -182,8 +182,8 @@
 				const r = await res.json();
 				deepScanProgress.current += r.stored ?? chunk.length;
 			}
-			fetchHistory();
-			fetchCareer();
+			await fetchHistory(true);
+			await fetchCareer();
 		} catch {
 		} finally {
 			deepScanning = false;
@@ -560,21 +560,39 @@
 			combat: {
 				total: fmt(dKills),
 				precision: dKills + dDeaths > 0 ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%' : '—',
-				ability: fmt(dMeleeKills + dGrenadeKills),
-				super: fmt(dSuperKills)
+				ability:
+					career?.source === 'supabase' && seasonFilter === 'all'
+						? fmt(career.totals?.ability)
+						: fmt(dMeleeKills + dGrenadeKills),
+				super:
+					career?.source === 'supabase' && seasonFilter === 'all'
+						? fmt(career.totals?.super)
+						: fmt(dSuperKills)
 			},
 			objectives: {
 				deposited: fmt(dMotes),
 				lost: fmt(dMotesLost),
 				denied: fmt(dMotesDenied),
-				blockers: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers),
+				blockers:
+					career?.source === 'supabase' && seasonFilter === 'all'
+						? fmt(career.totals?.blockers)
+						: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers),
 				healed: '—'
 			},
 			invasion: {
-				guardians: fmt(dInvKills),
+				guardians:
+					career?.source === 'supabase' && seasonFilter === 'all'
+						? fmt(career.totals?.invKills)
+						: fmt(dInvKills),
 				armyOfOne: career?.medals?.find((m) => m.key === 'armyOfOne')?.count ?? '0',
-				motesDenied: fmt(dMotesDenied),
-				invaderDeaths: fmt(dInvaderDeaths),
+				motesDenied:
+					career?.source === 'supabase' && seasonFilter === 'all'
+						? fmt(career.totals?.motesDenied)
+						: fmt(dMotesDenied),
+				invaderDeaths:
+					career?.source === 'supabase' && seasonFilter === 'all'
+						? fmt(career.totals?.invDeaths)
+						: fmt(dInvaderDeaths),
 				invasions: '—',
 				shutDown: '—'
 			}
