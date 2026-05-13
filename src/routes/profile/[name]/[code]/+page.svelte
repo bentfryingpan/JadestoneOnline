@@ -223,7 +223,8 @@
 	});
 
 	$effect(() => {
-		const db = data.dbTotals ?? {};
+		const dbl = data.dbTotals?.lifetime ?? {};
+		const dbr = data.dbTotals?.recent ?? {};
 		const car = career?.totals ?? {};
 		const medals = career?.medals ?? [];
 		const aoo = medals.find((m) => m.key === 'armyOfOne')?.count ?? 0;
@@ -232,86 +233,86 @@
 		statsCache.entered = Math.max(
 			statsCache.entered,
 			career?.totalMatches || 0,
-			dEntered || 0
+			dEntered || 0,
+			dbl.entered || 0
 		);
 		statsCache.wins = Math.max(
 			statsCache.wins,
-			db.wins || 0,
+			dbl.wins || 0,
 			car.wins || 0,
 			(career?.source === 'supabase' ? Math.round(career.totalMatches * (career.winRate / 100)) : 0),
 			dWon || 0
 		);
-		statsCache.kills = Math.max(statsCache.kills, db.kills || 0, car.kills || 0, dKills || 0);
-		statsCache.deaths = Math.max(statsCache.deaths, db.deaths || 0, car.deaths || 0, dDeaths || 0);
-		statsCache.assists = Math.max(statsCache.assists, db.assists || 0, car.assists || 0);
-		statsCache.precision = Math.max(statsCache.precision, db.precision || 0, car.precision || 0);
-		statsCache.motes = Math.max(statsCache.motes, db.motes || 0, car.motes || 0, dMotes || 0);
+		statsCache.kills = Math.max(statsCache.kills, dbr.kills || 0, car.kills || 0, dKills || 0);
+		statsCache.deaths = Math.max(statsCache.deaths, dbr.deaths || 0, car.deaths || 0, dDeaths || 0);
+		statsCache.assists = Math.max(statsCache.assists, dbr.assists || 0, car.assists || 0);
+		statsCache.precision = Math.max(statsCache.precision, dbr.precision || 0, car.precision || 0);
+		statsCache.motes = Math.max(statsCache.motes, dbr.motes || 0, car.motes || 0, dMotes || 0);
 		statsCache.motesLost = Math.max(
 			statsCache.motesLost,
-			db.motesLost || 0,
+			dbr.motesLost || 0,
 			car.motesLost || 0,
 			dMotesLost || 0
 		);
-		statsCache.motesPickedUp = Math.max(statsCache.motesPickedUp, db.motesPickedUp || 0, car.motesPickedUp || 0);
+		statsCache.motesPickedUp = Math.max(statsCache.motesPickedUp, dbr.motesPickedUp || 0, car.motesPickedUp || 0);
 		statsCache.primevalDmg = Math.max(
 			statsCache.primevalDmg,
-			db.primevalDmg || 0,
+			dbr.primevalDmg || 0,
 			car.primevalDmg || 0,
 			dPrimevalDmg || 0
 		);
 		statsCache.primevalHeal = Math.max(
 			statsCache.primevalHeal, 
-			db.primevalHeal || 0, 
+			dbr.primevalHeal || 0, 
 			car.primevalHeal || 0,
 			dHealed || 0
 		);
 
 		statsCache.ability = Math.max(
 			statsCache.ability,
-			db.ability || 0,
+			dbr.ability || 0,
 			car.ability || 0,
-			(dMeleeKills + dGrenadeKills) || 0
+			dAbility || 0
 		);
-		statsCache.super = Math.max(statsCache.super, db.super || 0, car.super || 0, dSuperKills || 0);
+		statsCache.super = Math.max(statsCache.super, dbr.super || 0, car.super || 0, dSuperKills || 0);
 		statsCache.blockers = Math.max(
 			statsCache.blockers,
-			db.blockers || 0,
+			dbr.blockers || 0,
 			car.blockers || 0,
-			(dSmallBlockers + dMediumBlockers + dLargeBlockers) || 0
+			dBlockers || 0
 		);
 		statsCache.invKills = Math.max(
 			statsCache.invKills,
-			db.invKills || 0,
+			dbr.invKills || 0,
 			car.invKills || 0,
 			dInvKills || 0
 		);
 		statsCache.invDeaths = Math.max(
 			statsCache.invDeaths,
-			db.invDeaths || 0,
+			dbr.invDeaths || 0,
 			car.invDeaths || 0,
 			dInvaderDeaths || 0
 		);
 		statsCache.invasions = Math.max(
 			statsCache.invasions, 
-			db.invasions || 0, 
+			dbr.invasions || 0, 
 			car.invasions || 0,
 			dInvasions || 0
 		);
 		statsCache.shutDowns = Math.max(
-			statsCache.shutDowns, 
-			db.shutDowns || 0, 
+			statsCache.shutDowns,
+			dbr.shutDowns || 0,
 			car.shutDowns || 0,
 			dShutDowns || 0
 		);
 		statsCache.motesDenied = Math.max(
 			statsCache.motesDenied,
-			db.motesDenied || 0,
+			dbr.motesDenied || 0,
 			car.motesDenied || 0,
 			dMotesDenied || 0
 		);
-		statsCache.armyOfOne = Math.max(statsCache.armyOfOne, parseInt(aoo) || 0, db.armyOfOne || 0);
+		statsCache.armyOfOne = Math.max(statsCache.armyOfOne, parseInt(aoo) || 0, dbr.armyOfOne || 0);
 	});
-
 	async function fetchCareer() {
 		if (careerLoading) return;
 		careerLoading = true;
@@ -500,77 +501,77 @@
 
 	const dEntered = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.activitiesEntered ?? 0, sv('activitiesEntered'), data.dbTotals?.entered ?? 0)
+			? Math.max(seasonalTotal?.activitiesEntered ?? 0, sv('activitiesEntered'), data.dbTotals?.lifetime?.entered ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.activitiesEntered ?? 0)
 	);
 	const dWon = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.wins ?? 0, ltWon, data.dbTotals?.wins ?? 0)
+			? Math.max(seasonalTotal?.wins ?? 0, ltWon, data.dbTotals?.lifetime?.wins ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.wins ?? 0)
 	);
 	const dKills = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.kills ?? 0, ltKills, data.dbTotals?.kills ?? 0)
+			? Math.max(seasonalTotal?.kills ?? 0, ltKills, data.dbTotals?.recent?.kills ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.kills ?? 0)
 	);
 	const dDeaths = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.deaths ?? 0, ltDeaths, data.dbTotals?.deaths ?? 0)
+			? Math.max(seasonalTotal?.deaths ?? 0, ltDeaths, data.dbTotals?.recent?.deaths ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.deaths ?? 0)
 	);
 	const dMotes = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.motesDeposited ?? 0, ltMotes, data.dbTotals?.motes ?? 0)
+			? Math.max(seasonalTotal?.motesDeposited ?? 0, ltMotes, data.dbTotals?.recent?.motes ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.motesDeposited ?? 0)
 	);
 	const dMotesLost = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.motesLost ?? 0, ltMotesLost, data.dbTotals?.motesLost ?? 0)
+			? Math.max(seasonalTotal?.motesLost ?? 0, ltMotesLost, data.dbTotals?.recent?.motesLost ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.motesLost ?? 0)
 	);
 	const dMotesDenied = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.motesDenied ?? 0, ltMotesDenied, data.dbTotals?.motesDenied ?? 0)
+			? Math.max(seasonalTotal?.motesDenied ?? 0, ltMotesDenied, data.dbTotals?.recent?.motesDenied ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.motesDenied ?? 0)
 	);
 	const dInvKills = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.invasionKills ?? 0, ltInvKills, data.dbTotals?.invKills ?? 0)
+			? Math.max(seasonalTotal?.invasionKills ?? 0, ltInvKills, data.dbTotals?.recent?.invKills ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invasionKills ?? 0)
 	);
 	const dPrimevalDmg = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.primevalDamage ?? 0, ltPrimevalDmg, data.dbTotals?.primevalDmg ?? 0)
+			? Math.max(seasonalTotal?.primevalDamage ?? 0, ltPrimevalDmg, data.dbTotals?.recent?.primevalDmg ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.primevalDamage ?? 0)
 	);
 	const dSuperKills = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.superKills ?? 0, ltSuperKills, data.dbTotals?.super ?? 0)
+			? Math.max(seasonalTotal?.superKills ?? 0, ltSuperKills, data.dbTotals?.recent?.super ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.superKills ?? 0)
 	);
 	const dMeleeKills = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.meleeKills ?? 0, ltMeleeKills, data.dbTotals?.meleeKills ?? 0)
+			? Math.max(seasonalTotal?.meleeKills ?? 0, ltMeleeKills, data.dbTotals?.recent?.meleeKills ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.meleeKills ?? 0)
 	);
 	const dGrenadeKills = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.grenadeKills ?? 0, ltGrenadeKills, data.dbTotals?.grenadeKills ?? 0)
+			? Math.max(seasonalTotal?.grenadeKills ?? 0, ltGrenadeKills, data.dbTotals?.recent?.grenadeKills ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.grenadeKills ?? 0)
 	);
 	const dAbility = $derived(
 		seasonFilter === 'all'
-			? Math.max((seasonalTotal?.meleeKills ?? 0) + (seasonalTotal?.grenadeKills ?? 0), data.dbTotals?.ability ?? 0)
+			? Math.max((seasonalTotal?.meleeKills ?? 0) + (seasonalTotal?.grenadeKills ?? 0), data.dbTotals?.recent?.ability ?? 0)
 			: ((seasonal?.seasons?.find((s) => s.season === seasonFilter)?.meleeKills ?? 0) + (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.grenadeKills ?? 0))
 	);
 	const dBlockers = $derived(
 		seasonFilter === 'all'
-			? Math.max((seasonalTotal?.smallBlockersSent ?? 0) + (seasonalTotal?.mediumBlockersSent ?? 0) + (seasonalTotal?.largeBlockersSent ?? 0), data.dbTotals?.blockers ?? 0)
+			? Math.max((seasonalTotal?.smallBlockersSent ?? 0) + (seasonalTotal?.mediumBlockersSent ?? 0) + (seasonalTotal?.largeBlockersSent ?? 0), data.dbTotals?.recent?.blockers ?? 0)
 			: ((seasonal?.seasons?.find((s) => s.season === seasonFilter)?.smallBlockersSent ?? 0) + (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.mediumBlockersSent ?? 0) + (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.largeBlockersSent ?? 0))
 	);
 	const dArmyOfOne = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.armyOfOne ?? 0, data.dbTotals?.armyOfOne ?? 0)
+			? Math.max(seasonalTotal?.armyOfOne ?? 0, data.dbTotals?.recent?.armyOfOne ?? 0)
 			: 0
 	);
 	const dSmallBlockers = $derived(
@@ -590,34 +591,38 @@
 	);
 	const dInvaderDeaths = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.invaderDeaths ?? 0, ltInvaderDeaths, data.dbTotals?.invDeaths ?? 0)
+			? Math.max(seasonalTotal?.invaderDeaths ?? 0, ltInvaderDeaths, data.dbTotals?.recent?.invDeaths ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invaderDeaths ?? 0)
 	);
 
 	const dInvasions = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.invasions ?? 0, ltInvasions, data.dbTotals?.invasions ?? 0)
+			? Math.max(seasonalTotal?.invasions ?? 0, ltInvasions, data.dbTotals?.recent?.invasions ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invasions ?? 0)
 	);
 	const dShutDowns = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.invasionsDefeated ?? 0, ltShutDowns, data.dbTotals?.shutDowns ?? 0)
+			? Math.max(seasonalTotal?.invasionsDefeated ?? 0, ltShutDowns, data.dbTotals?.recent?.shutDowns ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invasionsDefeated ?? 0)
 	);
 	const dHealed = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.primevalHealing ?? 0, ltHealed, data.dbTotals?.primevalHeal ?? 0)
+			? Math.max(seasonalTotal?.primevalHealing ?? 0, ltHealed, data.dbTotals?.recent?.primevalHeal ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.primevalHealing ?? 0)
 	);
 	const dPrecision = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.precisionKills ?? 0, ltPrecision, data.dbTotals?.precision ?? 0)
+			? Math.max(seasonalTotal?.precisionKills ?? 0, ltPrecision, data.dbTotals?.recent?.precision ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.precisionKills ?? 0)
 	);
 
 	const dWinRate = $derived(dEntered > 0 ? (dWon / dEntered) * 100 : null);
 	const dKD = $derived(dDeaths > 0 ? dKills / dDeaths : null);
-	const dAvgMotes = $derived(dEntered > 0 ? dMotes / dEntered : 0);
+	const dAvgMotes = $derived(
+		seasonFilter === 'all'
+			? (data.dbTotals?.recent?.entered > 0 ? data.dbTotals.recent.motes / data.dbTotals.recent.entered : (dEntered > 0 ? dMotes / dEntered : 0))
+			: (dEntered > 0 ? dMotes / dEntered : 0)
+	);
 
 	const SEASON_NAMES = {
 		19: '19: SERAPH',

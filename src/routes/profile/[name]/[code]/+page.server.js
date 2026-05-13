@@ -181,83 +181,55 @@ export async function load({ params, parent, url, setHeaders }) {
 	// Determine base statsSource
 	let source = !lifetimeStats ? 'none' : lifetimeStats._synthetic ? 'recent' : 'bungie';
 
-	// Attempt to switch to Supabase source if enough data exists
-	let dbTotals = null;
+	// 2. Fetch Performance Intelligence (Lifetime Summary + Recent Detailed)
+	let dbTotals = {
+		lifetime: { entered: 0, wins: 0, kills: 0, deaths: 0, motes: 0, invKills: 0 },
+		recent: { entered: 0, wins: 0, kills: 0, deaths: 0, assists: 0, precision: 0, motes: 0, motesLost: 0, motesPickedUp: 0, primevalDmg: 0, primevalHeal: 0, invasions: 0, shutDowns: 0, ability: 0, super: 0, invKills: 0, invDeaths: 0, motesDenied: 0, armyOfOne: triumphArmyOfOne }
+	};
+
 	try {
 		const idStr = String(membershipId);
 		const prefix = idStr.substring(0, 15);
 
-		const { data: pData } = await supabaseAdmin
-			.from('players')
-			.select('ngr, games_played')
-			.eq('id', membershipId)
-			.single();
-		if (pData && pData.games_played > 5) source = 'supabase';
-
-		// 2. Fetch aggregated totals from 'matches' (Limited to Recent 250 for speed and relevance)
-		const { data: mData } = await supabaseAdmin
-			.from('matches')
-			.select('stats_json, ego_score, outcome, created_at')
-			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-			.order('created_at', { ascending: false })
-			.limit(250);
-
-		// 3. Also fetch from 'player_gambit_stats' for summary-level non-zero fallbacks
+		// Fetch Lifetime Summary from cache table
 		const { data: sData } = await supabaseAdmin
 			.from('player_gambit_stats')
 			.select('*')
 			.eq('player_id', idStr)
 			.single();
 
-		dbTotals = {
-			entered: 0,
-			wins: 0,
-			kills: 0,
-			deaths: 0,
-			assists: 0,
-			precision: 0,
-			motes: 0,
-			motesLost: 0,
-			motesPickedUp: 0,
-			primevalDmg: 0,
-			primevalHeal: 0,
-			invasions: 0,
-			shutDowns: 0,
-			ability: 0,
-			super: 0,
-			blockers: 0,
-			invKills: 0,
-			invDeaths: 0,
-			motesDenied: 0,
-			armyOfOne: triumphArmyOfOne 
-		};
+		if (sData) {
+			dbTotals.lifetime = {
+				entered: sData.activities_entered || 0,
+				wins: sData.activities_won || 0,
+				kills: sData.kills || 0,
+				deaths: sData.deaths || 0,
+				motes: sData.motes_deposited || 0,
+				invKills: sData.invasion_kills || 0
+			};
+		}
+
+		// Fetch Recent 250 for Intelligence
+		const { data: mData } = await supabaseAdmin
+			.from('matches')
+			.select('stats_json, outcome, created_at')
+			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+			.order('created_at', { ascending: false })
+			.limit(250);
 
 		if (mData?.length) {
 			const targetPrefix = name ? String(name).split('#')[0].toLowerCase() : null;
 			const targetCodeStr = code ? String(code).padStart(4, '0') : null;
 
-			const deepTotals = mData.reduce(
+			const recentAgg = mData.reduce(
 				(acc, m) => {
 					const stats = m.stats_json ?? {};
 					const roster = stats.roster ?? [];
-
-					const myEntry = roster.find(
-						(r) =>
-							r.is_target ||
-							String(r.id) === idStr ||
-							(targetPrefix &&
-								String(r.name).split('#')[0].toLowerCase() === targetPrefix &&
-								String(r.code) === targetCodeStr)
-					);
-
+					const myEntry = roster.find(r => r.is_target || String(r.id) === idStr || (targetPrefix && String(r.name).split('#')[0].toLowerCase() === targetPrefix && String(r.code) === targetCodeStr));
 					if (!myEntry) return acc;
 
 					acc.entered++;
-					const isWin =
-						m.outcome === 'Win' ||
-						m.outcome === 'WIN' ||
-						myEntry.team === (stats.standing === 0 ? myEntry.team : null);
-
+					const isWin = m.outcome === 'Win' || m.outcome === 'WIN' || myEntry.team === (stats.standing === 0 ? myEntry.team : null);
 					if (isWin) acc.wins++;
 					acc.kills += stats.kills ?? ((stats.mobKills ?? 0) + (stats.invasionKills ?? 0));
 					acc.deaths += stats.deaths ?? 0;
@@ -270,61 +242,18 @@ export async function load({ params, parent, url, setHeaders }) {
 					acc.primevalHeal += stats.primevalHealing ?? 0;
 					acc.invasions += stats.invasions ?? 0;
 					acc.shutDowns += stats.invasionsDefeated ?? 0;
-					acc.ability += 
-						(stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + 
-						(stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
+					acc.ability += (stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + (stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
 					acc.super += stats.superKills ?? stats.weaponKillsSuper ?? 0;
 					acc.invKills += stats.invasionKills ?? 0;
 					acc.invDeaths += stats.invaderDeaths ?? stats.invasionDeaths ?? 0;
 					acc.motesDenied += stats.motesDenied ?? 0;
-					
 					const mds = stats.medals ?? {};
 					if (mds.armyOfOne) acc.armyOfOne = Math.max(acc.armyOfOne, mds.armyOfOne + (acc.armyOfOne - triumphArmyOfOne));
-					
 					return acc;
 				},
-				{
-					entered: 0,
-					wins: 0,
-					kills: 0,
-					deaths: 0,
-					assists: 0,
-					precision: 0,
-					motes: 0,
-					motesLost: 0,
-					motesPickedUp: 0,
-					primevalDmg: 0,
-					primevalHeal: 0,
-					invasions: 0,
-					shutDowns: 0,
-					ability: 0,
-					super: 0,
-					invKills: 0,
-					invDeaths: 0,
-					motesDenied: 0,
-					armyOfOne: triumphArmyOfOne
-				}
+				{ ...dbTotals.recent }
 			);
-
-			Object.keys(dbTotals).forEach(key => {
-				dbTotals[key] = deepTotals[key];
-			});
-
-			if (dbTotals.entered < 10 && sData) {
-				dbTotals.entered = sData.activities_entered;
-				dbTotals.wins = sData.activities_won;
-				dbTotals.kills = Math.max(dbTotals.kills, sData.kills);
-				dbTotals.deaths = Math.max(dbTotals.deaths, sData.deaths);
-				dbTotals.motes = Math.max(dbTotals.motes, sData.motes_deposited);
-				dbTotals.invKills = Math.max(dbTotals.invKills, sData.invasion_kills);
-			}
-		} else if (sData) {
-			dbTotals.entered = sData.activities_entered;
-			dbTotals.wins = sData.activities_won;
-			dbTotals.kills = sData.kills;
-			dbTotals.deaths = sData.deaths;
-			dbTotals.motes = sData.motes_deposited;
-			dbTotals.invKills = sData.invasion_kills;
+			dbTotals.recent = recentAgg;
 		}
 	} catch {}
 
@@ -334,31 +263,30 @@ export async function load({ params, parent, url, setHeaders }) {
 		const won = s.activitiesWon?.basic?.value ?? 0;
 		const kills = s.kills?.basic?.value ?? 0;
 		const deaths = s.deaths?.basic?.value ?? 0;
-		supabaseAdmin
-			.from('player_gambit_stats')
-			.upsert(
-				{
-					player_id: String(membershipId),
-					bungie_name: name,
-					bungie_code: code,
-					membership_type: membershipType,
-					activities_entered: entered,
-					activities_won: won,
-					kills,
-					deaths,
-					assists: s.assists?.basic?.value ?? 0,
-					invasions: s.invasions?.basic?.value ?? 0,
-					invasion_kills: s.invasionKills?.basic?.value ?? 0,
-					invasions_defeated: s.invasionsDefeated?.basic?.value ?? 0,
-					motes_deposited: s.motesBanked?.basic?.value ?? 0,
-					motes_lost: s.motesLost?.basic?.value ?? 0,
-					kd_ratio: deaths > 0 ? +(kills / deaths).toFixed(2) : kills,
-					win_rate: entered > 0 ? +((won / entered) * 100).toFixed(1) : 0,
-					updated_at: new Date().toISOString()
-				},
-				{ onConflict: 'player_id' }
-			)
-			.then(() => {});
+		
+		// Update lifetime summary in background
+		supabaseAdmin.from('player_gambit_stats').upsert({
+			player_id: String(membershipId),
+			bungie_name: name,
+			bungie_code: code,
+			membership_type: membershipType,
+			activities_entered: entered,
+			activities_won: won,
+			kills, deaths,
+			assists: s.assists?.basic?.value ?? 0,
+			invasions: s.invasions?.basic?.value ?? 0,
+			invasion_kills: s.invasionKills?.basic?.value ?? 0,
+			invasions_defeated: s.invasionsDefeated?.basic?.value ?? 0,
+			motes_deposited: s.motesBanked?.basic?.value ?? 0,
+			motes_lost: s.motesLost?.basic?.value ?? 0,
+			kd_ratio: deaths > 0 ? +(kills / deaths).toFixed(2) : kills,
+			win_rate: entered > 0 ? +((won / entered) * 100).toFixed(1) : 0,
+			updated_at: new Date().toISOString()
+		}, { onConflict: 'player_id' }).then(() => {});
+
+		// Ensure dbTotals.lifetime is at least as good as current fetch
+		dbTotals.lifetime.entered = Math.max(dbTotals.lifetime.entered, entered);
+		dbTotals.lifetime.wins = Math.max(dbTotals.lifetime.wins, won);
 	}
 
 	setHeaders({ 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' });
