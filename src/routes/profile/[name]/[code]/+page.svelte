@@ -440,14 +440,15 @@
     })) ?? []);
 
     const matchesList = $derived((history?.matches ?? []).map(m => ({
-        instanceId: m.instanceId,
-        result: m.win ? 'WIN' : 'LOSS',
+        instanceId: m.id || m.instanceId,
+        result: (m.outcome === 'Win' || m.win) ? 'WIN' : 'LOSS',
         mode: 'Gambit',
-        map: m.mapName,
+        map: m.map_name || m.mapName || 'Gambit',
         kd: m.kd,
-        motes: m.motesDeposited,
-        damage: fmt(m.primevalDamage),
-        date: m.period ? timeAgo(m.period) : ''
+        motes: m.mote_efficiency || m.motesDeposited || 0,
+        damage: fmt(m.stats_json?.primevalDamage || m.primevalDamage || 0),
+        date: m.played_at ? timeAgo(m.played_at) : (m.period ? timeAgo(m.period) : ''),
+        ego: m.ego_score
     })));
 
     const weaponData = $derived((() => {
@@ -455,8 +456,13 @@
         if (career?.weapons) {
             career.weapons.forEach((w) => {
                 const item = {
-                    name: w.name, type: 'Combat Weapon', kills: w.kills, precision: fmtF(w.precRate, 1) + '%',
-                    color: (w.winRate ?? 0) >= 60 ? 'text-emerald-400' : 'text-zinc-200'
+                    name: w.name, 
+                    type: w.type || 'Combat Weapon', 
+                    kills: w.kills, 
+                    precision: fmtF(w.precRate, 1) + '%',
+                    color: (w.winRate ?? 0) >= 60 ? 'text-emerald-400' : 'text-zinc-200',
+                    icon: w.icon,
+                    hash: w.hash
                 };
                 const slot = (w.slot ?? '').toLowerCase();
                 if (slot === 'kinetic') grouped.kinetic.push(item);
@@ -473,14 +479,16 @@
             name: data.player.bungieGlobalDisplayName,
             code: data.player.bungieGlobalDisplayNameCode,
             clan: data.clan?.name ?? null,
-            rating: career?.avgScore ?? egoRating,
+            rating: (data.statsSource === 'supabase' && career?.avgScore) ? career.avgScore : egoRating,
             level: data.gambitProgression?.level ?? 0,
             rank: gambitRank, rankValue: gambitPct,
         },
         overview: {
-            winRatio: dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—',
-            wins: dWon, kd: dKD != null ? fmtF(dKD, 2) : '—', kills: dKills,
-            motesAvg: dEntered > 0 ? fmtF(dAvgMotes, 1) : '—',
+            winRatio: (data.statsSource === 'supabase' && career?.winRate) ? career.winRate + '%' : (dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'),
+            wins: (data.statsSource === 'supabase' && career?.totalMatches) ? Math.round(career.totalMatches * (career.winRate/100)) : dWon,
+            kd: dKD != null ? fmtF(dKD, 2) : '—', 
+            kills: dKills,
+            motesAvg: (data.statsSource === 'supabase' && career?.avgMotes) ? career.avgMotes : (dEntered > 0 ? fmtF(dAvgMotes, 1) : '—'),
             dps: dEntered > 0 && dPrimevalDmg > 0 ? fmt(Math.round(dPrimevalDmg / dEntered)) : '—',
             combat: { total: fmt(dKills), precision: dKills + dDeaths > 0 ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%' : '—', ability: '—', super: fmt(seasonalTotal?.superKills ?? ltSuperKills) },
             objectives: { deposited: fmt(dMotes), lost: fmt(dMotesLost), denied: fmt(dMotesDenied), blockers: '—', healed: '—' },
