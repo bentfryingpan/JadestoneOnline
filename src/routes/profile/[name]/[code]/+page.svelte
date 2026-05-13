@@ -158,16 +158,19 @@
 		}
 	}
 
+	let attemptedEnrich = new Set();
 	async function autoEnrich(ids) {
-		if (deepScanning) return;
+		const newIds = ids.filter((id) => !attemptedEnrich.has(id));
+		if (deepScanning || newIds.length === 0) return;
 		deepScanning = true;
 		deepScanStatus = 'auto-syncing';
-		deepScanProgress = { current: 0, total: ids.length };
+		deepScanProgress = { current: 0, total: newIds.length };
 
 		try {
 			const CHUNK_SIZE = 50;
-			for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-				const chunk = ids.slice(i, i + CHUNK_SIZE);
+			for (let i = 0; i < newIds.length; i += CHUNK_SIZE) {
+				const chunk = newIds.slice(i, i + CHUNK_SIZE);
+				chunk.forEach((id) => attemptedEnrich.add(id));
 				const res = await fetch('/api/pgcr-enrich', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
@@ -196,6 +199,12 @@
 
 	// ── Stats Persistence ──────────────────────────────────────────────────────
 	let statsCache = $state({
+		wins: 0,
+		kills: 0,
+		deaths: 0,
+		motes: 0,
+		motesLost: 0,
+		primevalDmg: 0,
 		ability: 0,
 		super: 0,
 		blockers: 0,
@@ -211,6 +220,30 @@
 		const medals = career?.medals ?? [];
 		const aoo = medals.find((m) => m.key === 'armyOfOne')?.count ?? 0;
 
+		// We use Math.max to ensure stats only ever go UP during a session refresh
+		statsCache.wins = Math.max(
+			statsCache.wins,
+			db.wins || 0,
+			car.wins || 0,
+			(career?.source === 'supabase' ? Math.round(career.totalMatches * (career.winRate / 100)) : 0),
+			dWon || 0
+		);
+		statsCache.kills = Math.max(statsCache.kills, db.kills || 0, car.kills || 0, dKills || 0);
+		statsCache.deaths = Math.max(statsCache.deaths, db.deaths || 0, car.deaths || 0, dDeaths || 0);
+		statsCache.motes = Math.max(statsCache.motes, db.motes || 0, car.motes || 0, dMotes || 0);
+		statsCache.motesLost = Math.max(
+			statsCache.motesLost,
+			db.motesLost || 0,
+			car.motesLost || 0,
+			dMotesLost || 0
+		);
+		statsCache.primevalDmg = Math.max(
+			statsCache.primevalDmg,
+			db.primevalDmg || 0,
+			car.primevalDmg || 0,
+			dPrimevalDmg || 0
+		);
+
 		statsCache.ability = Math.max(
 			statsCache.ability,
 			db.ability || 0,
@@ -222,7 +255,7 @@
 			statsCache.blockers,
 			db.blockers || 0,
 			car.blockers || 0,
-			ltSmallBlockers + ltMediumBlockers + ltLargeBlockers || 0
+			dSmallBlockers + dMediumBlockers + dLargeBlockers || 0
 		);
 		statsCache.invKills = Math.max(
 			statsCache.invKills,
@@ -242,7 +275,7 @@
 			car.motesDenied || 0,
 			dMotesDenied || 0
 		);
-		statsCache.armyOfOne = Math.max(statsCache.armyOfOne, parseInt(aoo));
+		statsCache.armyOfOne = Math.max(statsCache.armyOfOne, parseInt(aoo) || 0);
 	});
 
 	async function fetchCareer() {
@@ -596,29 +629,30 @@
 		},
 		overview: {
 			winRatio:
-				career?.source === 'supabase'
-					? career.winRate + '%'
-					: dWinRate != null
-						? fmtF(dWinRate, 1) + '%'
-						: '—',
-			wins:
-				career?.source === 'supabase'
-					? Math.round(career.totalMatches * (career.winRate / 100))
-					: dWon,
-			kd: dKD != null ? fmtF(dKD, 2) : '—',
-			kills: dKills,
+				statsCache.wins > 0 && dEntered > 0
+					? fmtF((statsCache.wins / dEntered) * 100, 1) + '%'
+					: career?.source === 'supabase'
+						? career.winRate + '%'
+						: dWinRate != null
+							? fmtF(dWinRate, 1) + '%'
+							: '—',
+			wins: statsCache.wins,
+			kd: statsCache.kills > 0 && statsCache.deaths > 0 
+				? fmtF(statsCache.kills / statsCache.deaths, 2) 
+				: dKD != null ? fmtF(dKD, 2) : '—',
+			kills: statsCache.kills,
 			motesAvg:
-				career?.source === 'supabase' ? career.avgMotes : dEntered > 0 ? fmtF(dAvgMotes, 1) : '—',
-			dps: dEntered > 0 && dPrimevalDmg > 0 ? fmt(Math.round(dPrimevalDmg / dEntered)) : '—',
+				career?.source === 'supabase' ? career.avgMotes : dEntered > 0 ? fmtF(statsCache.motes / dEntered, 1) : '—',
+			dps: dEntered > 0 && statsCache.primevalDmg > 0 ? fmt(Math.round(statsCache.primevalDmg / dEntered)) : '—',
 			combat: {
-				total: fmt(dKills),
-				precision: dKills + dDeaths > 0 ? fmtF((dKills / (dKills + dDeaths)) * 100, 1) + '%' : '—',
+				total: fmt(statsCache.kills),
+				precision: statsCache.kills + statsCache.deaths > 0 ? fmtF((statsCache.kills / (statsCache.kills + statsCache.deaths)) * 100, 1) + '%' : '—',
 				ability: fmt(statsCache.ability),
 				super: fmt(statsCache.super)
 			},
 			objectives: {
-				deposited: fmt(dMotes),
-				lost: fmt(dMotesLost),
+				deposited: fmt(statsCache.motes),
+				lost: fmt(statsCache.motesLost),
 				denied: fmt(statsCache.motesDenied),
 				blockers: fmt(statsCache.blockers),
 				healed: '—'
@@ -1107,11 +1141,16 @@
 				</div>
 				<div class="mb-2 flex-1 font-sans">
 					<div class="flex flex-col gap-1">
-						<h1
-							class="text-6xl leading-none font-light tracking-tighter text-white uppercase italic drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
+						<button
+							onclick={() => window.location.reload()}
+							class="text-left"
 						>
-							{playerData.identity.name}
-						</h1>
+							<h1
+								class="text-6xl leading-none font-light tracking-tighter text-white uppercase italic transition-colors hover:text-emerald-500 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
+							>
+								{playerData.identity.name}
+							</h1>
+						</button>
 						<div class="mt-2 flex items-center gap-2">
 							<span
 								class="font-sans text-[12px] font-medium tracking-[0.2em] text-zinc-500 uppercase"
