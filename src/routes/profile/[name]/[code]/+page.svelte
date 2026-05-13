@@ -1549,12 +1549,6 @@
 												{#if dAvgMotes > 0}
 													{@render detailStatCompact({ label: 'Average Motes / Match', value: fmtF(dAvgMotes, 1) })}
 												{/if}
-												{#if (dSmallBlockers + dMediumBlockers + dLargeBlockers) > 0}
-													{@render detailStatCompact({ 
-														label: 'Blocker Units Deployed', 
-														value: fmt(dSmallBlockers + dMediumBlockers + dLargeBlockers)
-													})}
-												{/if}
 												{#if dPrimevalDmg > 0}
 													{@render detailStatCompact({ label: 'Primeval Structural Damage', value: fmt(dPrimevalDmg), awakened: true })}
 												{/if}
