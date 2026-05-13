@@ -22,27 +22,30 @@
         if (weapon?.hash) fetchDetails();
     });
 
+    // Uniform stat color to match Jadestone aesthetic
     function getStatColor(name) {
-        const n = name.toLowerCase();
-        if (n.includes('range')) return 'bg-sky-500';
-        if (n.includes('impact')) return 'bg-rose-500';
-        if (n.includes('stability')) return 'bg-emerald-500';
-        if (n.includes('handling')) return 'bg-amber-500';
-        if (n.includes('reload')) return 'bg-indigo-500';
-        return 'bg-zinc-500';
+        return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]';
     }
 </script>
 
 {#snippet perkIcon({ perk, large = false })}
-    <div class="group/perk relative {large ? 'w-12 h-12' : 'w-10 h-10'} bg-zinc-950 border border-zinc-800 rotate-45 flex items-center justify-center hover:border-emerald-500/50 transition-all cursor-help overflow-visible">
+    <div class="group/perk relative {large ? 'w-12 h-12' : 'w-10 h-10'} bg-zinc-950 border {perk.isEnhanced ? 'border-amber-500/40 shadow-[inset_0_0_10px_rgba(245,158,11,0.1)]' : 'border-zinc-800'} rotate-45 flex items-center justify-center hover:border-emerald-500/50 transition-all cursor-help overflow-visible">
         <img src={perk.icon} alt={perk.name} class="{large ? 'w-10 h-10' : 'w-8 h-8'} -rotate-45 opacity-80 group-hover/perk:opacity-100 transition-opacity" />
         
+        {#if perk.isEnhanced}
+            <div class="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rotate-[-45deg] flex items-center justify-center shadow-lg">
+                <span class="text-[6px] font-black text-black">E</span>
+            </div>
+        {/if}
+
         <!-- Hover Tooltip -->
         <div class="absolute bottom-[calc(100%+15px)] left-1/2 -translate-x-1/2 p-4 bg-[#0a0a0a] border border-zinc-800 w-64 opacity-0 group-hover/perk:opacity-100 transition-all pointer-events-none z-[400] shadow-2xl scale-95 group-hover/perk:scale-100 -rotate-45">
             <div class="rotate-45">
-                <p class="text-xs font-black italic uppercase text-emerald-400 mb-1">{perk.name}</p>
+                <p class="text-xs font-black italic uppercase {perk.isEnhanced ? 'text-amber-500' : 'text-emerald-400'} mb-1">
+                    {perk.name}
+                </p>
                 <p class="text-[10px] text-zinc-400 leading-relaxed font-serif italic">{perk.description || "No tactical data available."}</p>
-                <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 bg-emerald-500/20"></div>
+                <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 {perk.isEnhanced ? 'bg-amber-500/20' : 'bg-emerald-500/20'}"></div>
             </div>
         </div>
     </div>
@@ -54,7 +57,7 @@
     {#if loading}
         <div class="relative z-10 flex flex-col items-center gap-4">
             <div class="w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-            <p class="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500 text-center">ACCESSING_MANIFEST_RECORDS<br/>SYNCING_RELATIONAL_DATA</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500 text-center uppercase">SYNCHRONIZING_ARSENAL_DATA</p>
         </div>
     {:else if details}
         <div class="relative z-10 w-full max-w-6xl bg-[#0a0a0a] border border-zinc-800 shadow-2xl overflow-hidden flex flex-col max-h-[95vh]" in:fly={{ y: 20, duration: 400 }}>
@@ -63,7 +66,7 @@
             <div class="h-72 relative shrink-0 border-b border-zinc-800 bg-zinc-950">
                 {#if details.screenshot}
                     <img src={details.screenshot} alt={details.name} class="w-full h-full object-cover opacity-60 contrast-125 grayscale-[0.2]" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent"></div>
                 {:else}
                     <div class="w-full h-full flex items-center justify-center opacity-10">
                         <div class="w-32 h-32 border border-zinc-500 rotate-45"></div>
@@ -79,7 +82,7 @@
                         <div>
                             <div class="flex items-center gap-3">
                                 {#if details.damageType?.icon}
-                                    <img src={details.damageType.icon} alt="Damage" class="w-6 h-6 opacity-90" />
+                                    <img src={details.damageType.icon} alt="Damage" class="w-6 h-6 opacity-90 shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
                                 {/if}
                                 <span class="text-[11px] font-black tracking-[0.4em] {details.isExotic ? 'text-amber-500' : 'text-emerald-500'} uppercase">
                                     {details.tier} {details.type}
@@ -93,22 +96,26 @@
             </div>
 
             <!-- Content Area -->
-            <div class="flex-1 overflow-y-auto p-12 grid grid-cols-12 gap-16 scrollbar-hide">
+            <div class="flex-1 overflow-y-auto p-12 grid grid-cols-12 gap-16 scrollbar-hide bg-[#0a0a0a]">
                 
                 <!-- Left: Stats -->
                 <div class="col-span-12 lg:col-span-4 space-y-10 border-r border-zinc-800/30 pr-8">
                     <div>
-                        <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.3em] font-bold block mb-6">BALLISTIC_DATA_MATRIX</span>
-                        <div class="space-y-5">
+                        <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.3em] font-bold block mb-8">BALLISTIC_DATA_MATRIX</span>
+                        <div class="space-y-6">
                             {#each details.stats as stat}
                                 <div class="group/stat">
                                     <div class="flex justify-between items-end mb-2">
                                         <span class="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">{stat.name}</span>
                                         <span class="text-sm font-mono font-black text-white">{stat.value}</span>
                                     </div>
-                                    <div class="h-1.5 bg-zinc-950 border border-white/5 rounded-full overflow-hidden relative">
-                                        <div class="absolute inset-y-0 left-0 {getStatColor(stat.name)} transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(255,255,255,0.1)]" style="width: {Math.min(stat.value, 100)}%"></div>
-                                    </div>
+                                    {#if stat.isBar}
+                                        <div class="h-1.5 bg-zinc-950 border border-white/5 rounded-full overflow-hidden relative">
+                                            <div class="absolute inset-y-0 left-0 {getStatColor(stat.name)} transition-all duration-1000 ease-out" style="width: {Math.min(stat.value, 100)}%"></div>
+                                        </div>
+                                    {:else}
+                                        <div class="h-[1px] bg-zinc-800/50 w-full"></div>
+                                    {/if}
                                 </div>
                             {/each}
                         </div>
@@ -130,10 +137,10 @@
 
                     <div>
                         <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.4em] font-bold block mb-8">MANIFEST_POOL_ANALYSIS</span>
-                        <div class="flex flex-wrap gap-12">
+                        <div class="flex flex-wrap gap-x-12 gap-y-12">
                             {#each (details.perkPools || []) as pool}
-                                <div class="flex flex-col gap-6">
-                                    <div class="flex flex-col gap-6">
+                                <div class="flex flex-col gap-8">
+                                    <div class="flex flex-col gap-10">
                                         {#each pool.perks as perk}
                                             {@render perkIcon({ perk })}
                                         {/each}

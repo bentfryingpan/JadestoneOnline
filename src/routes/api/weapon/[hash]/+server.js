@@ -54,7 +54,8 @@ export async function GET({ params, url }) {
                                 name: pDef.displayProperties.name,
                                 icon: BUNGIE_ROOT + pDef.displayProperties.icon,
                                 description: pDef.displayProperties.description,
-                                hash: pHash
+                                hash: pHash,
+                                isEnhanced: pDef.displayProperties?.name?.includes('(Enhanced)') || pDef.inventory?.tierType === 3
                             });
                         }
                     }
@@ -66,14 +67,12 @@ export async function GET({ params, url }) {
     // 2. Resolve Possible Perk Pools (Manifest Sockets)
     const perkPools = [];
     if (item.sockets?.socketEntries) {
-        // Collect all PlugSet hashes to bulk fetch
         const psHashes = item.sockets.socketEntries
             .map(e => e.randomizedPlugSetHash || e.reusablePlugSetHash)
             .filter(Boolean);
         
         const plugSets = await getDefs('DestinyPlugSetDefinition', psHashes);
         
-        // Collect all potential Perk hashes
         const allPotentialPerkHashes = new Set();
         for (const entry of item.sockets.socketEntries) {
             if (entry.singleInitialItemHash) allPotentialPerkHashes.add(entry.singleInitialItemHash);
@@ -90,48 +89,83 @@ export async function GET({ params, url }) {
             const ps = plugSets[entry.randomizedPlugSetHash || entry.reusablePlugSetHash];
             if (ps) ps.reusablePlugItems?.forEach(p => hashes.add(p.plugItemHash));
 
+            const seenPerks = new Set();
             for (const pHash of hashes) {
                 const pDef = allPerkDefs[pHash];
                 if (pDef && pDef.displayProperties?.name && !pDef.displayProperties.name.includes('Empty')) {
                     const type = pDef.itemTypeDisplayName || '';
-                    if (type.includes('Perk') || type.includes('Frame') || type.includes('Barrel') || type.includes('Magazine') || type.includes('Intrinsic')) {
+                    if (type.includes('Perk') || type.includes('Frame') || type.includes('Barrel') || type.includes('Magazine') || type.includes('Intrinsic') || type.includes('Trait')) {
+                        // Deduplicate by name and icon (stripping enhanced tag for deduplication logic if needed, but here we just use name)
+                        const key = `${pDef.displayProperties.name}_${pDef.displayProperties.icon}`;
+                        if (seenPerks.has(key)) continue;
+                        seenPerks.add(key);
+
                         pool.perks.push({
                             name: pDef.displayProperties.name,
                             icon: BUNGIE_ROOT + pDef.displayProperties.icon,
                             description: pDef.displayProperties.description,
-                            hash: pHash
+                            hash: pHash,
+                            isEnhanced: pDef.displayProperties.name.includes('(Enhanced)') || pDef.inventory?.tierType === 3
                         });
                     }
                 }
             }
-            if (pool.perks.length > 0) perkPools.push(pool);
+            if (pool.perks.length > 0) {
+                // Filter out pools that are just empty slots or generic mods
+                const firstPerk = pool.perks[0].name.toLowerCase();
+                if (!firstPerk.includes('empty') && !firstPerk.includes('tracker')) {
+                    perkPools.push(pool);
+                }
+            }
         }
     }
 
-    // 3. Filter and Resolve Stats (Visible Stats Only)
+    // 3. Categorize Stats (Bar vs Value)
     const stats = [];
     const statSource = liveStats || item.stats?.stats || {};
-    const visibleStats = [
-        4284893193, 3614671103, 2523465841, 4043527740, 1240592695, 155624089, 
-        943540823, 4188034523, 4254817677, 1345609583, 3555963035, 2715839340, 
-        2837207746, 209426660, 105267050, 1842278914, 2961396640, 446212391,
+    
+    // Stats that should be displayed as progress bars (0-100)
+    const barStatHashes = [
+        4043527740, // Impact
+        1240592695, // Range
+        155624089,  // Stability
+        943540823,  // Handling
+        4188034523, // Reload Speed
+        4254817677, // Aim Assistance
+        1345609583, // Aim Assist (Alt)
+        2715839340, // Recoil Direction
         3871231018, // Airborne Effectiveness
+        446212391,  // Blast Radius
+        2523465841, // Velocity
+    ];
+
+    // Stats that are just numeric values
+    const valueStatHashes = [
+        4284893193, // Rounds Per Minute
+        3614671103, // Charge Time
+        3893976251, // Magazine
+        2961396640, // Draw Time
+        2837207746, // Swing Speed
     ];
 
     for (const sHash of Object.keys(statSource)) {
-        if (!visibleStats.includes(Number(sHash))) continue;
+        const h = Number(sHash);
+        const isBar = barStatHashes.includes(h);
+        const isValue = valueStatHashes.includes(h);
+        if (!isBar && !isValue) continue;
+
         const sDef = await getStatDef(sHash);
         if (sDef && sDef.displayProperties.name) {
             stats.push({
                 name: sDef.displayProperties.name,
                 value: statSource[sHash].value ?? statSource[sHash],
-                max: 100,
+                isBar,
                 icon: sDef.displayProperties.hasIcon ? BUNGIE_ROOT + sDef.displayProperties.icon : null
             });
         }
     }
 
-    // Damage Type
+    // Resolve Damage Type
     let dmgType = null;
     if (item.defaultDamageTypeHash) {
         const dDef = await getDamageTypeDef(item.defaultDamageTypeHash);
@@ -147,7 +181,10 @@ export async function GET({ params, url }) {
         icon: BUNGIE_ROOT + item.displayProperties.icon,
         screenshot: item.screenshot ? BUNGIE_ROOT + item.screenshot : null,
         description: item.displayProperties.description,
-        stats: stats.sort((a, b) => a.name.localeCompare(b.name)),
+        stats: stats.sort((a, b) => {
+            if (a.isBar !== b.isBar) return a.isBar ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        }),
         livePerks,
         perkPools,
         damageType: dmgType,
