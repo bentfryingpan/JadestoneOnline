@@ -11,11 +11,11 @@ import { warmManifest } from '$lib/server/manifest.js';
 
 // Fire-and-forget: warm all manifest tables on cold start.
 // Never throws, so a Bungie outage doesn't break the server.
-warmManifest().catch(err =>
-    console.error('[hooks] manifest warm-up failed:', err?.message ?? err)
+warmManifest().catch((err) =>
+	console.error('[hooks] manifest warm-up failed:', err?.message ?? err)
 );
 
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
-    return resolve(event);
+	return resolve(event);
 }

@@ -20,7 +20,7 @@ const config = {
 			memory: 512,
 
 			// 30s max — profile pages typically resolve in <3s
-			maxDuration: 30,
+			maxDuration: 30
 		})
 	}
 };

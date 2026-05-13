@@ -1,18 +1,18 @@
 <script>
-    import './layout.css';
-    import favicon from '$lib/assets/favicon.svg';
-    import Nav from '$lib/Nav.svelte';
+	import './layout.css';
+	import favicon from '$lib/assets/favicon.svg';
+	import Nav from '$lib/Nav.svelte';
 
-    let { children, data } = $props();
+	let { children, data } = $props();
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 
 <!-- ── Parallax background (fixed so content scrolls over it) ───────────────── -->
 <div class="fixed inset-0 -z-10 overflow-hidden" style="background: #060e0b;">
-
-    <!-- Jade orb — top-left, slow drift -->
-    <div style="
+	<!-- Jade orb — top-left, slow drift -->
+	<div
+		style="
         position: absolute;
         top: -10%;
         left: -5%;
@@ -24,10 +24,12 @@
         background: radial-gradient(circle, rgba(16,185,129,0.10) 0%, rgba(16,185,129,0.04) 40%, transparent 70%);
         animation: orb-drift-1 28s ease-in-out infinite;
         pointer-events: none;
-    "></div>
+    "
+	></div>
 
-    <!-- Indigo orb — bottom-right -->
-    <div style="
+	<!-- Indigo orb — bottom-right -->
+	<div
+		style="
         position: absolute;
         bottom: -15%;
         right: -10%;
@@ -39,10 +41,12 @@
         background: radial-gradient(circle, rgba(79,70,229,0.08) 0%, rgba(79,70,229,0.03) 40%, transparent 70%);
         animation: orb-drift-2 36s ease-in-out infinite;
         pointer-events: none;
-    "></div>
+    "
+	></div>
 
-    <!-- Amber/gold orb — center, very subtle -->
-    <div style="
+	<!-- Amber/gold orb — center, very subtle -->
+	<div
+		style="
         position: absolute;
         top: 35%;
         left: 45%;
@@ -54,10 +58,12 @@
         background: radial-gradient(circle, rgba(251,191,36,0.045) 0%, transparent 65%);
         animation: orb-drift-3 22s ease-in-out infinite;
         pointer-events: none;
-    "></div>
+    "
+	></div>
 
-    <!-- Subtle noise vignette to keep edges dark -->
-    <div style="
+	<!-- Subtle noise vignette to keep edges dark -->
+	<div
+		style="
         position: absolute;
         inset: 0;
         background: radial-gradient(ellipse 100% 100% at 50% 50%,
@@ -65,11 +71,12 @@
             rgba(4,8,7,0.55) 75%,
             rgba(4,8,7,0.85) 100%);
         pointer-events: none;
-    "></div>
+    "
+	></div>
 </div>
 
 <!-- ── App shell ─────────────────────────────────────────────────────────────── -->
-<div class="min-h-screen text-slate-200 font-sans text-base">
-    <Nav user={data.user} />
-    {@render children()}
+<div class="min-h-screen font-sans text-base text-slate-200">
+	<Nav user={data.user} />
+	{@render children()}
 </div>

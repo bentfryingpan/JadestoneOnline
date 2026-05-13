@@ -10,8 +10,16 @@
  *   calcEgo({ kills, fireteamSize, ... })  →  calculateEgoScore({ mobKills, fireteam_size, ... })
  */
 
-export { ALGO_CONFIG, MEDAL_ALIASES, extractMedals, ngrTier, ngrTierColor,
-         egoColor, egoTierLabel, detectRole } from '$lib/ego.js';
+export {
+	ALGO_CONFIG,
+	MEDAL_ALIASES,
+	extractMedals,
+	ngrTier,
+	ngrTierColor,
+	egoColor,
+	egoTierLabel,
+	detectRole
+} from '$lib/ego.js';
 
 // Re-export MEDAL_VALUES in the shape the old file provided
 import { ALGO_CONFIG } from '$lib/ego.js';
@@ -28,17 +36,17 @@ import { calculateEgoScore } from '$lib/ego.js';
  *   invasionKills, primevalDamage, fireteamSize (NOT fireteam_size), medals
  */
 export function calcEgo(stats) {
-    const mobKills = Math.max(0, (stats.kills ?? 0) - (stats.invasionKills ?? 0));
-    return calculateEgoScore({
-        mobKills,
-        invasionKills:  stats.invasionKills  ?? 0,
-        motesDenied:    stats.motesDenied    ?? 0,
-        motesDeposited: stats.motesDeposited ?? 0,
-        motesPickedUp:  stats.motesPickedUp  ?? (stats.motesDeposited ?? 0),
-        primevalDamage: stats.primevalDamage ?? 0,
-        deaths:         stats.deaths         ?? 0,
-        assists:        stats.assists        ?? 0,
-        medals:         stats.medals         ?? {},
-        fireteam_size:  stats.fireteamSize   ?? 1,
-    });
+	const mobKills = Math.max(0, (stats.kills ?? 0) - (stats.invasionKills ?? 0));
+	return calculateEgoScore({
+		mobKills,
+		invasionKills: stats.invasionKills ?? 0,
+		motesDenied: stats.motesDenied ?? 0,
+		motesDeposited: stats.motesDeposited ?? 0,
+		motesPickedUp: stats.motesPickedUp ?? stats.motesDeposited ?? 0,
+		primevalDamage: stats.primevalDamage ?? 0,
+		deaths: stats.deaths ?? 0,
+		assists: stats.assists ?? 0,
+		medals: stats.medals ?? {},
+		fireteam_size: stats.fireteamSize ?? 1
+	});
 }

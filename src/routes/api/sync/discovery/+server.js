@@ -13,96 +13,99 @@ const BUNGIE_ROOT = 'https://www.bungie.net';
  * Robust JSON parser with BigInt Shield.
  */
 async function bungieFetch(url) {
-    const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
-    if (!res.ok) return null;
-    const text = await res.text();
-    const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
-    return JSON.parse(fixed);
+	const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
+	if (!res.ok) return null;
+	const text = await res.text();
+	const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
+	return JSON.parse(fixed);
 }
 
 export async function POST({ request }) {
-    const body = await request.json();
-    const { membershipId, membershipType, characterIds } = body;
+	const body = await request.json();
+	const { membershipId, membershipType, characterIds } = body;
 
-    if (!membershipId || !membershipType || !Array.isArray(characterIds)) {
-        return json({ error: 'Missing parameters' }, { status: 400 });
-    }
+	if (!membershipId || !membershipType || !Array.isArray(characterIds)) {
+		return json({ error: 'Missing parameters' }, { status: 400 });
+	}
 
-    const cacheKey = `discovery:v2:${membershipId}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) return json(cached);
+	const cacheKey = `discovery:v2:${membershipId}`;
+	const cached = cacheGet(cacheKey);
+	if (cached) return json(cached);
 
-    const allInstanceIds = new Set();
-    
-    // Discover all unique Gambit instanceIds across characters
-    await Promise.all(characterIds.map(async (charId) => {
-        let page = 0;
-        let hasMore = true;
-        
-        while (hasMore && page < 52) { // Cap at 13,000 matches (250 * 52)
-            const data = await bungieFetch(
-                `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=${page}`
-            );
-            
-            const activities = data?.Response?.activities ?? [];
-            if (activities.length === 0) {
-                hasMore = false;
-            } else {
-                for (const act of activities) {
-                    const id = act.activityDetails?.instanceId;
-                    if (id) allInstanceIds.add(id);
-                }
-                if (activities.length < 250) hasMore = false;
-                page++;
-            }
-        }
-    }));
+	const allInstanceIds = new Set();
 
-    const totalDiscovered = allInstanceIds.size;
-    if (totalDiscovered === 0) {
-        return json({ total: 0, missing: [], message: 'No Gambit matches found.' });
-    }
+	// Discover all unique Gambit instanceIds across characters
+	await Promise.all(
+		characterIds.map(async (charId) => {
+			let page = 0;
+			let hasMore = true;
 
-    const allIdsArray = Array.from(allInstanceIds);
-    const missingIds = [];
-    
-    const idStr = String(membershipId);
-    const prefix = idStr.substring(0, 15);
-    const minId = prefix + "0000";
-    const maxId = prefix + "9999";
+			while (hasMore && page < 52) {
+				// Cap at 13,000 matches (250 * 52)
+				const data = await bungieFetch(
+					`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=${page}`
+				);
 
-    // Batch cross-reference with 'matches' table
-    const chunkSize = 500;
-    for (let i = 0; i < allIdsArray.length; i += chunkSize) {
-        const chunk = allIdsArray.slice(i, i + chunkSize);
-        
-        // Target both exact and potentially rounded IDs
-        const { data, error } = await supabaseAdmin
-            .from('matches')
-            .select('id, stats_json')
-            .or(`player_id.eq.${idStr},and(player_id.gte.${minId},player_id.lte.${maxId})`)
-            .in('id', chunk);
+				const activities = data?.Response?.activities ?? [];
+				if (activities.length === 0) {
+					hasMore = false;
+				} else {
+					for (const act of activities) {
+						const id = act.activityDetails?.instanceId;
+						if (id) allInstanceIds.add(id);
+					}
+					if (activities.length < 250) hasMore = false;
+					page++;
+				}
+			}
+		})
+	);
 
-        if (!error && data) {
-            const existingMap = new Map(data.map(r => [String(r.id), r.stats_json]));
-            for (const id of chunk) {
-                const stats = existingMap.get(String(id));
-                // If match is missing OR missing rich intelligence (roster/medals), it needs enrichment.
-                if (!stats || !stats.roster || !stats.top_weapons) {
-                    missingIds.push(id);
-                }
-            }
-        } else {
-            for (const id of chunk) missingIds.push(id);
-        }
-    }
+	const totalDiscovered = allInstanceIds.size;
+	if (totalDiscovered === 0) {
+		return json({ total: 0, missing: [], message: 'No Gambit matches found.' });
+	}
 
-    const result = {
-        total: totalDiscovered,
-        missing: missingIds,
-        count: missingIds.length
-    };
+	const allIdsArray = Array.from(allInstanceIds);
+	const missingIds = [];
 
-    cacheSet(cacheKey, result, 300_000);
-    return json(result);
+	const idStr = String(membershipId);
+	const prefix = idStr.substring(0, 15);
+	const minId = prefix + '0000';
+	const maxId = prefix + '9999';
+
+	// Batch cross-reference with 'matches' table
+	const chunkSize = 500;
+	for (let i = 0; i < allIdsArray.length; i += chunkSize) {
+		const chunk = allIdsArray.slice(i, i + chunkSize);
+
+		// Target both exact and potentially rounded IDs
+		const { data, error } = await supabaseAdmin
+			.from('matches')
+			.select('id, stats_json')
+			.or(`player_id.eq.${idStr},and(player_id.gte.${minId},player_id.lte.${maxId})`)
+			.in('id', chunk);
+
+		if (!error && data) {
+			const existingMap = new Map(data.map((r) => [String(r.id), r.stats_json]));
+			for (const id of chunk) {
+				const stats = existingMap.get(String(id));
+				// If match is missing OR missing rich intelligence (roster/medals), it needs enrichment.
+				if (!stats || !stats.roster || !stats.top_weapons) {
+					missingIds.push(id);
+				}
+			}
+		} else {
+			for (const id of chunk) missingIds.push(id);
+		}
+	}
+
+	const result = {
+		total: totalDiscovered,
+		missing: missingIds,
+		count: missingIds.length
+	};
+
+	cacheSet(cacheKey, result, 300_000);
+	return json(result);
 }

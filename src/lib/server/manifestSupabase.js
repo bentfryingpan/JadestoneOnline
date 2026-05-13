@@ -26,123 +26,115 @@ const CACHE_TTL = 86_400_000; // 24h — manifest data is stable
 
 // Service-role client — bypasses RLS for server-side reads
 const sb = createClient(PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-    auth: { persistSession: false },
+	auth: { persistSession: false }
 });
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
 /** Prepend Bungie CDN root to icon path. */
 function icon(path) {
-    if (!path || path.startsWith('http')) return path ?? null;
-    return BUNGIE_ROOT + path;
+	if (!path || path.startsWith('http')) return path ?? null;
+	return BUNGIE_ROOT + path;
 }
 
 // ── Generic Supabase hash lookup ──────────────────────────────────────────────
 async function sbLookup(table, hash, fallback) {
-    if (!hash) return null;
-    const key = `sb:${table}:${hash}`;
-    const cached = cacheGet(key);
-    if (cached !== undefined) return cached;
+	if (!hash) return null;
+	const key = `sb:${table}:${hash}`;
+	const cached = cacheGet(key);
+	if (cached !== undefined) return cached;
 
-    try {
-        const { data, error } = await sb
-            .from(table)
-            .select('raw')
-            .eq('hash', Number(hash))
-            .single();
+	try {
+		const { data, error } = await sb.from(table).select('raw').eq('hash', Number(hash)).single();
 
-        if (error || !data) throw error ?? new Error('not found');
-        const def = JSON.parse(data.raw);
-        cacheSet(key, def, CACHE_TTL);
-        return def;
-    } catch {
-        // Fall back to JSON manifest service
-        const def = fallback ? await fallback(hash) : null;
-        if (def) cacheSet(key, def, CACHE_TTL);
-        return def;
-    }
+		if (error || !data) throw error ?? new Error('not found');
+		const def = JSON.parse(data.raw);
+		cacheSet(key, def, CACHE_TTL);
+		return def;
+	} catch {
+		// Fall back to JSON manifest service
+		const def = fallback ? await fallback(hash) : null;
+		if (def) cacheSet(key, def, CACHE_TTL);
+		return def;
+	}
 }
 
 // ── Public item lookups ───────────────────────────────────────────────────────
 
 /** Get an item definition by hash. Falls back to JSON manifest. */
 export async function sbGetItem(hash) {
-    return sbLookup('d2_items', hash, getItemDef);
+	return sbLookup('d2_items', hash, getItemDef);
 }
 
 /** Get an activity definition by hash. Falls back to JSON manifest. */
 export async function sbGetActivity(hash) {
-    return sbLookup('d2_activities', hash, getActivityDef);
+	return sbLookup('d2_activities', hash, getActivityDef);
 }
 
 /** Get a stat definition by hash. */
 export async function sbGetStat(hash) {
-    return sbLookup('d2_stats', hash, getStatDef);
+	return sbLookup('d2_stats', hash, getStatDef);
 }
 
 /** Get a sandbox perk definition by hash. */
 export async function sbGetPerk(hash) {
-    return sbLookup('d2_perks', hash, getSandboxPerkDef);
+	return sbLookup('d2_perks', hash, getSandboxPerkDef);
 }
 
 /** Get a socket type definition by hash. */
 export async function sbGetSocketType(hash) {
-    return sbLookup('d2_socket_types', hash, null);
+	return sbLookup('d2_socket_types', hash, null);
 }
 
 /** Get a socket category definition by hash. */
 export async function sbGetSocketCategory(hash) {
-    return sbLookup('d2_socket_cats', hash, null);
+	return sbLookup('d2_socket_cats', hash, null);
 }
 
 /** Get a damage type definition by hash. */
 export async function sbGetDamageType(hash) {
-    return sbLookup('d2_damage_types', hash, null);
+	return sbLookup('d2_damage_types', hash, null);
 }
 
 /** Get a medal/historical-stats definition by string stat key. */
 export async function sbGetMedal(statId) {
-    if (!statId) return null;
-    const key = `sb:d2_medals:${statId}`;
-    const cached = cacheGet(key);
-    if (cached !== undefined) return cached;
+	if (!statId) return null;
+	const key = `sb:d2_medals:${statId}`;
+	const cached = cacheGet(key);
+	if (cached !== undefined) return cached;
 
-    try {
-        const { data, error } = await sb
-            .from('d2_medals')
-            .select('raw, icon')
-            .eq('stat_id', statId)
-            .single();
+	try {
+		const { data, error } = await sb
+			.from('d2_medals')
+			.select('raw, icon')
+			.eq('stat_id', statId)
+			.single();
 
-        if (error || !data) throw error ?? new Error('not found');
-        const def = JSON.parse(data.raw);
-        cacheSet(key, def, CACHE_TTL);
-        return def;
-    } catch {
-        return null;
-    }
+		if (error || !data) throw error ?? new Error('not found');
+		const def = JSON.parse(data.raw);
+		cacheSet(key, def, CACHE_TTL);
+		return def;
+	} catch {
+		return null;
+	}
 }
 
 /** Get all medals from Supabase. Returns Map<statId → def>. */
 export async function sbGetAllMedals() {
-    const key = 'sb:d2_medals:all';
-    const cached = cacheGet(key);
-    if (cached !== undefined) return cached;
+	const key = 'sb:d2_medals:all';
+	const cached = cacheGet(key);
+	if (cached !== undefined) return cached;
 
-    try {
-        const { data, error } = await sb
-            .from('d2_medals')
-            .select('stat_id, raw');
-        if (error) throw error;
+	try {
+		const { data, error } = await sb.from('d2_medals').select('stat_id, raw');
+		if (error) throw error;
 
-        const map = new Map(
-            (data ?? []).map(r => [r.stat_id, JSON.parse(r.raw)])
-        );
-        cacheSet(key, map, CACHE_TTL);
-        return map;
-    } catch {
-        return new Map();
-    }
+		const map = new Map((data ?? []).map((r) => [r.stat_id, JSON.parse(r.raw)]));
+		cacheSet(key, map, CACHE_TTL);
+		return map;
+	} catch {
+		return new Map();
+	}
 }
 
 // ── Weapon search & filtering ─────────────────────────────────────────────────
@@ -152,24 +144,29 @@ export async function sbGetAllMedals() {
  * Returns array of structured weapon objects.
  */
 export async function sbSearchWeapons(query, { limit = 20, tierType, damageType } = {}) {
-    let q = sb
-        .from('d2_items')
-        .select('hash, name, description, icon, screenshot, tier_type, tier_type_name, damage_type, ammo_type, item_type, item_type_name, flavor_text')
-        .ilike('name', `%${query}%`)
-        .in('item_type', [3]) // 3 = Weapon
-        .limit(limit);
+	let q = sb
+		.from('d2_items')
+		.select(
+			'hash, name, description, icon, screenshot, tier_type, tier_type_name, damage_type, ammo_type, item_type, item_type_name, flavor_text'
+		)
+		.ilike('name', `%${query}%`)
+		.in('item_type', [3]) // 3 = Weapon
+		.limit(limit);
 
-    if (tierType != null) q = q.eq('tier_type', tierType);
-    if (damageType != null) q = q.eq('damage_type', damageType);
+	if (tierType != null) q = q.eq('tier_type', tierType);
+	if (damageType != null) q = q.eq('damage_type', damageType);
 
-    const { data, error } = await q;
-    if (error) { console.error('[manifestSupabase] searchWeapons:', error.message); return []; }
+	const { data, error } = await q;
+	if (error) {
+		console.error('[manifestSupabase] searchWeapons:', error.message);
+		return [];
+	}
 
-    return (data ?? []).map(w => ({
-        ...w,
-        icon:       icon(w.icon),
-        screenshot: icon(w.screenshot),
-    }));
+	return (data ?? []).map((w) => ({
+		...w,
+		icon: icon(w.icon),
+		screenshot: icon(w.screenshot)
+	}));
 }
 
 /**
@@ -177,52 +174,67 @@ export async function sbSearchWeapons(query, { limit = 20, tierType, damageType 
  * itemSubType values match Bungie's DestinyItemSubType enum.
  */
 export async function sbGetWeaponsBySubType(itemSubType, { limit = 100, tierType } = {}) {
-    let q = sb
-        .from('d2_items')
-        .select('hash, name, icon, tier_type, damage_type, ammo_type, item_type_name, stats, sockets')
-        .eq('item_type', 3)
-        .eq('item_sub_type', itemSubType)
-        .limit(limit);
+	let q = sb
+		.from('d2_items')
+		.select('hash, name, icon, tier_type, damage_type, ammo_type, item_type_name, stats, sockets')
+		.eq('item_type', 3)
+		.eq('item_sub_type', itemSubType)
+		.limit(limit);
 
-    if (tierType != null) q = q.eq('tier_type', tierType);
+	if (tierType != null) q = q.eq('tier_type', tierType);
 
-    const { data, error } = await q;
-    if (error) { console.error('[manifestSupabase] getWeaponsBySubType:', error.message); return []; }
+	const { data, error } = await q;
+	if (error) {
+		console.error('[manifestSupabase] getWeaponsBySubType:', error.message);
+		return [];
+	}
 
-    return (data ?? []).map(w => ({
-        ...w,
-        icon:  icon(w.icon),
-        stats: w.stats ? JSON.parse(w.stats) : {},
-    }));
+	return (data ?? []).map((w) => ({
+		...w,
+		icon: icon(w.icon),
+		stats: w.stats ? JSON.parse(w.stats) : {}
+	}));
 }
 
 /**
  * Get all Gambit activities from Supabase.
  */
 export async function sbGetGambitActivities() {
-    const key = 'sb:gambit-activities';
-    const cached = cacheGet(key);
-    if (cached) return cached;
+	const key = 'sb:gambit-activities';
+	const cached = cacheGet(key);
+	if (cached) return cached;
 
-    const { data, error } = await sb
-        .from('d2_activities')
-        .select('hash, name, description, icon, pgcr_image, raw');
+	const { data, error } = await sb
+		.from('d2_activities')
+		.select('hash, name, description, icon, pgcr_image, raw');
 
-    if (error) { console.error('[manifestSupabase] getGambitActivities:', error.message); return []; }
+	if (error) {
+		console.error('[manifestSupabase] getGambitActivities:', error.message);
+		return [];
+	}
 
-    // Filter client-side for Gambit mode (modeType 63 in raw JSON)
-    const gambit = (data ?? [])
-        .filter(r => {
-            try {
-                const raw = JSON.parse(r.raw);
-                return (raw.activityModeHashes ?? []).some(h => h === 1164760504) || // Gambit
-                       (raw.activityModeTypes  ?? []).includes(63);
-            } catch { return false; }
-        })
-        .map(r => ({ hash: r.hash, name: r.name, icon: icon(r.icon), pgcrImage: icon(r.pgcr_image) }));
+	// Filter client-side for Gambit mode (modeType 63 in raw JSON)
+	const gambit = (data ?? [])
+		.filter((r) => {
+			try {
+				const raw = JSON.parse(r.raw);
+				return (
+					(raw.activityModeHashes ?? []).some((h) => h === 1164760504) || // Gambit
+					(raw.activityModeTypes ?? []).includes(63)
+				);
+			} catch {
+				return false;
+			}
+		})
+		.map((r) => ({
+			hash: r.hash,
+			name: r.name,
+			icon: icon(r.icon),
+			pgcrImage: icon(r.pgcr_image)
+		}));
 
-    cacheSet(key, gambit, CACHE_TTL);
-    return gambit;
+	cacheSet(key, gambit, CACHE_TTL);
+	return gambit;
 }
 
 /**
@@ -230,24 +242,30 @@ export async function sbGetGambitActivities() {
  * Returns Map<hash → { name, icon, tierType }>
  */
 export async function sbResolveItemHashes(hashes) {
-    if (!hashes?.length) return new Map();
-    const uniqueHashes = [...new Set(hashes.map(Number))];
+	if (!hashes?.length) return new Map();
+	const uniqueHashes = [...new Set(hashes.map(Number))];
 
-    const { data, error } = await sb
-        .from('d2_items')
-        .select('hash, name, icon, tier_type, damage_type')
-        .in('hash', uniqueHashes);
+	const { data, error } = await sb
+		.from('d2_items')
+		.select('hash, name, icon, tier_type, damage_type')
+		.in('hash', uniqueHashes);
 
-    if (error) { console.error('[manifestSupabase] resolveItemHashes:', error.message); return new Map(); }
+	if (error) {
+		console.error('[manifestSupabase] resolveItemHashes:', error.message);
+		return new Map();
+	}
 
-    return new Map(
-        (data ?? []).map(w => [w.hash, {
-            name:      w.name,
-            icon:      icon(w.icon),
-            tierType:  w.tier_type,
-            damageType: w.damage_type,
-        }])
-    );
+	return new Map(
+		(data ?? []).map((w) => [
+			w.hash,
+			{
+				name: w.name,
+				icon: icon(w.icon),
+				tierType: w.tier_type,
+				damageType: w.damage_type
+			}
+		])
+	);
 }
 
 /**
@@ -255,19 +273,20 @@ export async function sbResolveItemHashes(hashes) {
  * Returns Map<hash → { name, icon }>
  */
 export async function sbResolveActivityHashes(hashes) {
-    if (!hashes?.length) return new Map();
-    const uniqueHashes = [...new Set(hashes.map(Number))];
+	if (!hashes?.length) return new Map();
+	const uniqueHashes = [...new Set(hashes.map(Number))];
 
-    const { data, error } = await sb
-        .from('d2_activities')
-        .select('hash, name, icon')
-        .in('hash', uniqueHashes);
+	const { data, error } = await sb
+		.from('d2_activities')
+		.select('hash, name, icon')
+		.in('hash', uniqueHashes);
 
-    if (error) { console.error('[manifestSupabase] resolveActivityHashes:', error.message); return new Map(); }
+	if (error) {
+		console.error('[manifestSupabase] resolveActivityHashes:', error.message);
+		return new Map();
+	}
 
-    return new Map(
-        (data ?? []).map(a => [a.hash, { name: a.name, icon: icon(a.icon) }])
-    );
+	return new Map((data ?? []).map((a) => [a.hash, { name: a.name, icon: icon(a.icon) }]));
 }
 
 // ── Supabase SQL setup helper (run once to create tables) ─────────────────────
