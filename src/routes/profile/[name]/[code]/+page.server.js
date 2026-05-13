@@ -182,7 +182,7 @@ export async function load({ params, parent, url, setHeaders }) {
 		// Fetch aggregated totals from player_matches for immediate non-zero fallbacks
 		const { data: mData } = await supabaseAdmin
 			.from('player_matches')
-			.select('stats, ego_score, outcome, roster')
+			.select('stats, ego_score, outcome, roster, period')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`);
 
 		if (mData?.length) {
@@ -212,17 +212,19 @@ export async function load({ params, parent, url, setHeaders }) {
 						myEntry.team === (stats.standing === 0 ? myEntry.team : null);
 
 					if (isWin) acc.wins++;
-					acc.kills += stats.kills ?? 0;
+					acc.kills += stats.kills ?? ((stats.mobKills ?? 0) + (stats.invasionKills ?? 0));
 					acc.deaths += stats.deaths ?? 0;
 					acc.motes += stats.motesDeposited ?? 0;
 					acc.motesLost += stats.motesLost ?? 0;
 					acc.primevalDmg += stats.primevalDamage ?? 0;
-					acc.ability += (stats.weaponKillsMelee ?? 0) + (stats.weaponKillsGrenade ?? 0);
-					acc.super += stats.weaponKillsSuper ?? 0;
+					acc.ability += 
+						(stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + 
+						(stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
+					acc.super += stats.superKills ?? stats.weaponKillsSuper ?? 0;
 					acc.blockers +=
 						(stats.smallBlockersSent ?? 0) + (stats.mediumBlockersSent ?? 0) + (stats.largeBlockersSent ?? 0);
 					acc.invKills += stats.invasionKills ?? 0;
-					acc.invDeaths += stats.invaderDeaths ?? 0;
+					acc.invDeaths += stats.invaderDeaths ?? stats.invasionDeaths ?? 0;
 					acc.motesDenied += stats.motesDenied ?? 0;
 					return acc;
 				},

@@ -105,54 +105,33 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
 				pName.split('#')[0].toLowerCase() === targetPrefix &&
 				pCode === targetCodeStr);
 
+		const totalKills = sv(e, 'kills');
+		const invKills = sv(e, 'invasionKills') || sv(e, 'invaderKills');
+
 		const stats = {
 			assists: sv(e, 'assists'),
 			deaths: sv(e, 'deaths'),
-			kills: sv(e, 'kills'),
-			opponentsDefeated: sv(e, 'opponentsDefeated'),
-			efficiency: sv(e, 'efficiency'),
-			killsDeathsRatio: sv(e, 'killsDeathsRatio'),
-			killsDeathsAssists: sv(e, 'killsDeathsAssists'),
-			precisionKills: sv(e, 'precisionKills'),
-			weaponKillsGrenade: sv(e, 'weaponKillsGrenade'),
-			weaponKillsMelee: sv(e, 'weaponKillsMelee'),
-			weaponKillsSuper: sv(e, 'weaponKillsSuper'),
-			weaponKillsAbility: sv(e, 'weaponKillsAbility'),
-			invasions: sv(e, 'invasions'),
-			invasionKills: sv(e, 'invasionKills') || sv(e, 'invaderKills'),
-			invasionDeaths: sv(e, 'invasionDeaths'),
-			invaderKills: sv(e, 'invaderKills'),
-			invaderDeaths: sv(e, 'invaderDeaths'),
-			primevalKills: sv(e, 'primevalKills'),
-			blockerKills: sv(e, 'blockerKills'),
-			mobKills: sv(e, 'mobKills'),
-			highValueKills: sv(e, 'highValueKills'),
-			motesPickedUp: sv(e, 'motesPickedUp'),
+			kills: totalKills,
+			mobKills: Math.max(0, totalKills - invKills),
+			invasionKills: invKills,
+			invasionDeaths: sv(e, 'invasionDeaths') || sv(e, 'invaderDeaths'),
 			motesDeposited: sv(e, 'motesDeposited') || sv(e, 'motesBanked'),
 			motesDenied: sv(e, 'motesDenied'),
 			motesLost: sv(e, 'motesLost'),
-			bankOverage: sv(e, 'bankOverage'),
+			motesPickedUp: sv(e, 'motesPickedUp') || (sv(e, 'motesDeposited') + sv(e, 'motesLost')),
+			superKills: sv(e, 'weaponKillsSuper'),
+			grenadeKills: sv(e, 'weaponKillsGrenade'),
+			meleeKills: sv(e, 'weaponKillsMelee'),
+			primevalDamage: sv(e, 'primevalDamage'),
 			smallBlockersSent: sv(e, 'smallBlockersSent'),
 			mediumBlockersSent: sv(e, 'mediumBlockersSent'),
 			largeBlockersSent: sv(e, 'largeBlockersSent'),
-			primevalDamage: sv(e, 'primevalDamage'),
-			primevalHealing: sv(e, 'primevalHealing'),
-			fireteamSize: ftSize
+			fireteam_size: ftSize
 		};
 
 		const egoMedals = _extractMedals(e.extended?.values ?? {});
 		const ego =
 			e.values?.completed?.basic?.value === 1 ? calcEgo({ ...stats, medals: egoMedals }) : null;
-
-		// Add local icon paths to medals for frontend
-		const medalList = Object.entries(egoMedals).map(([key, count]) => {
-			const lowKey = key.toLowerCase();
-			return {
-				key,
-				count,
-				icon: LOCAL_MEDALS.includes(lowKey) ? `/icons/${lowKey}.png` : null
-			};
-		});
 
 		const playerWeapons = [];
 		for (const w of e.extended?.weapons ?? []) {
@@ -180,13 +159,13 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
 			is_target: isTarget,
 			stats,
 			weapons: playerWeapons,
-			medals: medalList
+			medals: egoMedals
 		};
 		roster.push(rosterItem);
 
 		if (isTarget && e.values?.completed?.basic?.value === 1) {
 			targetEntryData = {
-				stats: { ...stats, top_weapons: playerWeapons, medals: medalList },
+				stats: { ...stats, top_weapons: playerWeapons, medals: egoMedals },
 				ego,
 				outcome: e.values?.standing?.basic?.value === 0 ? 'Win' : 'Loss'
 			};
@@ -246,10 +225,10 @@ export async function POST({ request }) {
 					ego_pem: enriched.ego.pem,
 					kd: enriched.ego.simpleKd,
 					mote_eff: enriched.ego.moteEff,
-					fireteam_size: enriched.stats_json.fireteamSize,
+					fireteam_size: enriched.stats_json.fireteam_size,
 					stats: enriched.stats_json,
 					roster: enriched.stats_json.roster,
-					played_at: pgcrRes.Response.period,
+					period: pgcrRes.Response.period,
 					created_at: new Date().toISOString()
 				};
 			} catch {

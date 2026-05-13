@@ -19,10 +19,10 @@ export async function GET({ url }) {
 		// Robust query: Target both exact ID and potential rounded BigInts
 		const { data: rows, error } = await supabaseAdmin
 			.from('player_matches')
-			.select('pgcr_id, map_name, played_at, outcome, ego_score, stats, player_id, roster')
+			.select('pgcr_id, map_name, period, outcome, ego_score, stats, player_id, roster')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
 			.not('stats', 'is', null)
-			.order('played_at', { ascending: false })
+			.order('period', { ascending: false })
 			.limit(10000);
 
 		if (error || !rows?.length) {
@@ -94,19 +94,21 @@ export async function GET({ url }) {
 			totalMatches++;
 			if (isWin) totalWins++;
 			totalScore += score;
-			totalKills += stats.kills ?? 0;
+			totalKills += stats.kills ?? ((stats.mobKills ?? 0) + (stats.invasionKills ?? 0));
 			totalDeaths += stats.deaths ?? 0;
 			totalMotes += stats.motesDeposited ?? 0;
 			totalMotesLost += stats.motesLost ?? 0;
 			totalPrimevalDmg += stats.primevalDamage ?? 0;
-			totalAbility += (stats.weaponKillsMelee ?? 0) + (stats.weaponKillsGrenade ?? 0);
-			totalSuper += stats.weaponKillsSuper ?? 0;
+			totalAbility += 
+				(stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + 
+				(stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
+			totalSuper += stats.superKills ?? stats.weaponKillsSuper ?? 0;
 			totalBlockers +=
 				(stats.smallBlockersSent ?? 0) +
 				(stats.mediumBlockersSent ?? 0) +
 				(stats.largeBlockersSent ?? 0);
 			totalInvKills += stats.invasionKills ?? 0;
-			totalInvDeaths += stats.invaderDeaths ?? 0;
+			totalInvDeaths += stats.invaderDeaths ?? stats.invasionDeaths ?? 0;
 			totalMotesDenied += stats.motesDenied ?? 0;
 
 			// Maps
@@ -181,8 +183,8 @@ export async function GET({ url }) {
 			}
 
 			// Time
-			if (row.played_at) {
-				const h = new Date(row.played_at).getHours();
+			if (row.period) {
+				const h = new Date(row.period).getHours();
 				hourlyAgg[h].games++;
 				if (isWin) hourlyAgg[h].wins++;
 				hourlyAgg[h].scoreSum += score;
