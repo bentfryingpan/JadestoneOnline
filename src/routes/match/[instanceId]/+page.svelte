@@ -1,6 +1,7 @@
 <script>
     import { egoColor } from '$lib/ego.js';
     import { fly, fade } from 'svelte/transition';
+    import WeaponInspect from '$lib/WeaponInspect.svelte';
 
     let { data } = $props();
 
@@ -32,6 +33,11 @@
     let expandedPlayer = $state(null);
     function togglePlayer(id) { expandedPlayer = expandedPlayer === id ? null : id; }
 
+    // Weapon Inspect State
+    let selectedWeapon = $state(null);
+    let inspectorMid   = $state(null);
+    let inspectorMt    = $state(null);
+
     const PRIMARY_STATS = [
         { key: 'kills', label: 'HOSTILES', color: 'text-zinc-100' },
         { key: 'motesDeposited', label: 'BANKED', color: 'text-emerald-400' },
@@ -59,7 +65,6 @@
 
 {#snippet medalIcon({ medal })}
     <div class="group relative flex items-center justify-center w-12 h-12">
-        <!-- The Diamond Border (Handles Rotation) -->
         <div class="absolute inset-0 border border-amber-500/20 bg-amber-950/10 rotate-45 transition-all duration-500 group-hover:scale-110 group-hover:rotate-90 cursor-help overflow-hidden">
             {#if medal.icon}
                 <img src={medal.icon} alt={medal.label} class="w-full h-full -rotate-45 group-hover:-rotate-90 transition-transform duration-500 object-contain p-1" />
@@ -74,12 +79,9 @@
                 </div>
             {/if}
         </div>
-
-        <!-- Tooltip (Outside rotation and overflow for maximum visibility) -->
         <div class="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 px-3 py-2 bg-[#0a0a0a] border border-zinc-800 text-[10px] uppercase tracking-[0.2em] text-zinc-100 opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap pointer-events-none z-[300] shadow-2xl scale-95 group-hover:scale-100 font-sans">
             <div class="relative z-10">{medal.label}</div>
             <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 bg-amber-500/40"></div>
-            <!-- Tooltip Backlight -->
             <div class="absolute inset-0 bg-amber-500/5 blur-sm -z-10"></div>
         </div>
     </div>
@@ -173,7 +175,7 @@
                                                 {/each}
                                             </div>
                                             <div class="mt-8">
-                                                {@render ghostLabel({ text: "EQUIPMENT_RESONANCE" })}
+                                                {@render ghostLabel({ text: "WEAPONS" })}
                                                 <div class="space-y-1.5 mt-3">
                                                     {#each (p.weapons ?? []) as w}
                                                         <div class="flex items-center justify-between bg-zinc-950/50 border border-zinc-900 p-2 group/weapon">
@@ -184,7 +186,11 @@
                                                                     <p class="text-[7px] text-zinc-600 uppercase font-bold">{w.kills} KILLS</p>
                                                                 </div>
                                                             </div>
-                                                            <a href="https://destinyitemmanager.com/en/inspect/{w.hash}" target="_blank" class="px-2 py-0.5 border border-emerald-500/10 text-[7px] text-emerald-900 font-black hover:text-emerald-500 hover:border-emerald-500/40 transition-all">INSPECT</a>
+                                                            <button 
+                                                                class="px-2 py-0.5 border border-emerald-500/10 text-[7px] text-emerald-900 font-black hover:text-emerald-500 hover:border-emerald-500/40 transition-all"
+                                                                onclick={() => { selectedWeapon = w; inspectorMid = p.membershipId; inspectorMt = data.membershipType; }}>
+                                                                INSPECT
+                                                            </button>
                                                         </div>
                                                     {/each}
                                                 </div>
@@ -199,4 +205,11 @@
             {/each}
         </div>
     </main>
+
+    {#if selectedWeapon}
+        <WeaponInspect 
+            weapon={{ ...selectedWeapon, membershipId: inspectorMid, membershipType: inspectorMt }} 
+            onClose={() => selectedWeapon = null} 
+        />
+    {/if}
 </div>
