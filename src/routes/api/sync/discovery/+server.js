@@ -1,5 +1,5 @@
 /**
- * /api/sync/discovery — Full history crawler discovery phase (Aligned with matches table)
+ * /api/sync/discovery — Full history crawler discovery phase (Flawless Engine)
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
@@ -9,6 +9,9 @@ import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
+/**
+ * Robust JSON parser with BigInt Shield.
+ */
 async function bungieFetch(url) {
     const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
     if (!res.ok) return null;
@@ -25,17 +28,18 @@ export async function POST({ request }) {
         return json({ error: 'Missing parameters' }, { status: 400 });
     }
 
-    const cacheKey = `discovery:${membershipId}`;
+    const cacheKey = `discovery:v2:${membershipId}`;
     const cached = cacheGet(cacheKey);
     if (cached) return json(cached);
 
     const allInstanceIds = new Set();
     
+    // Discover all unique Gambit instanceIds across characters
     await Promise.all(characterIds.map(async (charId) => {
         let page = 0;
         let hasMore = true;
         
-        while (hasMore && page < 40) {
+        while (hasMore && page < 52) { // Cap at 13,000 matches (250 * 52)
             const data = await bungieFetch(
                 `/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=${page}`
             );
@@ -62,26 +66,29 @@ export async function POST({ request }) {
     const allIdsArray = Array.from(allInstanceIds);
     const missingIds = [];
     
-    // Cross-reference with the ACTUAL 'matches' table
-    const chunkSize = 500;
     const idStr = String(membershipId);
     const prefix = idStr.substring(0, 15);
+    const minId = prefix + "0000";
+    const maxId = prefix + "9999";
 
+    // Batch cross-reference with 'matches' table
+    const chunkSize = 500;
     for (let i = 0; i < allIdsArray.length; i += chunkSize) {
         const chunk = allIdsArray.slice(i, i + chunkSize);
         
-        // We look for matches assigned to the correct string ID or rounded ID range
+        // Target both exact and potentially rounded IDs
         const { data, error } = await supabaseAdmin
             .from('matches')
             .select('id, stats_json')
-            .or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+            .or(`player_id.eq.${idStr},and(player_id.gte.${minId},player_id.lte.${maxId})`)
             .in('id', chunk);
 
         if (!error && data) {
             const existingMap = new Map(data.map(r => [String(r.id), r.stats_json]));
             for (const id of chunk) {
                 const stats = existingMap.get(String(id));
-                if (!stats || !stats.top_weapons || !stats.roster) {
+                // If match is missing OR missing rich intelligence (roster/medals), it needs enrichment.
+                if (!stats || !stats.roster || !stats.top_weapons) {
                     missingIds.push(id);
                 }
             }

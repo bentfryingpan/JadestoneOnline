@@ -1,15 +1,12 @@
 /**
- * /api/pgcr-enrich — Optimized Bulk Enrichment (Robust Schema-Aligned)
- * 
- * Packages all extra data (roster, medals, weapons) into 'stats_json' to 
- * ensure compatibility with the existing live database schema.
+ * /api/pgcr-enrich — Optimized Bulk Enrichment (Flawless 1:1 Engine)
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 import { calcEgo, extractMedals as _extractMedals, detectRole } from '$lib/server/ego.js';
-import { getItemDef, getActivityDef, getMapImage } from '$lib/server/manifest.js';
+import { getItemDef, getActivityDef, getMapImage, getExoticIconBase64 } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
@@ -33,7 +30,7 @@ async function fetchPgcr(id) {
         const text = await res.text();
         const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
         const data = JSON.parse(fixed);
-        if (data.ErrorCode === 1) {
+        if (data.ErrorCode === 1 && data.Response) {
             cacheSet(key, data, PGCR_TTL);
             return data;
         }
@@ -131,21 +128,19 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
 
     if (!targetEntryData) return null;
 
-    // Detect role
     const myTeamName = roster.find(r => r.is_target)?.team;
     const myTeamScores = roster.filter(r => r.team === myTeamName && r.score > 0).map(r => r.score);
     const { isCarry, isCarried } = detectRole(targetEntryData.ego.finalScore, myTeamScores);
 
-    // CONSOLIDATE EVERYTHING INTO stats_json
-    const finalStatsJson = {
+    const stats_json = {
         ...targetEntryData.stats,
         ego_breakdown: targetEntryData.ego.components,
         is_hard_carry: isCarry,
         is_carried: isCarried,
-        roster: roster
+        roster
     };
 
-    return { ...targetEntryData, stats_json: finalStatsJson };
+    return { ...targetEntryData, stats_json };
 }
 
 export async function POST({ request }) {
@@ -177,25 +172,24 @@ export async function POST({ request }) {
                 played_at: pgcrRes.Response.period,
                 created_at: new Date().toISOString()
             };
-        } catch (e) {
-            console.error(`[enrich] Match ${id} failed:`, e.message);
-            return null;
-        }
+        } catch { return null; }
     }));
 
     const toUpsert = results.filter(Boolean);
     if (toUpsert.length === 0) return json({ stored: 0 });
 
-    // 1. Ensure player exists
-    await supabaseAdmin.from('players').upsert({
-        id: String(membershipId),
-        bungie_name: bungieDisplayName,
-        bungie_code: String(bungieDisplayCode).padStart(4, '0'),
-        membership_type: parseInt(membershipType),
-        updated_at: new Date().toISOString()
-    }, { onConflict: 'id' });
+    // 1. Ensure Player Record exists (FK Requirement)
+    try {
+        await supabaseAdmin.from('players').upsert({
+            id: String(membershipId),
+            bungie_name: bungieDisplayName,
+            bungie_code: String(bungieDisplayCode).padStart(4, '0'),
+            membership_type: parseInt(membershipType),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+    } catch { }
 
-    // 2. Upsert Matches (only valid columns)
+    // 2. Bulk Upsert Matches
     const { error: mErr } = await supabaseAdmin.from('matches').upsert(toUpsert, { onConflict: 'id,player_id' });
     if (mErr) return json({ error: mErr.message }, { status: 500 });
 
