@@ -203,44 +203,51 @@ export async function POST({ request }) {
 	if (!membershipId || !instanceIds?.length)
 		return json({ error: 'Missing params' }, { status: 400 });
 
-	const results = await Promise.all(
-		instanceIds.map(async (id) => {
-			try {
-				const pgcrRes = await fetchPgcr(id);
-				if (!pgcrRes?.Response) return null;
-				const enriched = await processPgcr(
-					pgcrRes.Response,
-					membershipId,
-					bungieDisplayName,
-					bungieDisplayCode
-				);
-				if (!enriched) return null;
+	const CHUNK_SIZE = 15; // Process 15 matches at a time in parallel
+	const results = [];
 
-				const actDef = await getActivityDef(pgcrRes.Response.activityDetails?.referenceId);
-				const mapName = (actDef?.displayProperties?.name ?? 'Gambit')
-					.replace(/^Gambit[:\-]\s*/i, '')
-					.trim();
+	for (let i = 0; i < instanceIds.length; i += CHUNK_SIZE) {
+		const chunk = instanceIds.slice(i, i + CHUNK_SIZE);
+		const chunkResults = await Promise.all(
+			chunk.map(async (id) => {
+				try {
+					const pgcrRes = await fetchPgcr(id);
+					if (!pgcrRes?.Response) return null;
+					const enriched = await processPgcr(
+						pgcrRes.Response,
+						membershipId,
+						bungieDisplayName,
+						bungieDisplayCode
+					);
+					if (!enriched) return null;
 
-				return {
-					id: id,
-					player_id: String(membershipId),
-					map_name: mapName,
-					outcome: enriched.outcome,
-					ego_score: enriched.ego.finalScore,
-					ego_base: enriched.ego.basePps,
-					ego_pem: enriched.ego.pem,
-					kd: enriched.ego.simpleKd,
-					mote_eff: enriched.ego.moteEff,
-					fireteam_size: enriched.stats_json.fireteam_size,
-					stats_json: enriched.stats_json,
-					period: pgcrRes.Response.period,
-					created_at: new Date().toISOString()
-				};
-			} catch {
-				return null;
-			}
-		})
-	);
+					const actDef = await getActivityDef(pgcrRes.Response.activityDetails?.referenceId);
+					const mapName = (actDef?.displayProperties?.name ?? 'Gambit')
+						.replace(/^Gambit[:\-]\s*/i, '')
+						.trim();
+
+					return {
+						id: id,
+						player_id: String(membershipId),
+						map_name: mapName,
+						outcome: enriched.outcome,
+						ego_score: enriched.ego.finalScore,
+						ego_base: enriched.ego.basePps,
+						ego_pem: enriched.ego.pem,
+						kd: enriched.ego.simpleKd,
+						mote_eff: enriched.ego.moteEff,
+						fireteam_size: enriched.stats_json.fireteam_size,
+						stats_json: enriched.stats_json,
+						period: pgcrRes.Response.period,
+						created_at: new Date().toISOString()
+					};
+				} catch {
+					return null;
+				}
+			})
+		);
+		results.push(...chunkResults);
+	}
 
 	const toUpsert = results.filter(Boolean);
 	if (toUpsert.length === 0) return json({ stored: 0 });

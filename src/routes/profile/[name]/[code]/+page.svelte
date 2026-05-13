@@ -1478,53 +1478,32 @@
 									</div>
 								</div>
 
-								<!-- Data Information Tables -->
+									<!-- Data Information Tables -->
 								<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
 									<!-- Combat & Efficiency -->
 									<div class="space-y-8">
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: 'COMBAT_EFFICIENCY_MATRIX', className: 'mb-6' })}
 											<div class="space-y-4">
-												{#if dKills > 0}
-													{@render detailStatCompact({ label: 'Hostiles Defeated', value: fmt(dKills), awakened: true })}
-												{/if}
-												{#if dDeaths > 0}
-													{@render detailStatCompact({ label: 'Casualties Sustained', value: fmt(dDeaths) })}
-												{/if}
-												{#if dKD > 0}
-													{@render detailStatCompact({ label: 'Combat Effectiveness (K/D)', value: fmtF(dKD, 2), awakened: true })}
-												{/if}
-												{#if dEntered > 0}
-													{@render detailStatCompact({ label: 'Average Kills / Match', value: fmtF(dKills / dEntered, 1) })}
-												{/if}
-												{#if dPrecision > 0}
-													{@render detailStatCompact({ 
-														label: 'Precision Resonance', 
-														value: fmt(dPrecision)
-													})}
-												{/if}
+												{@render detailStatCompact({ label: 'Hostiles Defeated', value: fmt(dKills), awakened: dKills > 1000 })}
+												{@render detailStatCompact({ label: 'Casualties Sustained', value: fmt(dDeaths) })}
+												{@render detailStatCompact({ label: 'Combat Effectiveness (K/D)', value: fmtF(dKD, 2), awakened: dKD >= 1.0 })}
+												{@render detailStatCompact({ label: 'Average Kills / Match', value: fmtF(dEntered > 0 ? dKills / dEntered : 0, 1) })}
+												{@render detailStatCompact({ label: 'Precision Resonance', value: fmt(dPrecision) })}
 											</div>
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: 'TACTICAL_ABILITY_REPORTS', className: 'mb-6' })}
 											<div class="space-y-4">
-												{#if dSuperKills > 0}
-													{@render detailStatCompact({ label: 'Super Ability Kills', value: fmt(dSuperKills), awakened: true })}
-												{/if}
-												{#if dMeleeKills > 0}
-													{@render detailStatCompact({ label: 'Melee Neutralizations', value: fmt(dMeleeKills) })}
-												{/if}
-												{#if dGrenadeKills > 0}
-													{@render detailStatCompact({ label: 'Grenade Discharges', value: fmt(dGrenadeKills) })}
-												{/if}
-												{#if (dSuperKills + dMeleeKills + dGrenadeKills) > 0}
-													{@render detailStatCompact({ 
-														label: 'Total Ability Output', 
-														value: fmt(dSuperKills + dMeleeKills + dGrenadeKills),
-														awakened: true
-													})}
-												{/if}
+												{@render detailStatCompact({ label: 'Super Ability Kills', value: fmt(dSuperKills), awakened: dSuperKills > 100 })}
+												{@render detailStatCompact({ label: 'Melee Neutralizations', value: fmt(dMeleeKills) })}
+												{@render detailStatCompact({ label: 'Grenade Discharges', value: fmt(dGrenadeKills) })}
+												{@render detailStatCompact({ 
+													label: 'Total Ability Output', 
+													value: fmt(dAbility),
+													awakened: dAbility > 500
+												})}
 											</div>
 										</div>
 									</div>
@@ -1534,52 +1513,28 @@
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: 'RESOURCE_COLLECTION_ANALYSIS', className: 'mb-6' })}
 											<div class="space-y-4">
-												{#if dMotes > 0}
-													{@render detailStatCompact({ label: 'Motes Synchronized', value: fmt(dMotes), awakened: true })}
-												{/if}
-												{#if dMotesLost > 0}
-													{@render detailStatCompact({ label: 'Motes De-synchronized (Lost)', value: fmt(dMotesLost) })}
-												{/if}
-												{#if dMotes > 0}
-													{@render detailStatCompact({ 
-														label: 'Sync Efficiency', 
-														value: (dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '100%',
-														awakened: true
-													})}
-												{/if}
-												{#if dAvgMotes > 0}
-													{@render detailStatCompact({ label: 'Average Motes / Match', value: fmtF(dAvgMotes, 1) })}
-												{/if}
-												{#if dPrimevalDmg > 0}
-													{@render detailStatCompact({ label: 'Primeval Structural Damage', value: fmt(dPrimevalDmg), awakened: true })}
-												{/if}
+												{@render detailStatCompact({ label: 'Motes Synchronized', value: fmt(dMotes), awakened: dMotes > 5000 })}
+												{@render detailStatCompact({ label: 'Motes De-synchronized (Lost)', value: fmt(dMotesLost) })}
+												{@render detailStatCompact({ 
+													label: 'Sync Efficiency', 
+													value: (dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '100%',
+													awakened: (dMotes / (dMotes + (dMotesLost || 1))) > 0.9
+												})}
+												{@render detailStatCompact({ label: 'Average Motes / Match', value: fmtF(dAvgMotes, 1) })}
+												{@render detailStatCompact({ label: 'Primeval Structural Damage', value: fmt(dPrimevalDmg), awakened: dPrimevalDmg > 1000000 })}
 											</div>
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: 'INCURSION_INTEL_REPORTS', className: 'mb-6' })}
 											<div class="space-y-4">
-												{#if dInvasions > 0}
-													{@render detailStatCompact({ label: 'Dimensional Incursions', value: fmt(dInvasions), awakened: true })}
-												{/if}
-												{#if dInvKills > 0}
-													{@render detailStatCompact({ label: 'Guardian Neutralizations', value: fmt(dInvKills), awakened: true })}
-												{/if}
-												{#if dArmyOfOne > 0}
-													{@render detailStatCompact({ label: 'Army of One Medals', value: fmt(dArmyOfOne), awakened: true })}
-												{/if}
-												{#if dInvasions > 0}
-													{@render detailStatCompact({ label: 'Kills Per Incursion', value: fmtF(dInvKills / dInvasions, 1) })}
-												{/if}
-												{#if dMotesDenied > 0}
-													{@render detailStatCompact({ label: 'Hostile Motes Denied', value: fmt(dMotesDenied), awakened: true })}
-												{/if}
-												{#if dShutDowns > 0}
-													{@render detailStatCompact({ label: 'Invader Interceptions', value: fmt(dShutDowns) })}
-												{/if}
-												{#if dInvaderDeaths > 0}
-													{@render detailStatCompact({ label: 'Incursion Casualties', value: fmt(dInvaderDeaths) })}
-												{/if}
+												{@render detailStatCompact({ label: 'Dimensional Incursions', value: fmt(dInvasions), awakened: dInvasions > 100 })}
+												{@render detailStatCompact({ label: 'Guardian Neutralizations', value: fmt(dInvKills), awakened: dInvKills > 200 })}
+												{@render detailStatCompact({ label: 'Army of One Medals', value: fmt(dArmyOfOne), awakened: dArmyOfOne > 0 })}
+												{@render detailStatCompact({ label: 'Kills Per Incursion', value: fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
+												{@render detailStatCompact({ label: 'Hostile Motes Denied', value: fmt(dMotesDenied), awakened: dMotesDenied > 500 })}
+												{@render detailStatCompact({ label: 'Invader Interceptions', value: fmt(dShutDowns) })}
+												{@render detailStatCompact({ label: 'Incursion Casualties', value: fmt(dInvaderDeaths) })}
 											</div>
 										</div>
 									</div>

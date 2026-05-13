@@ -163,6 +163,21 @@ export async function load({ params, parent, url, setHeaders }) {
 		lifetimeStats = { ...lifetimeStats, motesBanked: lifetimeStats.motesDeposited };
 	}
 
+	// 1. Fetch Basic Profile & Triumphs (Records)
+	let triumphs = {};
+	try {
+		const triRes = await fetch(
+			`https://www.bungie.net/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=900`,
+			{ headers: { 'X-API-Key': BUNGIE_API_KEY } }
+		);
+		const triData = await triRes.json();
+		triumphs = triData?.Response?.profileRecords?.data?.records ?? {};
+	} catch {}
+
+	// Army of One Record (Hash: 1358909062)
+	const armyOfOneRecord = triumphs[1358909062];
+	const triumphArmyOfOne = armyOfOneRecord?.objectives?.[0]?.progress ?? 0;
+
 	// Determine base statsSource
 	let source = !lifetimeStats ? 'none' : lifetimeStats._synthetic ? 'recent' : 'bungie';
 
@@ -212,7 +227,7 @@ export async function load({ params, parent, url, setHeaders }) {
 			invKills: sData?.invasion_kills ?? 0,
 			invDeaths: 0,
 			motesDenied: 0,
-			armyOfOne: 0
+			armyOfOne: triumphArmyOfOne // Initialize with verified Triumph data
 		};
 
 		if (mData?.length) {
