@@ -4,7 +4,10 @@
 
 	let { user = null } = $props();
 
-	const links = [{ href: '/leaderboards', label: 'Leaderboards' }];
+	const links = $derived([
+		{ href: '/leaderboards', label: 'Leaderboards' },
+		...(user ? [{ href: '/settings', label: 'Settings' }] : [])
+	]);
 
 	const active = $derived(page.url.pathname);
 

@@ -1,6 +1,7 @@
 <script>
 	import { untrack } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
+	import { goto } from '$app/navigation';
 	import SubclassScreen from '$lib/SubclassScreen.svelte';
 	import CharacterScreen from '$lib/CharacterScreen.svelte';
 
@@ -212,100 +213,6 @@
 	let deepScanning = $state(false);
 	let deepScanStatus = $state('');
 	let deepScanProgress = $state({ current: 0, total: 0 });
-
-	async function triggerDeepScan() {
-		if (deepScanning) return;
-		deepScanning = true;
-
-		try {
-			deepScanStatus = 'syncing';
-			await fetch('/api/admin/sync-manifest?mode=medals', { method: 'POST' });
-			await fetch('/api/admin/sync-manifest?mode=small', { method: 'POST' });
-
-			deepScanStatus = 'discovering';
-			const discRes = await fetch('/api/sync/discovery', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					membershipId: data.membershipId,
-					membershipType: data.membershipType,
-					characterIds: data.characterIds
-				})
-			});
-			const { missing } = await discRes.json();
-
-			if (!missing || missing.length === 0) {
-				deepScanning = false;
-				fetchHistory();
-				fetchCareer();
-				return;
-			}
-
-			deepScanStatus = 'enriching';
-			deepScanProgress = { current: 0, total: missing.length };
-
-			const CHUNK_SIZE = 40;
-			const CONCURRENCY = 5;
-			const chunks = [];
-			for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
-				chunks.push(missing.slice(i, i + CHUNK_SIZE));
-			}
-
-			let chunkIdx = 0;
-			const workers = Array(CONCURRENCY)
-				.fill(null)
-				.map(async () => {
-					while (chunkIdx < chunks.length) {
-						const idx = chunkIdx++;
-						const chunk = chunks[idx];
-						try {
-							const res = await fetch('/api/pgcr-enrich', {
-								method: 'POST',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({
-									membershipId: data.membershipId,
-									membershipType: data.membershipType,
-									bungieDisplayName: data.player.bungieGlobalDisplayName,
-									bungieDisplayCode: data.player.bungieGlobalDisplayNameCode,
-									instanceIds: chunk
-								})
-							});
-							const r = await res.json();
-							deepScanProgress.current += r.stored ?? chunk.length;
-						} catch {
-							deepScanProgress.current += chunk.length;
-						}
-					}
-				});
-
-			await Promise.all(workers);
-			fetchHistory();
-			fetchCareer();
-		} catch (e) {
-			console.error('Deep scan failed', e);
-		} finally {
-			deepScanning = false;
-		}
-	}
-
-	async function repairData() {
-		if (
-			!confirm('This will wipe your local intelligence cache and restart the Deep Scan. Proceed?')
-		)
-			return;
-		deepScanning = true;
-		deepScanStatus = 'repairing';
-		try {
-			await fetch('/api/sync/wipe', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ membershipId: data.membershipId })
-			});
-			triggerDeepScan();
-		} catch {
-			deepScanning = false;
-		}
-	}
 
 	$effect(() => {
 		if (tab === 'matches' || tab === 'weaponry' || tab === 'synergy' || tab === 'maps') {
@@ -1028,7 +935,12 @@
 				action: () => setTab('overview')
 			})}
 			{@render sidebarIcon({ label: 'DATABASE', active: false, icon: 'D', action: () => {} })}
-			{@render sidebarIcon({ label: 'SETTINGS', active: false, icon: 'S', action: () => {} })}
+			{@render sidebarIcon({
+				label: 'SETTINGS',
+				active: false,
+				icon: 'S',
+				action: () => goto('/settings')
+			})}
 		</div>
 	</nav>
 
@@ -1104,43 +1016,6 @@
 				</div>
 				<div class="relative z-10 mb-2 flex shrink-0 gap-14 text-right font-sans">
 					<div class="flex flex-col items-end gap-6">
-						<div class="flex items-center gap-3">
-							<button
-								onclick={triggerDeepScan}
-								disabled={deepScanning}
-								class="group flex items-center gap-3 border px-6 py-2 {deepScanning
-									? 'border-zinc-800 text-zinc-600'
-									: 'border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10'} transition-all duration-300"
-							>
-								<span class="font-sans text-[10px] font-bold tracking-[0.2em] uppercase"
-									>{deepScanning ? 'Scanning...' : 'Deep Career Scan'}</span
-								>
-								<div
-									class="flex h-4 w-4 rotate-45 items-center justify-center border border-current {deepScanning
-										? 'animate-spin'
-										: 'transition-transform duration-500 group-hover:rotate-90'}"
-								>
-									<div class="h-1.5 w-1.5 bg-current"></div>
-								</div>
-							</button>
-							{#if !deepScanning}
-								<button
-									onclick={repairData}
-									class="group/repair flex items-center gap-2 border border-rose-900/30 px-4 py-2 transition-all hover:border-rose-500 hover:bg-rose-500/10"
-									title="Repair & Clear Corrupted Data"
-								>
-									<span
-										class="font-sans text-[10px] font-bold tracking-[0.2em] text-rose-800 uppercase group-hover:text-rose-500"
-										>Repair Data</span
-									>
-									<div
-										class="flex h-4 w-4 rotate-45 items-center justify-center border border-current"
-									>
-										<span class="-rotate-45 text-[10px] font-black">!</span>
-									</div>
-								</button>
-							{/if}
-						</div>
 						<div>
 							{@render ghostLabel({ text: 'RATING' })}
 							<div class="flex flex-col items-end">
