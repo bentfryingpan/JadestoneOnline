@@ -160,7 +160,8 @@
 
 	let attemptedEnrich = new Set();
 	async function autoEnrich(ids) {
-		const newIds = ids.filter((id) => !attemptedEnrich.has(id));
+		// Shift to 'Recent 250' focus: Only index the first 250 IDs for rapid intelligence
+		const newIds = ids.slice(0, 250).filter((id) => !attemptedEnrich.has(id));
 		if (deepScanning || newIds.length === 0) return;
 		deepScanning = true;
 		deepScanStatus = 'auto-syncing';
@@ -1483,7 +1484,7 @@
 									<!-- Combat & Efficiency -->
 									<div class="space-y-8">
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'COMBAT_PERFORMANCE', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'COMBAT_PERFORMANCE (RECENT 250)', className: 'mb-6' })}
 											<div class="space-y-4">
 												{@render detailStatCompact({ label: 'Kills', value: fmt(dKills), awakened: dKills > 1000 })}
 												{@render detailStatCompact({ label: 'Deaths', value: fmt(dDeaths) })}
@@ -1494,7 +1495,7 @@
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'ABILITY_METRICS', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'ABILITY_METRICS (RECENT 250)', className: 'mb-6' })}
 											<div class="space-y-4">
 												{@render detailStatCompact({ label: 'Super Kills', value: fmt(dSuperKills), awakened: dSuperKills > 100 })}
 												{@render detailStatCompact({ label: 'Melee Kills', value: fmt(dMeleeKills) })}
@@ -1511,7 +1512,7 @@
 									<!-- Objectives & Invasion -->
 									<div class="space-y-8">
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'MOTE_ANALYSIS', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'MOTE_ANALYSIS (RECENT 250)', className: 'mb-6' })}
 											<div class="space-y-4">
 												{@render detailStatCompact({ label: 'Motes Deposited', value: fmt(dMotes), awakened: dMotes > 5000 })}
 												{@render detailStatCompact({ label: 'Motes Lost', value: fmt(dMotesLost) })}
@@ -1526,7 +1527,7 @@
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'INVASION_REPORT', className: 'mb-6' })}
+											{@render ghostLabel({ text: 'INVASION_REPORT (RECENT 250)', className: 'mb-6' })}
 											<div class="space-y-4">
 												{@render detailStatCompact({ label: 'Invasions', value: fmt(dInvasions), awakened: dInvasions > 100 })}
 												{@render detailStatCompact({ label: 'Invasion Kills', value: fmt(dInvKills), awakened: dInvKills > 200 })}

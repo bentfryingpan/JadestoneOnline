@@ -53,17 +53,12 @@ export async function GET({ url, setHeaders }) {
 
 	const perCharData = await Promise.all(
 		charIds.map(async (charId) => {
-			const all = [];
-			for (let page = 0; page < pageCount; page++) {
-				const data = await bungieGet(
-					`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=${page}`
-				);
-				if (data.ErrorCode !== 1) break;
-				const acts = data.Response?.activities ?? [];
-				all.push(...acts);
-				if (acts.length < 250) break;
-			}
-			return all;
+			// Fast Recent-Only: Fetch only page 0 (last 250) for rapid indexing
+			const data = await bungieGet(
+				`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=250&page=0`
+			);
+			if (data.ErrorCode !== 1) return [];
+			return data.Response?.activities ?? [];
 		})
 	);
 

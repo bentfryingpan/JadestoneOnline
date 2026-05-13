@@ -194,11 +194,13 @@ export async function load({ params, parent, url, setHeaders }) {
 			.single();
 		if (pData && pData.games_played > 5) source = 'supabase';
 
-		// 2. Fetch aggregated totals from 'matches' for deep intelligence
+		// 2. Fetch aggregated totals from 'matches' (Limited to Recent 250 for speed and relevance)
 		const { data: mData } = await supabaseAdmin
 			.from('matches')
 			.select('stats_json, ego_score, outcome, created_at')
-			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`);
+			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+			.order('created_at', { ascending: false })
+			.limit(250);
 
 		// 3. Also fetch from 'player_gambit_stats' for summary-level non-zero fallbacks
 		const { data: sData } = await supabaseAdmin
@@ -208,26 +210,26 @@ export async function load({ params, parent, url, setHeaders }) {
 			.single();
 
 		dbTotals = {
-			entered: sData?.activities_entered ?? 0,
-			wins: sData?.activities_won ?? 0,
-			kills: sData?.kills ?? 0,
-			deaths: sData?.deaths ?? 0,
-			assists: sData?.assists ?? 0,
+			entered: 0,
+			wins: 0,
+			kills: 0,
+			deaths: 0,
+			assists: 0,
 			precision: 0,
-			motes: sData?.motes_deposited ?? 0,
-			motesLost: sData?.motes_lost ?? 0,
-			motesPickedUp: (sData?.motes_deposited ?? 0) + (sData?.motes_lost ?? 0),
+			motes: 0,
+			motesLost: 0,
+			motesPickedUp: 0,
 			primevalDmg: 0,
 			primevalHeal: 0,
-			invasions: sData?.invasions ?? 0,
-			shutDowns: sData?.invasions_defeated ?? 0,
+			invasions: 0,
+			shutDowns: 0,
 			ability: 0,
 			super: 0,
 			blockers: 0,
-			invKills: sData?.invasion_kills ?? 0,
+			invKills: 0,
 			invDeaths: 0,
 			motesDenied: 0,
-			armyOfOne: triumphArmyOfOne // Initialize with verified Triumph data
+			armyOfOne: triumphArmyOfOne 
 		};
 
 		if (mData?.length) {
@@ -277,7 +279,7 @@ export async function load({ params, parent, url, setHeaders }) {
 					acc.motesDenied += stats.motesDenied ?? 0;
 					
 					const mds = stats.medals ?? {};
-					if (mds.armyOfOne) acc.armyOfOne += mds.armyOfOne;
+					if (mds.armyOfOne) acc.armyOfOne = Math.max(acc.armyOfOne, mds.armyOfOne + (acc.armyOfOne - triumphArmyOfOne));
 					
 					return acc;
 				},
@@ -300,14 +302,29 @@ export async function load({ params, parent, url, setHeaders }) {
 					invKills: 0,
 					invDeaths: 0,
 					motesDenied: 0,
-					armyOfOne: 0
+					armyOfOne: triumphArmyOfOne
 				}
 			);
 
-			// Use Math.max to combine summary data with deep match data
 			Object.keys(dbTotals).forEach(key => {
-				dbTotals[key] = Math.max(dbTotals[key], deepTotals[key] ?? 0);
+				dbTotals[key] = deepTotals[key];
 			});
+
+			if (dbTotals.entered < 10 && sData) {
+				dbTotals.entered = sData.activities_entered;
+				dbTotals.wins = sData.activities_won;
+				dbTotals.kills = Math.max(dbTotals.kills, sData.kills);
+				dbTotals.deaths = Math.max(dbTotals.deaths, sData.deaths);
+				dbTotals.motes = Math.max(dbTotals.motes, sData.motes_deposited);
+				dbTotals.invKills = Math.max(dbTotals.invKills, sData.invasion_kills);
+			}
+		} else if (sData) {
+			dbTotals.entered = sData.activities_entered;
+			dbTotals.wins = sData.activities_won;
+			dbTotals.kills = sData.kills;
+			dbTotals.deaths = sData.deaths;
+			dbTotals.motes = sData.motes_deposited;
+			dbTotals.invKills = sData.invasion_kills;
 		}
 	} catch {}
 
