@@ -6,6 +6,10 @@
     let loading = $state(true);
     let details = $state(null);
 
+    // Tooltip tracking
+    let hoveredPerk = $state(null);
+    let tooltipPos  = $state({ x: 0, y: 0 });
+
     async function fetchDetails() {
         try {
             const mid = weapon.membershipId ? `?mid=${weapon.membershipId}&mt=${weapon.membershipType}` : '';
@@ -25,12 +29,26 @@
     function getStatColor() {
         return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]';
     }
+
+    function onPerkEnter(e, perk) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        hoveredPerk = perk;
+        tooltipPos = {
+            x: rect.left + rect.width / 2,
+            y: rect.top - 15
+        };
+    }
 </script>
 
 {#snippet perkIcon({ perk, large = false })}
-    <div class="group/perk relative {large ? 'w-12 h-12' : 'w-10 h-10'} flex items-center justify-center cursor-help overflow-visible">
-        <!-- Circular Border (Glows Sky Blue) -->
-        <div class="absolute inset-0 bg-zinc-950 border {perk.isEnhanced ? 'border-amber-500/40' : 'border-zinc-800'} rounded-full group-hover:border-sky-400 group-hover:shadow-[0_0_15px_rgba(56,189,248,0.4)] transition-all duration-300"></div>
+    <div class="group/perk relative {large ? 'w-12 h-12' : 'w-10 h-10'} flex items-center justify-center cursor-help"
+         onmouseenter={(e) => onPerkEnter(e, perk)}
+         onmouseleave={() => hoveredPerk = null}>
+        
+        <!-- Circular Border (Glows & Fills Blue on Hover) -->
+        <div class="absolute inset-0 bg-zinc-950 border {perk.isEnhanced ? 'border-amber-500/40' : 'border-zinc-800'} rounded-full 
+                    group-hover/perk:border-sky-400 group-hover/perk:bg-sky-500/20 group-hover/perk:shadow-[0_0_20px_rgba(56,189,248,0.5)] 
+                    transition-all duration-300"></div>
         
         <!-- The Icon -->
         <img src={perk.icon} alt={perk.name} class="{large ? 'w-10 h-10' : 'w-8 h-8'} relative z-10 opacity-80 group-hover/perk:opacity-100 transition-opacity" />
@@ -40,20 +58,11 @@
                 <span class="text-[7px] font-black text-black">E</span>
             </div>
         {/if}
-
-        <!-- Hover Tooltip (Static/Level) -->
-        <div class="absolute bottom-[calc(100%+18px)] left-1/2 -translate-x-1/2 p-4 bg-[#0a0a0a] border border-zinc-800 w-64 opacity-0 group-hover/perk:opacity-100 transition-all pointer-events-none z-[400] shadow-2xl scale-95 group-hover/perk:scale-100">
-            <p class="text-xs font-black italic uppercase {perk.isEnhanced ? 'text-amber-500' : 'text-sky-400'} mb-1">
-                {perk.name}
-            </p>
-            <p class="text-[10px] text-zinc-400 leading-relaxed font-serif italic">{perk.description || "No tactical data available."}</p>
-            <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 {perk.isEnhanced ? 'bg-amber-500/20' : 'bg-sky-400/20'}"></div>
-        </div>
     </div>
 {/snippet}
 
 <div class="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-10 font-sans" transition:fade={{ duration: 200 }}>
-    <button class="absolute inset-0 bg-black/90 backdrop-blur-md cursor-default border-none" onclick={onClose}></button>
+    <button class="absolute inset-0 bg-black/95 backdrop-blur-xl cursor-default border-none" onclick={onClose}></button>
 
     {#if loading}
         <div class="relative z-10 flex flex-col items-center gap-4">
@@ -64,7 +73,7 @@
         <div class="relative z-10 w-full max-w-6xl bg-[#0a0a0a] border border-zinc-800 shadow-2xl overflow-hidden flex flex-col max-h-[95vh]" in:fly={{ y: 20, duration: 400 }}>
             
             <!-- Banner / Screenshot -->
-            <div class="h-72 relative shrink-0 border-b border-zinc-800 bg-zinc-950">
+            <div class="h-72 relative shrink-0 border-b border-zinc-800 bg-zinc-950 z-50">
                 {#if details.screenshot}
                     <img src={details.screenshot} alt={details.name} class="w-full h-full object-cover opacity-60 contrast-125 grayscale-[0.2]" />
                     <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent"></div>
@@ -97,7 +106,7 @@
             </div>
 
             <!-- Content Area -->
-            <div class="flex-1 overflow-y-auto p-12 grid grid-cols-12 gap-16 scrollbar-hide bg-[#0a0a0a]">
+            <div class="flex-1 overflow-y-auto p-12 grid grid-cols-12 gap-16 scrollbar-hide bg-[#0a0a0a] z-10">
                 
                 <!-- Left: Stats -->
                 <div class="col-span-12 lg:col-span-4 space-y-10 border-r border-zinc-800/30 pr-8">
@@ -171,7 +180,7 @@
                 </div>
             </div>
             
-            <div class="h-12 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between px-10 shrink-0">
+            <div class="h-12 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between px-10 shrink-0 z-[60]">
                 <div class="flex items-center gap-8">
                     <span class="text-[9px] font-black text-zinc-700 tracking-[0.6em] uppercase">JADESTONE_INTEL_SYSTEM_V{details.hash.substring(0,4)}</span>
                     <span class="text-[9px] font-mono text-zinc-800 uppercase tracking-widest opacity-50">UID_{details.hash}</span>
@@ -182,6 +191,23 @@
                 </div>
             </div>
         </div>
+
+        <!-- Global Smart Tooltip (Outside all scroll areas and headers) -->
+        {#if hoveredPerk}
+            <div class="fixed pointer-events-none z-[2000] -translate-x-1/2 -translate-y-full mb-4"
+                 style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
+                 transition:fade={{ duration: 100 }}>
+                <div class="p-4 bg-[#0a0a0a] border border-zinc-800 w-72 shadow-[0_0_30px_rgba(0,0,0,0.8)] animate-in fade-in zoom-in-95 duration-200">
+                    <p class="text-[11px] font-black italic uppercase {hoveredPerk.isEnhanced ? 'text-amber-500' : 'text-sky-400'} mb-1.5 tracking-wider">
+                        {hoveredPerk.name}
+                    </p>
+                    <p class="text-[10px] text-zinc-300 leading-relaxed font-serif italic opacity-90">
+                        {hoveredPerk.description || "Active Tactical Component."}
+                    </p>
+                    <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-4 {hoveredPerk.isEnhanced ? 'bg-amber-500/40' : 'bg-sky-400/40'}"></div>
+                </div>
+            </div>
+        {/if}
     {/if}
 </div>
 
