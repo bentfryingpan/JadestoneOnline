@@ -18,11 +18,11 @@ export async function GET({ url }) {
 
 		// Robust query: Target both exact ID and potential rounded BigInts
 		const { data: rows, error } = await supabaseAdmin
-			.from('player_matches')
-			.select('pgcr_id, map_name, period, outcome, ego_score, stats, player_id, roster')
+			.from('matches')
+			.select('id, map_name, created_at, outcome, ego_score, stats_json, player_id')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-			.not('stats', 'is', null)
-			.order('period', { ascending: false })
+			.not('stats_json', 'is', null)
+			.order('created_at', { ascending: false })
 			.limit(10000);
 
 		if (error || !rows?.length) {
@@ -75,8 +75,8 @@ export async function GET({ url }) {
 			totalMotesDenied = 0;
 
 		for (const row of rows) {
-			const stats = row.stats ?? {};
-			const roster = row.roster ?? stats.roster ?? [];
+			const stats = row.stats_json ?? {};
+			const roster = stats.roster ?? [];
 
 			// 1:1 Identity Matching
 			const myEntry = roster.find(
@@ -195,8 +195,9 @@ export async function GET({ url }) {
 			}
 
 			// Time
-			if (row.period) {
-				const h = new Date(row.period).getHours();
+			const dateVal = row.period || row.created_at;
+			if (dateVal) {
+				const h = new Date(dateVal).getHours();
 				hourlyAgg[h].games++;
 				if (isWin) hourlyAgg[h].wins++;
 				hourlyAgg[h].scoreSum += score;

@@ -181,8 +181,8 @@ export async function load({ params, parent, url, setHeaders }) {
 
 		// Fetch aggregated totals from player_matches for immediate non-zero fallbacks
 		const { data: mData } = await supabaseAdmin
-			.from('player_matches')
-			.select('stats, ego_score, outcome, roster, period')
+			.from('matches')
+			.select('stats_json, ego_score, outcome, created_at')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`);
 
 		if (mData?.length) {
@@ -191,8 +191,8 @@ export async function load({ params, parent, url, setHeaders }) {
 
 			dbTotals = mData.reduce(
 				(acc, m) => {
-					const stats = m.stats ?? {};
-					const roster = m.roster ?? stats.roster ?? [];
+					const stats = m.stats_json ?? {};
+					const roster = stats.roster ?? [];
 
 					// 1:1 Identity Matching
 					const myEntry = roster.find(
@@ -206,6 +206,7 @@ export async function load({ params, parent, url, setHeaders }) {
 
 					if (!myEntry) return acc;
 
+					acc.entered++;
 					const isWin =
 						m.outcome === 'Win' ||
 						m.outcome === 'WIN' ||
@@ -232,9 +233,14 @@ export async function load({ params, parent, url, setHeaders }) {
 					acc.invKills += stats.invasionKills ?? 0;
 					acc.invDeaths += stats.invaderDeaths ?? stats.invasionDeaths ?? 0;
 					acc.motesDenied += stats.motesDenied ?? 0;
+					
+					const mds = stats.medals ?? {};
+					if (mds.armyOfOne || mds.medalspvecompmedalinvaderkillfour) acc.armyOfOne += (mds.armyOfOne || mds.medalspvecompmedalinvaderkillfour);
+					
 					return acc;
 				},
 				{
+					entered: 0,
 					wins: 0,
 					kills: 0,
 					deaths: 0,
@@ -252,7 +258,8 @@ export async function load({ params, parent, url, setHeaders }) {
 					blockers: 0,
 					invKills: 0,
 					invDeaths: 0,
-					motesDenied: 0
+					motesDenied: 0,
+					armyOfOne: 0
 				}
 			);
 		}

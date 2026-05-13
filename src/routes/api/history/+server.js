@@ -138,21 +138,21 @@ export async function GET({ url, setHeaders }) {
 			for (let i = 0; i < instanceIds.length; i += CHUNK_SIZE) {
 				const chunk = instanceIds.slice(i, i + CHUNK_SIZE);
 				const { data } = await supabaseAdmin
-					.from('player_matches')
-					.select('pgcr_id, ego_score, stats')
+					.from('matches')
+					.select('id, ego_score, stats_json')
 					.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-					.in('pgcr_id', chunk);
+					.in('id', chunk);
 				if (data) enriched.push(...data);
 			}
 
 			if (enriched.length) {
-				const byId = Object.fromEntries(enriched.map((r) => [String(r.pgcr_id), r]));
+				const byId = Object.fromEntries(enriched.map((r) => [String(r.id), r]));
 				for (const m of matches) {
 					const e = byId[m.instanceId];
 					if (e) {
 						m.isEnriched = true;
 						if (e.ego_score != null) m.ego = { ...m.ego, finalScore: e.ego_score };
-						if (e.stats) m.stats_json = e.stats;
+						if (e.stats_json) m.stats_json = e.stats_json;
 					}
 				}
 			}

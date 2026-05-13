@@ -102,24 +102,28 @@ export async function GET({ url }) {
 
 	// ── Try Supabase (full data) ──────────────────────────────────────────────
 	try {
+		const idStr = String(membershipId);
+		const prefix = idStr.substring(0, 15);
+
 		const { data: rows } = await supabaseAdmin
-			.from('player_matches')
+			.from('matches')
 			.select(
-				'pgcr_id,map_name,period,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats'
+				'id,map_name,created_at,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats_json'
 			)
-			.eq('player_id', parseInt(membershipId))
-			.order('period', { ascending: false })
+			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+			.not('stats_json', 'is', null)
+			.order('created_at', { ascending: false })
 			.limit(count);
 
 		if (rows?.length) {
 			const lines = [HEADER_ROW];
 			rows.forEach((row, i) => {
-				const s = row.stats ?? {};
+				const s = row.stats_json ?? {};
 				const med = s.medals ?? {};
 				lines.push(
 					csvRow([
 						rows.length - i,
-						fmtDate(row.period),
+						fmtDate(row.created_at),
 						row.map_name ?? 'Gambit',
 						row.outcome ?? '',
 						row.fireteam_size ?? 1,
@@ -145,7 +149,8 @@ export async function GET({ url }) {
 			});
 			return new Response(lines.join('\n'), { headers });
 		}
-	} catch {
+	} catch (e) {
+		console.error('Export from Supabase failed:', e.message);
 		/* fall through to activity-history path */
 	}
 
