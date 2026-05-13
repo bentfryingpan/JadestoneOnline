@@ -179,22 +179,51 @@ export async function load({ params, parent, url, setHeaders }) {
 			.single();
 		if (pData && pData.games_played > 5) source = 'supabase';
 
-		// Fetch aggregated totals from player_matches for immediate non-zero fallbacks
+		// 2. Fetch aggregated totals from 'matches' for deep intelligence
 		const { data: mData } = await supabaseAdmin
 			.from('matches')
 			.select('stats_json, ego_score, outcome, created_at')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`);
 
+		// 3. Also fetch from 'player_gambit_stats' for summary-level non-zero fallbacks
+		const { data: sData } = await supabaseAdmin
+			.from('player_gambit_stats')
+			.select('*')
+			.eq('player_id', idStr)
+			.single();
+
+		dbTotals = {
+			entered: sData?.activities_entered ?? 0,
+			wins: sData?.activities_won ?? 0,
+			kills: sData?.kills ?? 0,
+			deaths: sData?.deaths ?? 0,
+			assists: sData?.assists ?? 0,
+			precision: 0,
+			motes: sData?.motes_deposited ?? 0,
+			motesLost: sData?.motes_lost ?? 0,
+			motesPickedUp: (sData?.motes_deposited ?? 0) + (sData?.motes_lost ?? 0),
+			primevalDmg: 0,
+			primevalHeal: 0,
+			invasions: sData?.invasions ?? 0,
+			shutDowns: sData?.invasions_defeated ?? 0,
+			ability: 0,
+			super: 0,
+			blockers: 0,
+			invKills: sData?.invasion_kills ?? 0,
+			invDeaths: 0,
+			motesDenied: 0,
+			armyOfOne: 0
+		};
+
 		if (mData?.length) {
 			const targetPrefix = name ? String(name).split('#')[0].toLowerCase() : null;
 			const targetCodeStr = code ? String(code).padStart(4, '0') : null;
 
-			dbTotals = mData.reduce(
+			const deepTotals = mData.reduce(
 				(acc, m) => {
 					const stats = m.stats_json ?? {};
 					const roster = stats.roster ?? [];
 
-					// 1:1 Identity Matching
 					const myEntry = roster.find(
 						(r) =>
 							r.is_target ||
@@ -228,14 +257,12 @@ export async function load({ params, parent, url, setHeaders }) {
 						(stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + 
 						(stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
 					acc.super += stats.superKills ?? stats.weaponKillsSuper ?? 0;
-					acc.blockers +=
-						(stats.smallBlockersSent ?? 0) + (stats.mediumBlockersSent ?? 0) + (stats.largeBlockersSent ?? 0);
 					acc.invKills += stats.invasionKills ?? 0;
 					acc.invDeaths += stats.invaderDeaths ?? stats.invasionDeaths ?? 0;
 					acc.motesDenied += stats.motesDenied ?? 0;
 					
 					const mds = stats.medals ?? {};
-					if (mds.armyOfOne || mds.medalspvecompmedalinvaderkillfour) acc.armyOfOne += (mds.armyOfOne || mds.medalspvecompmedalinvaderkillfour);
+					if (mds.armyOfOne) acc.armyOfOne += mds.armyOfOne;
 					
 					return acc;
 				},
@@ -255,13 +282,17 @@ export async function load({ params, parent, url, setHeaders }) {
 					shutDowns: 0,
 					ability: 0,
 					super: 0,
-					blockers: 0,
 					invKills: 0,
 					invDeaths: 0,
 					motesDenied: 0,
 					armyOfOne: 0
 				}
 			);
+
+			// Use Math.max to combine summary data with deep match data
+			Object.keys(dbTotals).forEach(key => {
+				dbTotals[key] = Math.max(dbTotals[key], deepTotals[key] ?? 0);
+			});
 		}
 	} catch {}
 

@@ -406,8 +406,9 @@
 	);
 
 	const ls = $derived(data.lifetimeStats ?? {});
-	function sv(key) {
-		return ls[key]?.basic?.value ?? 0;
+	function sv(key, key2 = null) {
+		const val = ls[key]?.basic?.value ?? (key2 ? ls[key2]?.basic?.value : null);
+		return val ?? 0;
 	}
 
 	const ltWon = $derived(sv('activitiesWon'));
@@ -416,7 +417,7 @@
 	const ltAssists = $derived(sv('assists'));
 	const ltPrecision = $derived(sv('precisionKills'));
 	const ltInvasions = $derived(sv('invasions'));
-	const ltInvKills = $derived(sv('invasionKills'));
+	const ltInvKills = $derived(sv('invasionKills', 'invaderKills'));
 	const ltMotes = $derived(sv('motesBanked') || sv('motesDeposited'));
 	const ltMotesLost = $derived(sv('motesLost'));
 	const ltMotesDenied = $derived(sv('motesDenied'));
@@ -427,7 +428,7 @@
 	const ltSmallBlockers = $derived(sv('smallBlockersSent'));
 	const ltMediumBlockers = $derived(sv('mediumBlockersSent'));
 	const ltLargeBlockers = $derived(sv('largeBlockersSent'));
-	const ltInvaderDeaths = $derived(sv('invaderDeaths'));
+	const ltInvaderDeaths = $derived(sv('invasionDeaths', 'invaderDeaths'));
 	const ltShutDowns = $derived(sv('invasionsDefeated'));
 	const ltHealed = $derived(sv('primevalHealing'));
 
@@ -548,12 +549,12 @@
 	);
 	const dMeleeKills = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.meleeKills ?? 0, ltMeleeKills)
+			? Math.max(seasonalTotal?.meleeKills ?? 0, ltMeleeKills, data.dbTotals?.meleeKills ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.meleeKills ?? 0)
 	);
 	const dGrenadeKills = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.grenadeKills ?? 0, ltGrenadeKills)
+			? Math.max(seasonalTotal?.grenadeKills ?? 0, ltGrenadeKills, data.dbTotals?.grenadeKills ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.grenadeKills ?? 0)
 	);
 	const dAbility = $derived(
@@ -568,7 +569,7 @@
 	);
 	const dArmyOfOne = $derived(
 		seasonFilter === 'all'
-			? Math.max(data.dbTotals?.armyOfOne ?? 0)
+			? Math.max(seasonalTotal?.armyOfOne ?? 0, data.dbTotals?.armyOfOne ?? 0)
 			: 0
 	);
 	const dSmallBlockers = $derived(
@@ -588,28 +589,28 @@
 	);
 	const dInvaderDeaths = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.invaderDeaths ?? 0, ltInvaderDeaths)
+			? Math.max(seasonalTotal?.invaderDeaths ?? 0, ltInvaderDeaths, data.dbTotals?.invDeaths ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invaderDeaths ?? 0)
 	);
 
 	const dInvasions = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.invasions ?? 0, ltInvasions)
+			? Math.max(seasonalTotal?.invasions ?? 0, ltInvasions, data.dbTotals?.invasions ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invasions ?? 0)
 	);
 	const dShutDowns = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.invasionsDefeated ?? 0, ltShutDowns)
+			? Math.max(seasonalTotal?.invasionsDefeated ?? 0, ltShutDowns, data.dbTotals?.shutDowns ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.invasionsDefeated ?? 0)
 	);
 	const dHealed = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.primevalHealing ?? 0, ltHealed)
+			? Math.max(seasonalTotal?.primevalHealing ?? 0, ltHealed, data.dbTotals?.primevalHeal ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.primevalHealing ?? 0)
 	);
 	const dPrecision = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.precisionKills ?? 0, ltPrecision)
+			? Math.max(seasonalTotal?.precisionKills ?? 0, ltPrecision, data.dbTotals?.precision ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.precisionKills ?? 0)
 	);
 
@@ -1539,10 +1540,10 @@
 												{#if dMotesLost > 0}
 													{@render detailStatCompact({ label: 'Motes De-synchronized (Lost)', value: fmt(dMotesLost) })}
 												{/if}
-												{#if dMotes > 0 && dMotesLost >= 0}
+												{#if dMotes > 0}
 													{@render detailStatCompact({ 
 														label: 'Sync Efficiency', 
-														value: fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%',
+														value: (dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '100%',
 														awakened: true
 													})}
 												{/if}
