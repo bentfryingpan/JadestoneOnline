@@ -1,12 +1,15 @@
 /**
- * /api/pgcr-enrich — Optimized Bulk Enrichment (Flawless 1:1 Engine)
+ * /api/pgcr-enrich — Optimized Bulk Enrichment (Robust Schema-Aligned)
+ * 
+ * Extracts deep stats (Grenades, Melee, Super, Blockers) for all players 
+ * and stores them in 'stats_json' for 1:1 parity with desktop tools.
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 import { calcEgo, extractMedals as _extractMedals, detectRole } from '$lib/server/ego.js';
-import { getItemDef, getActivityDef, getMapImage, getExoticIconBase64 } from '$lib/server/manifest.js';
+import { getItemDef, getActivityDef } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
@@ -30,7 +33,7 @@ async function fetchPgcr(id) {
         const text = await res.text();
         const fixed = text.replace(/:\s*(\d{15,})/g, ': "$1"');
         const data = JSON.parse(fixed);
-        if (data.ErrorCode === 1 && data.Response) {
+        if (data.ErrorCode === 1) {
             cacheSet(key, data, PGCR_TTL);
             return data;
         }
@@ -88,46 +91,61 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
             invasionsDefeated: sv(e, 'invasionsDefeated'),
             motesDeposited: sv(e, 'motesDeposited') || sv(e, 'motesBanked'),
             motesDenied: sv(e, 'motesDenied'),
+            motesPickedUp: sv(e, 'motesPickedUp'),
             motesLost: sv(e, 'motesLost'),
             primevalDamage: sv(e, 'primevalDamage'),
+            primevalHealing: sv(e, 'primevalHealing'),
             superKills: sv(e, 'weaponKillsSuper') || sv(e, 'superKills'),
+            grenadeKills: sv(e, 'weaponKillsGrenade') || sv(e, 'grenadeKills'),
+            meleeKills: sv(e, 'weaponKillsMelee') || sv(e, 'meleeKills'),
+            smallBlooms: sv(e, 'smallBlockersSent') || 0,
+            mediumBlooms: sv(e, 'mediumBlockersSent') || 0,
+            largeBlooms: sv(e, 'largeBlockersSent') || 0,
             fireteamSize: ftSize,
             medals: _extractMedals(e.extended?.values ?? {}),
         };
 
-        const ego = sv(e, 'completed') === 1 ? calcEgo(stats) : null;
+        const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : null;
 
-        roster.push({
-            id: pId, name: pName, code: pCode, team, 
-            className: { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' }[e.player?.classType ?? -1] ?? 'Unknown',
-            score: ego?.finalScore ?? 0, fireteam_size: ftSize, is_target: isTarget 
-        });
-
-        if (isTarget && sv(e, 'completed') === 1) {
-            const rawWeapons = e.extended?.weapons ?? [];
-            const topWeapons = [];
-            for (const w of rawWeapons) {
-                const wDef = await getItemDef(w.referenceId);
-                if (!wDef) continue;
-                const wk = w.values?.uniqueWeaponKills?.basic?.value ?? 0;
-                if (wk > 0) {
-                    topWeapons.push({
-                        name: wDef.displayProperties?.name,
+        // Process weapons for ALL players if we want deep tools
+        const playerWeapons = [];
+        if (isTarget) {
+            for (const w of e.extended?.weapons ?? []) {
+                const def = await getItemDef(w.referenceId);
+                if (def) {
+                    playerWeapons.push({
+                        name: def.displayProperties.name,
                         hash: w.referenceId,
-                        icon: wDef.displayProperties?.hasIcon ? BUNGIE_ROOT + wDef.displayProperties.icon : null,
-                        slot: SLOT_BUCKETS[wDef.inventory?.bucketTypeHash] ?? 'Unknown',
-                        kills: wk,
-                        precision: w.values?.uniqueWeaponPrecisionKills?.basic?.value ?? 0
+                        slot: SLOT_BUCKETS[def.inventory?.bucketTypeHash] ?? 'Unknown',
+                        kills: sv(w, 'uniqueWeaponKills'),
+                        precision: sv(w, 'uniqueWeaponPrecisionKills'),
+                        icon: def.displayProperties.hasIcon ? BUNGIE_ROOT + def.displayProperties.icon : null
                     });
                 }
             }
-            stats.top_weapons = topWeapons;
-            targetEntryData = { stats, ego, outcome: sv(e, 'standing') === 0 ? 'Win' : 'Loss' };
+        }
+
+        const rosterItem = {
+            id: pId, name: pName, code: pCode, team, 
+            className: { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' }[e.player?.classType ?? -1] ?? 'Unknown',
+            score: ego?.finalScore ?? 0, fireteam_size: ftSize, is_target: isTarget,
+            stats, // Full stats for everyone
+            weapons: playerWeapons
+        };
+        roster.push(rosterItem);
+
+        if (isTarget && e.values?.completed?.basic?.value === 1) {
+            targetEntryData = { 
+                stats: { ...stats, top_weapons: playerWeapons }, 
+                ego, 
+                outcome: e.values?.standing?.basic?.value === 0 ? 'Win' : 'Loss' 
+            };
         }
     }
 
     if (!targetEntryData) return null;
 
+    // Detect role
     const myTeamName = roster.find(r => r.is_target)?.team;
     const myTeamScores = roster.filter(r => r.team === myTeamName && r.score > 0).map(r => r.score);
     const { isCarry, isCarried } = detectRole(targetEntryData.ego.finalScore, myTeamScores);
@@ -172,24 +190,25 @@ export async function POST({ request }) {
                 played_at: pgcrRes.Response.period,
                 created_at: new Date().toISOString()
             };
-        } catch { return null; }
+        } catch (e) {
+            console.error(`[enrich] Match ${id} failed:`, e.message);
+            return null;
+        }
     }));
 
     const toUpsert = results.filter(Boolean);
     if (toUpsert.length === 0) return json({ stored: 0 });
 
-    // 1. Ensure Player Record exists (FK Requirement)
-    try {
-        await supabaseAdmin.from('players').upsert({
-            id: String(membershipId),
-            bungie_name: bungieDisplayName,
-            bungie_code: String(bungieDisplayCode).padStart(4, '0'),
-            membership_type: parseInt(membershipType),
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-    } catch { }
+    // 1. Ensure player exists
+    await supabaseAdmin.from('players').upsert({
+        id: String(membershipId),
+        bungie_name: bungieDisplayName,
+        bungie_code: String(bungieDisplayCode).padStart(4, '0'),
+        membership_type: parseInt(membershipType),
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
 
-    // 2. Bulk Upsert Matches
+    // 2. Upsert Matches
     const { error: mErr } = await supabaseAdmin.from('matches').upsert(toUpsert, { onConflict: 'id,player_id' });
     if (mErr) return json({ error: mErr.message }, { status: 500 });
 
