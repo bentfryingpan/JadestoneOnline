@@ -25,6 +25,8 @@ export async function load({ cookies }) {
 
 			return {
 				displayName: data.Response.bungieNetUser.uniqueName,
+				bungieName: primary?.bungieGlobalDisplayName,
+				bungieCode: primary?.bungieGlobalDisplayNameCode,
 				membershipId: primary?.membershipId,
 				membershipType: primary?.membershipType
 			};

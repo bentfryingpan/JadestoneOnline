@@ -318,14 +318,27 @@
 		style="display:flex;align-items:stretch;border-left:1px solid rgba(255,255,255,0.07);flex-shrink:0;"
 	>
 		{#if user}
-			<span
+			<a
+				href="/profile/{encodeURIComponent(user.bungieName)}/{user.bungieCode}"
 				style="
-                font-family:var(--font-family-display);
-                font-size:0.72rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;
-                color:var(--d2-text-muted);padding:0 14px;
-                display:flex;align-items:center;
-            ">{user.displayName}</span
+		font-family:var(--font-family-display);
+		font-size:0.72rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;
+		color:var(--d2-text-muted);padding:0 14px;
+		display:flex;align-items:center;
+		text-decoration:none;transition:color 0.15s,background 0.15s;
+		border-right: 1px solid rgba(255,255,255,0.07);
+		"
+				onmouseenter={(e) => {
+					e.currentTarget.style.color = 'var(--d2-text-primary)';
+					e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+				}}
+				onmouseleave={(e) => {
+					e.currentTarget.style.color = 'var(--d2-text-muted)';
+					e.currentTarget.style.background = 'transparent';
+				}}
 			>
+				{user.displayName}
+			</a>
 			<a
 				href="/auth/logout"
 				style="
