@@ -64,7 +64,7 @@ export async function GET({ params, url }) {
         } catch (e) { console.error('[live-inspect] Failed:', e.message); }
     }
 
-    // 2. Resolve Possible Perk Pools (Enhanced Selection)
+    // 2. Resolve Possible Perk Pools (Manifest Sockets)
     const perkPools = [];
     const originTraits = [];
 
@@ -96,23 +96,20 @@ export async function GET({ params, url }) {
                 const pDef = allPerkDefs[pHash];
                 if (pDef && pDef.displayProperties?.name && !pDef.displayProperties.name.includes('Empty')) {
                     const type = pDef.itemTypeDisplayName || '';
-                    const name = pDef.displayProperties.name;
-                    
                     if (type.includes('Perk') || type.includes('Frame') || type.includes('Barrel') || type.includes('Magazine') || type.includes('Intrinsic') || type.includes('Trait')) {
-                        const key = `${name}_${pDef.displayProperties.icon}`;
+                        const key = `${pDef.displayProperties.name}_${pDef.displayProperties.icon}`;
                         if (seenPerks.has(key)) continue;
                         seenPerks.add(key);
 
                         const perkData = {
-                            name,
+                            name: pDef.displayProperties.name,
                             icon: BUNGIE_ROOT + pDef.displayProperties.icon,
                             description: pDef.displayProperties.description,
                             hash: pHash,
-                            isEnhanced: name.includes('(Enhanced)') || pDef.inventory?.tierType === 3
+                            isEnhanced: pDef.displayProperties.name.includes('(Enhanced)') || pDef.inventory?.tierType === 3
                         };
 
-                        // Specific check for Origin Traits (including selection pools)
-                        if (type.includes('Origin Trait') || name.includes('Origin Trait')) {
+                        if (type.includes('Origin Trait')) {
                             originTraits.push(perkData);
                         } else {
                             pool.perks.push(perkData);
@@ -122,45 +119,75 @@ export async function GET({ params, url }) {
             }
 
             if (pool.perks.length > 0) {
-                const firstPerkName = pool.perks[0].name.toLowerCase();
-                if (!firstPerkName.includes('empty') && !firstPerkName.includes('tracker')) {
+                const firstPerk = pool.perks[0].name.toLowerCase();
+                if (!firstPerk.includes('empty') && !firstPerk.includes('tracker')) {
                     perkPools.push(pool);
                 }
             }
         });
     }
 
-    // Deduplicate origin traits globally
-    const uniqueOriginTraits = [];
-    const seenOT = new Set();
-    for (const ot of originTraits) {
-        if (!seenOT.has(ot.name)) {
-            uniqueOriginTraits.push(ot);
-            seenOT.add(ot.name);
-        }
-    }
-
-    // 3. Categorize Stats
+    // 3. Categorize Stats (Comprehensive Universal List with Priority)
     const stats = [];
     const statSource = liveStats || item.stats?.stats || {};
     
     const barStatHashes = [
-        4043527740, 1240592695, 155624089, 943540823, 943549884, 4188034523, 
-        4188031367, 4254817677, 1345609583, 2715839340, 3871231018, 3871231066, 
-        446212391, 2523465841, 1591432999, 3555963035, 1931675084, 105267050, 
-        2766642535, 1842278914, 3022301684,
+        4043527740, // Impact
+        1240592695, // Range
+        155624089,  // Stability
+        943540823,  // Handling
+        943549884,  // Handling (Alt)
+        4188034523, // Reload Speed
+        4188031367, // Reload Speed (Alt)
+        4254817677, // Aim Assistance
+        1345609583, // Aim Assistance (Alt)
+        2715839340, // Recoil Direction
+        3871231018, // Airborne Effectiveness
+        3871231066, // Airborne Effectiveness (Alt)
+        446212391,  // Blast Radius
+        2523465841, // Velocity
+        1591432999, // Accuracy
+        3555963035, // Zoom
+        1931675084, // Zoom (Alt)
+        105267050,  // Guard Resistance
+        2766642535, // Guard Efficiency
+        1842278914, // Guard Endurance
+        3022301684, // Charge Rate
     ];
 
     const valueStatHashes = [
-        3893976251, 4284893193, 3614671103, 2961396640, 2837207746,
+        3893976251, // Magazine
+        4284893193, // Rounds Per Minute
+        3614671103, // Charge Time
+        2961396640, // Draw Time
+        2837207746, // Swing Speed
     ];
 
+    // Priority map for ordering like in-game
     const PRIORITY = {
-        [4043527740]: 1, [1240592695]: 2, [155624089]: 3, [943540823]: 4, [943549884]: 4,
-        [4188034523]: 5, [4188031367]: 5, [4254817677]: 6, [1345609583]: 6,
-        [3555963035]: 7, [1931675084]: 7, [2715839340]: 8, [3871231018]: 9, [3871231066]: 9,
-        [2523465841]: 2, [446212391]: 3, [2837207746]: 2, [2766642535]: 3, [105267050]: 4,
-        [1842278914]: 5, [3022301684]: 6,
+        [4043527740]: 1,  // Impact
+        [1240592695]: 2,  // Range
+        [155624089]:  3,  // Stability
+        [943540823]:  4,  // Handling
+        [943549884]:  4,
+        [4188034523]: 5,  // Reload Speed
+        [4188031367]: 5,
+        [4254817677]: 6,  // Aim Assistance
+        [1345609583]: 6,
+        [3555963035]: 7,  // Zoom
+        [1931675084]: 7,
+        [2715839340]: 8,  // Recoil
+        [3871231018]: 9,  // AE
+        [3871231066]: 9,
+        // Launcher-specific
+        [2523465841]: 2,  // Velocity
+        [446212391]:  3,  // Blast Radius
+        // Sword-specific
+        [2837207746]: 2,  // Swing Speed
+        [2766642535]: 3,  // Guard Efficiency
+        [105267050]:  4,  // Guard Resistance
+        [1842278914]: 5,  // Guard Endurance
+        [3022301684]: 6,  // Charge Rate
     };
 
     for (const sHash of Object.keys(statSource)) {
@@ -200,13 +227,14 @@ export async function GET({ params, url }) {
         stats: stats.sort((a, b) => {
             if (a.isBar !== b.isBar) return a.isBar ? -1 : 1;
             if (a.isBar && b.isBar) return a.priority - b.priority;
+            // Value stats: Magazine first, then RPM, etc.
             if (a.hash === 3893976251) return -1;
             if (b.hash === 3893976251) return 1;
             return a.name.localeCompare(b.name);
         }),
         livePerks,
         perkPools,
-        originTraits: uniqueOriginTraits,
+        originTraits,
         damageType: dmgType,
         tier: item.inventory?.tierTypeName,
         isExotic: item.inventory?.tierType === 6,
