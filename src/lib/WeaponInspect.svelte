@@ -45,7 +45,7 @@
          onmouseenter={(e) => onPerkEnter(e, perk)}
          onmouseleave={() => hoveredPerk = null}>
         
-        <!-- Circular Border (Larger Glow & Fills Blue on Hover) -->
+        <!-- Circular Border (Glows Sky Blue) -->
         <div class="absolute inset-0 bg-zinc-950 border {perk.isEnhanced ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : 'border-zinc-800'} rounded-full 
                     group-hover/perk:border-sky-400 group-hover/perk:bg-sky-500/25 group-hover/perk:shadow-[0_0_35px_rgba(56,189,248,0.7)] 
                     transition-all duration-300"></div>
@@ -85,6 +85,7 @@
 
                 <div class="absolute bottom-0 left-0 w-full p-6 flex items-end justify-between">
                     <div class="flex items-center gap-6">
+                        <!-- Squared Icon Container -->
                         <div class="w-20 h-20 bg-zinc-900 border border-zinc-700 relative overflow-hidden shrink-0 shadow-2xl">
                             <img src={details.icon} alt={details.name} class="w-full h-full object-cover p-1" />
                             <div class="absolute top-0 left-0 w-full h-[2px] {details.isExotic ? 'bg-amber-500' : 'bg-zinc-500'}"></div>
@@ -92,7 +93,7 @@
                         <div>
                             <div class="flex items-center gap-2.5">
                                 {#if details.damageType?.icon}
-                                    <img src={details.damageType.icon} alt="Damage" class="w-5 h-5 opacity-90 shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
+                                    <img src={details.damageType.icon} alt="Damage" class="w-6 h-6 opacity-90 shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
                                 {/if}
                                 <span class="text-[10px] font-black tracking-[0.4em] {details.isExotic ? 'text-amber-500' : 'text-emerald-500'} uppercase">
                                     {details.tier} {details.type}
@@ -120,7 +121,7 @@
                                         <span class="text-xs font-mono font-black text-white">{stat.value}</span>
                                     </div>
                                     {#if stat.isBar}
-                                        <div class="h-1 bg-zinc-950 border border-white/5 rounded-full overflow-hidden relative">
+                                        <div class="h-1.5 bg-zinc-950 border border-white/5 rounded-full overflow-hidden relative">
                                             <div class="absolute inset-y-0 left-0 {getStatColor()} transition-all duration-1000 ease-out" style="width: {Math.min(stat.value, 100)}%"></div>
                                         </div>
                                     {:else}
@@ -132,7 +133,7 @@
                     </div>
                 </div>
 
-                <!-- Right: Perk Grid (Denser) -->
+                <!-- Right: Perk Grid -->
                 <div class="col-span-12 lg:col-span-8 space-y-12">
                     {#if details.livePerks?.length > 0}
                         <div>
@@ -145,8 +146,9 @@
                         </div>
                     {/if}
 
-                    <div class="grid grid-cols-1 gap-12">
-                        <div>
+                    <div class="flex gap-16">
+                        <!-- Main Perk Pool -->
+                        <div class="flex-1">
                             <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.4em] font-bold block mb-6">MANIFEST_POOL_ANALYSIS</span>
                             <div class="flex flex-wrap gap-x-6 gap-y-6">
                                 {#each (details.perkPools || []) as pool}
@@ -159,10 +161,11 @@
                             </div>
                         </div>
 
+                        <!-- Origin Traits (Moved to the Right) -->
                         {#if details.originTraits?.length > 0}
-                            <div>
-                                <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.4em] font-bold block mb-6">ORIGIN_TRAIT_ARCHIVE</span>
-                                <div class="flex flex-wrap gap-3">
+                            <div class="w-32 shrink-0 border-l border-zinc-800/50 pl-8">
+                                <span class="text-[9px] font-sans text-zinc-500 uppercase tracking-[0.4em] font-bold block mb-6">ORIGIN_ARCHIVE</span>
+                                <div class="flex flex-col gap-4">
                                     {#each details.originTraits as perk}
                                         {@render perkIcon({ perk, large: true })}
                                     {/each}
@@ -192,7 +195,7 @@
             </div>
         </div>
 
-        <!-- Global Smart Tooltip (Outside all scroll areas and headers) -->
+        <!-- Global Smart Tooltip -->
         {#if hoveredPerk}
             <div class="fixed pointer-events-none z-[2000] -translate-x-1/2 -translate-y-full mb-6"
                  style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
@@ -204,7 +207,6 @@
                     <p class="text-[10px] text-zinc-300 leading-relaxed font-serif italic opacity-95">
                         {hoveredPerk.description || "Active Tactical Component."}
                     </p>
-                    <!-- Enhanced or Sky Blue indicator line -->
                     <div class="absolute top-full left-1/2 -translate-x-1/2 w-[1px] h-5 {hoveredPerk.isEnhanced ? 'bg-amber-500/50' : 'bg-sky-400/50'}"></div>
                 </div>
             </div>
