@@ -80,48 +80,54 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
         const team = teamMap[e.values?.team?.basic?.value ?? 0] ?? 'Alpha';
 
         const isTarget = pId === String(targetId) || 
-                         (targetPrefix && pName.split('#')[0].toLowerCase() === targetPrefix && pCode === targetCodeStr);
+                         (pName.split('#')[0].toLowerCase() === targetPrefix && pCode === targetCodeStr);
 
         const stats = {
-            kills: sv(e, 'kills'),
-            deaths: sv(e, 'deaths'),
             assists: sv(e, 'assists'),
-            invasionKills: sv(e, 'invasionKills') || sv(e, 'invaderKills'),
+            deaths: sv(e, 'deaths'),
+            kills: sv(e, 'kills'),
+            opponentsDefeated: sv(e, 'opponentsDefeated'),
+            efficiency: sv(e, 'efficiency'),
+            killsDeathsRatio: sv(e, 'killsDeathsRatio'),
+            killsDeathsAssists: sv(e, 'killsDeathsAssists'),
+            precisionKills: sv(e, 'precisionKills'),
+            grenadeKills: sv(e, 'weaponKillsGrenade'),
+            meleeKills: sv(e, 'weaponKillsMelee'),
+            superKills: sv(e, 'weaponKillsSuper'),
             invasions: sv(e, 'invasions'),
+            invasionKills: sv(e, 'invasionKills') || sv(e, 'invaderKills'),
             invasionsDefeated: sv(e, 'invasionsDefeated'),
             motesDeposited: sv(e, 'motesDeposited') || sv(e, 'motesBanked'),
             motesDenied: sv(e, 'motesDenied'),
             motesPickedUp: sv(e, 'motesPickedUp'),
             motesLost: sv(e, 'motesLost'),
+            bankOverage: sv(e, 'bankOverage'),
             primevalDamage: sv(e, 'primevalDamage'),
             primevalHealing: sv(e, 'primevalHealing'),
-            superKills: sv(e, 'weaponKillsSuper') || sv(e, 'superKills'),
-            grenadeKills: sv(e, 'weaponKillsGrenade') || sv(e, 'grenadeKills'),
-            meleeKills: sv(e, 'weaponKillsMelee') || sv(e, 'meleeKills'),
-            smallBlooms: sv(e, 'smallBlockersSent') || 0,
-            mediumBlooms: sv(e, 'mediumBlockersSent') || 0,
-            largeBlooms: sv(e, 'largeBlockersSent') || 0,
+            blockerKills: sv(e, 'blockerKills'),
+            highValueKills: sv(e, 'highValueKills'),
+            mobKills: sv(e, 'mobKills'),
+            smallBlockersSent: sv(e, 'smallBlockersSent'),
+            mediumBlockersSent: sv(e, 'mediumBlockersSent'),
+            largeBlockersSent: sv(e, 'largeBlockersSent'),
             fireteamSize: ftSize,
             medals: _extractMedals(e.extended?.values ?? {}),
+            raw_medals: e.extended?.values ?? {}
         };
 
         const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : null;
 
-        // Process weapons for ALL players if we want deep tools
         const playerWeapons = [];
-        if (isTarget) {
-            for (const w of e.extended?.weapons ?? []) {
-                const def = await getItemDef(w.referenceId);
-                if (def) {
-                    playerWeapons.push({
-                        name: def.displayProperties.name,
-                        hash: w.referenceId,
-                        slot: SLOT_BUCKETS[def.inventory?.bucketTypeHash] ?? 'Unknown',
-                        kills: sv(w, 'uniqueWeaponKills'),
-                        precision: sv(w, 'uniqueWeaponPrecisionKills'),
-                        icon: def.displayProperties.hasIcon ? BUNGIE_ROOT + def.displayProperties.icon : null
-                    });
-                }
+        for (const w of e.extended?.weapons ?? []) {
+            const def = await getItemDef(w.referenceId);
+            if (def) {
+                playerWeapons.push({
+                    name: def.displayProperties.name,
+                    hash: w.referenceId,
+                    kills: sv(w, 'uniqueWeaponKills'),
+                    precision: sv(w, 'uniqueWeaponPrecisionKills'),
+                    icon: BUNGIE_ROOT + def.displayProperties.icon
+                });
             }
         }
 
@@ -129,7 +135,7 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
             id: pId, name: pName, code: pCode, team, 
             className: { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' }[e.player?.classType ?? -1] ?? 'Unknown',
             score: ego?.finalScore ?? 0, fireteam_size: ftSize, is_target: isTarget,
-            stats, // Full stats for everyone
+            stats,
             weapons: playerWeapons
         };
         roster.push(rosterItem);
@@ -145,7 +151,6 @@ async function processPgcr(pgcr, targetId, targetName, targetCode) {
 
     if (!targetEntryData) return null;
 
-    // Detect role
     const myTeamName = roster.find(r => r.is_target)?.team;
     const myTeamScores = roster.filter(r => r.team === myTeamName && r.score > 0).map(r => r.score);
     const { isCarry, isCarried } = detectRole(targetEntryData.ego.finalScore, myTeamScores);
@@ -190,29 +195,25 @@ export async function POST({ request }) {
                 played_at: pgcrRes.Response.period,
                 created_at: new Date().toISOString()
             };
-        } catch (e) {
-            console.error(`[enrich] Match ${id} failed:`, e.message);
-            return null;
-        }
+        } catch { return null; }
     }));
 
     const toUpsert = results.filter(Boolean);
     if (toUpsert.length === 0) return json({ stored: 0 });
 
-    // 1. Ensure player exists
-    await supabaseAdmin.from('players').upsert({
-        id: String(membershipId),
-        bungie_name: bungieDisplayName,
-        bungie_code: String(bungieDisplayCode).padStart(4, '0'),
-        membership_type: parseInt(membershipType),
-        updated_at: new Date().toISOString()
-    }, { onConflict: 'id' });
+    try {
+        await supabaseAdmin.from('players').upsert({
+            id: String(membershipId),
+            bungie_name: bungieDisplayName,
+            bungie_code: String(bungieDisplayCode).padStart(4, '0'),
+            membership_type: parseInt(membershipType),
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+    } catch { }
 
-    // 2. Upsert Matches
     const { error: mErr } = await supabaseAdmin.from('matches').upsert(toUpsert, { onConflict: 'id,player_id' });
     if (mErr) return json({ error: mErr.message }, { status: 500 });
 
-    // 3. Update summary stats
     const { data: p } = await supabaseAdmin.from('players').select('ngr,games_played').eq('id', String(membershipId)).single();
     const newGames = (p?.games_played ?? 0) + toUpsert.length;
     const newNgr = ((p?.ngr ?? 0) * (p?.games_played ?? 0) + toUpsert.reduce((s, m) => s + m.ego_score, 0)) / newGames;

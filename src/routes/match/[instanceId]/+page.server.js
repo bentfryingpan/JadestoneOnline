@@ -2,7 +2,7 @@ import { BUNGIE_API_KEY } from '$env/static/private';
 import { error } from '@sveltejs/kit';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 import { getItemDef, getActivityDef, getAllMedals } from '$lib/server/manifest.js';
-import { calcEgo, extractMedals } from '$lib/server/ego.js';
+import { calcEgo } from '$lib/server/ego.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT   = 'https://stats.bungie.net';
@@ -54,33 +54,57 @@ export async function load({ params }) {
         const team = teamMap[e.values?.team?.basic?.value ?? 0] || 'Alpha';
 
         const stats = {
-            kills: sv(e, 'kills'),
-            deaths: sv(e, 'deaths'),
             assists: sv(e, 'assists'),
+            deaths: sv(e, 'deaths'),
+            kills: sv(e, 'kills'),
+            opponentsDefeated: sv(e, 'opponentsDefeated'),
+            efficiency: sv(e, 'efficiency'),
+            killsDeathsRatio: sv(e, 'killsDeathsRatio'),
+            killsDeathsAssists: sv(e, 'killsDeathsAssists'),
+            score: sv(e, 'score'),
             precisionKills: sv(e, 'precisionKills'),
-            grenadeKills: sv(e, 'weaponKillsGrenade'),
-            meleeKills: sv(e, 'weaponKillsMelee'),
-            superKills: sv(e, 'weaponKillsSuper'),
-            motesDeposited: sv(e, 'motesDeposited'),
-            motesLost: sv(e, 'motesLost'),
-            motesDenied: sv(e, 'motesDenied'),
+            weaponKillsGrenade: sv(e, 'weaponKillsGrenade'),
+            weaponKillsMelee: sv(e, 'weaponKillsMelee'),
+            weaponKillsSuper: sv(e, 'weaponKillsSuper'),
+            weaponKillsAbility: sv(e, 'weaponKillsAbility'),
             invasions: sv(e, 'invasions'),
-            invasionKills: sv(e, 'invasionKills'),
-            invasionsDefeated: sv(e, 'invasionsDefeated'),
+            invasionKills: sv(e, 'invasionKills') || sv(e, 'invaderKills'),
+            invasionDeaths: sv(e, 'invasionDeaths'),
+            invaderKills: sv(e, 'invaderKills'),
+            invaderDeaths: sv(e, 'invaderDeaths'),
+            primevalKills: sv(e, 'primevalKills'),
+            blockerKills: sv(e, 'blockerKills'),
+            mobKills: sv(e, 'mobKills'),
+            highValueKills: sv(e, 'highValueKills'),
+            motesPickedUp: sv(e, 'motesPickedUp'),
+            motesDeposited: sv(e, 'motesDeposited') || sv(e, 'motesBanked'),
+            motesDenied: sv(e, 'motesDenied'),
+            motesLost: sv(e, 'motesLost'),
+            bankOverage: sv(e, 'bankOverage'),
+            smallBlockersSent: sv(e, 'smallBlockersSent'),
+            mediumBlockersSent: sv(e, 'mediumBlockersSent'),
+            largeBlockersSent: sv(e, 'largeBlockersSent'),
             primevalDamage: sv(e, 'primevalDamage'),
             primevalHealing: sv(e, 'primevalHealing'),
         };
 
         const ego = e.values?.completed?.basic?.value === 1 ? calcEgo(stats) : { finalScore: 0 };
-        const medals = extractMedals(e.extended?.values ?? {});
-        const medalList = Object.entries(medals).map(([key, count]) => {
-            const def = medalDefs[key];
-            return {
-                key, count,
-                label: def?.statName || key,
-                icon: def?.iconImage ? BUNGIE_ROOT + def.iconImage : null
-            };
-        });
+        
+        // medalList logic: resolve RAW keys from PGCR against manifest
+        const medalList = [];
+        for (const [key, val] of Object.entries(e.extended?.values ?? {})) {
+            if (key.startsWith('medal')) {
+                const count = typeof val === 'object' ? val.basic?.value : val;
+                if (count > 0) {
+                    const def = medalDefs[key];
+                    medalList.push({
+                        key, count,
+                        label: def?.statName || key.replace('medal', ''),
+                        icon: def?.iconImage ? BUNGIE_ROOT + def.iconImage : null
+                    });
+                }
+            }
+        }
 
         const weapons = [];
         for (const w of e.extended?.weapons ?? []) {
