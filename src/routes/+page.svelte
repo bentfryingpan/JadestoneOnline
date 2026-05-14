@@ -7,6 +7,7 @@
 	let loading = $state(false);
 	let selIdx = $state(-1);
 	let selectedSlot = $state('Kinetic');
+	let selectedMetric = $state('EGO');
 	let debounce = null;
 
 	function onInput() {
@@ -81,6 +82,36 @@
 		{ name: 'Saladin', code: '0404', score: 91.8, tier: 'B' },
 		{ name: 'Osiris', code: '7777', score: 90.5, tier: 'B' }
 	];
+
+	const eloRanking = [
+		{ name: 'Saint-14', code: '0014', score: 2850, tier: 'S' },
+		{ name: 'Shaxx', code: '9999', score: 2790, tier: 'S' },
+		{ name: 'Saladin', code: '0404', score: 2680, tier: 'S' },
+		{ name: 'Ikora', code: '0001', score: 2620, tier: 'A' },
+		{ name: 'Azelia', code: '4821', score: 2550, tier: 'A' },
+		{ name: 'Zavala', code: '0002', score: 2480, tier: 'A' },
+		{ name: 'Drifter', code: '0000', score: 2350, tier: 'B' },
+		{ name: 'Cayde-6', code: '0006', score: 2290, tier: 'B' },
+		{ name: 'Osiris', code: '7777', score: 2210, tier: 'B' },
+		{ name: 'Eris Morn', code: '1337', score: 2150, tier: 'B' }
+	];
+
+	const effRanking = [
+		{ name: 'Azelia', code: '4821', score: 4.82, tier: 'S' },
+		{ name: 'Ikora', code: '0001', score: 3.95, tier: 'S' },
+		{ name: 'Cayde-6', code: '0006', score: 3.84, tier: 'S' },
+		{ name: 'Saint-14', code: '0014', score: 3.65, tier: 'A' },
+		{ name: 'Drifter', code: '0000', score: 3.42, tier: 'A' },
+		{ name: 'Zavala', code: '0002', score: 3.18, tier: 'A' },
+		{ name: 'Osiris', code: '7777', score: 2.95, tier: 'B' },
+		{ name: 'Shaxx', code: '9999', score: 2.84, tier: 'B' },
+		{ name: 'Eris Morn', code: '1337', score: 2.65, tier: 'B' },
+		{ name: 'Saladin', code: '0404', score: 2.42, tier: 'B' }
+	];
+
+	const currentLeaderboard = $derived(
+		selectedMetric === 'EGO' ? topPlayers : selectedMetric === 'ELO' ? eloRanking : effRanking
+	);
 
 	const weaponMeta = [
 		{ name: 'Malfeasance', type: 'Exotic HC', slot: 'Kinetic', usage: '18.4%' },
@@ -209,8 +240,33 @@
 			>
 				Top Players
 			</h3>
+
+			<!-- Metric Tabs -->
+			<div
+				style="
+                display:flex; gap:4px; margin-bottom:1.5rem;
+                background:rgba(255,255,255,0.03); padding:4px; border-radius:1rem;
+            "
+			>
+				{#each ['EGO', 'ELO', 'EFF'] as metric}
+					<button
+						onclick={() => (selectedMetric = metric)}
+						style="
+                            flex:1; padding:6px 0; border:none; border-radius:0.8rem;
+                            font-family:var(--font-family-display); font-size:0.65rem; font-weight:700;
+                            letter-spacing:0.1em; text-transform:uppercase;
+                            cursor:pointer; transition:all 0.2s;
+                            background:{selectedMetric === metric ? 'rgba(61,174,119,0.15)' : 'transparent'};
+                            color:{selectedMetric === metric ? 'var(--gambit-green)' : 'var(--d2-text-muted)'};
+                        "
+					>
+						{metric}
+					</button>
+				{/each}
+			</div>
+
 			<div style="display:flex; flex-direction:column; gap:1.1rem;">
-				{#each topPlayers as p, i}
+				{#each currentLeaderboard as p, i}
 					<div style="display:flex; align-items:center; gap:16px;">
 						<span style="font-size:0.7rem; color:var(--d2-text-muted); width:18px; font-weight:600;">{i + 1}</span>
 						<span
@@ -220,8 +276,9 @@
 						<span
 							class="ego-tier-{p.tier}"
 							style="font-family:var(--font-family-display); font-size:0.85rem; font-weight:700; opacity:0.9;"
-							>{p.score.toFixed(1)}</span
 						>
+							{selectedMetric === 'ELO' ? p.score : p.score.toFixed(selectedMetric === 'EFF' ? 2 : 1)}
+						</span>
 					</div>
 				{/each}
 			</div>
