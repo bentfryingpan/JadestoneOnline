@@ -68,14 +68,6 @@
 		}, 180);
 	}
 
-	const features = [
-		{ label: 'EGO Scoring', desc: 'Advanced performance algorithm' },
-		{ label: 'Match History', desc: 'Every PGCR analyzed' },
-		{ label: 'Loadout Analysis', desc: 'Weapons · Subclass · Stats' },
-		{ label: 'Career Stats', desc: 'Maps · Weapons · Synergy' },
-		{ label: 'Invasion Intel', desc: 'Kills · Denies · Efficiency' }
-	];
-
 	const topPlayers = [
 		{ name: 'Azelia', code: '4821', score: 99.4, tier: 'S' },
 		{ name: 'Saint-14', code: '0014', score: 98.2, tier: 'S' },
@@ -105,7 +97,7 @@
     min-height: calc(100vh - 48px);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    padding: 4rem 1.5rem;
+    padding: 2rem 1.5rem;
     position: relative; overflow: hidden;
 "
 >
@@ -118,7 +110,7 @@
 	></div>
 
 	<!-- Hero content -->
-	<div style="position:relative;text-align:center;margin-bottom:3.5rem;">
+	<div style="position:relative;text-align:center;margin-bottom:4rem;">
 		<!-- Eyebrow -->
 		<div
 			style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:1.5rem;"
@@ -182,43 +174,43 @@
 	<div
 		style="
         display:flex; align-items:flex-start; justify-content:center;
-        gap:2rem; width:100%; max-width:1100px;
+        gap:3rem; width:100%; max-width:1400px;
         position:relative; z-index:10;
     "
 	>
 		<!-- Left: Leaderboard -->
 		<div
 			style="
-            flex:1; max-width:260px;
+            flex:1; max-width:340px;
             background:rgba(6,8,12,0.35);
             border:1px solid rgba(255,255,255,0.06);
-            border-radius:1.5rem;
-            backdrop-filter:blur(20px);
-            padding:1.5rem;
+            border-radius:2rem;
+            backdrop-filter:blur(24px);
+            padding:2rem;
             display:none;
         "
 			class="side-panel anim-in"
 		>
 			<h3
 				style="
-                font-family:var(--font-family-display); font-size:0.7rem; font-weight:700;
-                letter-spacing:0.2em; text-transform:uppercase; color:var(--gambit-green);
-                margin-bottom:1.25rem; opacity:0.8;
+                font-family:var(--font-family-display); font-size:0.8rem; font-weight:700;
+                letter-spacing:0.25em; text-transform:uppercase; color:var(--gambit-green);
+                margin-bottom:1.75rem; opacity:0.8;
             "
 			>
 				Top Players
 			</h3>
-			<div style="display:flex; flex-direction:column; gap:0.85rem;">
+			<div style="display:flex; flex-direction:column; gap:1.1rem;">
 				{#each topPlayers as p, i}
-					<div style="display:flex; align-items:center; gap:12px;">
-						<span style="font-size:0.6rem; color:var(--d2-text-muted); width:14px; font-weight:600;">{i + 1}</span>
+					<div style="display:flex; align-items:center; gap:16px;">
+						<span style="font-size:0.7rem; color:var(--d2-text-muted); width:18px; font-weight:600;">{i + 1}</span>
 						<span
-							style="font-family:var(--font-family-sans); font-size:0.8rem; color:var(--d2-text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+							style="font-family:var(--font-family-sans); font-size:0.9rem; color:var(--d2-text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500;"
 							>{p.name}</span
 						>
 						<span
 							class="ego-tier-{p.tier}"
-							style="font-family:var(--font-family-display); font-size:0.75rem; font-weight:700; opacity:0.9;"
+							style="font-family:var(--font-family-display); font-size:0.85rem; font-weight:700; opacity:0.9;"
 							>{p.score.toFixed(1)}</span
 						>
 					</div>
@@ -228,270 +220,220 @@
 
 		<!-- Center: Search -->
 		<div
-			style="width:100%; max-width:440px; display:flex; flex-direction:column; align-items:center; position:relative;"
+			style="width:100%; max-width:480px; display:flex; flex-direction:column; align-items:center; position:relative;"
 		>
 			<div
 				style="
                 width:100%;
                 background:rgba(6,8,12,0.55);
                 border:1px solid rgba(255,255,255,0.08);
-                border-radius: 2.5rem;
-                backdrop-filter:blur(24px);
-                box-shadow:0 12px 48px rgba(0,0,0,0.5), 0 0 20px rgba(61,174,119,0.03);
+                border-radius: 3rem;
+                backdrop-filter:blur(32px);
+                box-shadow:0 20px 64px rgba(0,0,0,0.6), 0 0 30px rgba(61,174,119,0.04);
                 overflow:hidden;
             "
-			>
-				<div style="display:flex;align-items:stretch;">
-					<!-- Search icon -->
-					<div
-						style="padding:0 12px 0 22px;display:flex;align-items:center;color:var(--d2-text-muted);flex-shrink:0;opacity:0.6;"
-					>
-						<svg
-							style="width:16px;height:16px;"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-							/>
-						</svg>
-					</div>
-
-					<!-- Input -->
-					<input
-						bind:value={name}
-						oninput={onInput}
-						onkeydown={onKeydown}
-						onblur={onBlur}
-						placeholder="SEARCH GUARDIAN — name#0000"
-						style="
-                            flex:1; background:transparent; border:none; outline:none;
-                            padding:1.1rem 8px;
-                            font-family:var(--font-family-display);
-                            font-size:0.85rem; font-weight:500;
-                            letter-spacing:0.08em;
-                            color:var(--d2-text-primary);
-                            min-width:0;
-                        "
-					/>
-
-					{#if loading}
-						<div style="margin-right:12px;display:flex;align-items:center;">
-							<div
-								style="width:14px;height:14px;border:1.5px solid rgba(255,255,255,0.15);border-top-color:var(--gambit-green);border-radius:50%;animation:spin 0.7s linear infinite;"
-							></div>
-						</div>
-					{/if}
-
-					<!-- Search button -->
-					<button
-						onclick={search}
-						style="
-                        padding:0 28px;
-                        background:rgba(61,174,119,0.08);
-                        border:none;border-left:1px solid rgba(255,255,255,0.06);
-                        font-family:var(--font-family-display);
-                        font-size:0.75rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
-                        color:var(--gambit-green);
-                        cursor:pointer;
-                        transition:all 0.2s;
-                    "
-						onmouseenter={(e) => {
-							e.currentTarget.style.background = 'rgba(61,174,119,0.18)';
-							e.currentTarget.style.color = '#6de8b0';
-						}}
-						onmouseleave={(e) => {
-							e.currentTarget.style.background = 'rgba(61,174,119,0.08)';
-							e.currentTarget.style.color = 'var(--gambit-green)';
-						}}
-					>
-						Search
-					</button>
-				</div>
-			</div>
-
-			<!-- Suggestions dropdown -->
-			{#if suggestions.length}
-				<div
-					style="
-                    position:absolute;top:calc(100% + 12px);left:0;right:0;z-index:50;
-                    background:rgba(6,8,12,0.95);
-                    border:1px solid rgba(255,255,255,0.08);
-                    border-radius:1.5rem;
-                    backdrop-filter:blur(32px);
-                    box-shadow:0 16px 64px rgba(0,0,0,0.8);
-                    overflow:hidden;
-                "
-				>
-					{#each suggestions as s, i}
-						<button
-							onmousedown={() => navigate(s)}
-							style="
-                                width:100%;display:flex;align-items:center;gap:12px;
-                                padding:12px 20px;text-align:left;
-                                background:{i === selIdx ? 'rgba(61,174,119,0.08)' : 'transparent'};
-                                border:none;border-bottom:1px solid rgba(255,255,255,0.04);
-                                cursor:pointer;
-                            "
-							onmouseenter={(e) => {
-								if (i !== selIdx) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-							}}
-							onmouseleave={(e) => {
-								if (i !== selIdx) e.currentTarget.style.background = 'transparent';
-							}}
-						>
-							{#if s.iconPath}
-								<img
-									src="https://www.bungie.net{s.iconPath}"
-									alt=""
-									style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;"
-								/>
-							{:else}
-								<div
-									style="width:36px;height:36px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;flex-shrink:0;"
-								></div>
-							{/if}
-							<span
-								style="font-family:var(--font-family-display);font-size:0.9rem;font-weight:500;letter-spacing:0.04em;color:var(--d2-text-primary);flex:1;text-align:left;"
-							>
-								{s.name}<span style="color:var(--d2-text-muted); opacity:0.6;">#{s.code}</span>
-							</span>
-							<svg
-								style="width:12px;height:12px;color:var(--d2-text-muted);opacity:0.4;"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M9 5l7 7-7 7"
-								/>
-							</svg>
-						</button>
-					{/each}
-				</div>
-			{/if}
-
-			<!-- Hint -->
-			<p
-				style="
-                margin-top:1.5rem;
-                font-size:0.65rem;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;
-                color:rgba(255,255,255,0.22);
-            "
-			>
-				Type to search · name#code to navigate directly
-			</p>
-
-			<!-- Error -->
-			{#if error}
-				<p
-					style="font-size:0.75rem;color:#f87171;margin-top:12px;font-family:var(--font-family-display);letter-spacing:0.05em;opacity:0.9;"
-				>
-					{error}
-				</p>
-			{/if}
-		</div>
-
-		<!-- Right: Meta -->
-		<div
-			style="
-            flex:1; max-width:260px;
-            background:rgba(6,8,12,0.35);
-            border:1px solid rgba(255,255,255,0.06);
-            border-radius:1.5rem;
-            backdrop-filter:blur(20px);
-            padding:1.5rem;
-            display:none;
-        "
-			class="side-panel anim-in"
 		>
-			<h3
-				style="
-                font-family:var(--font-family-display); font-size:0.7rem; font-weight:700;
-                letter-spacing:0.2em; text-transform:uppercase; color:var(--gambit-green);
-                margin-bottom:1.25rem; opacity:0.8;
-            "
-			>
-				Weapon Meta
-			</h3>
-			<div style="display:flex; flex-direction:column; gap:1rem;">
-				{#each weaponMeta as w}
-					<div style="display:flex; flex-direction:column; gap:4px;">
-						<div style="display:flex; align-items:center; justify-content:space-between;">
-							<span
-								style="font-family:var(--font-family-sans); font-size:0.8rem; color:var(--d2-text-primary); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
-								>{w.name}</span
-							>
-							<span style="font-size:0.65rem; color:var(--gambit-green); opacity:0.8; font-weight:600;"
-								>{w.usage}</span
-							>
-						</div>
-						<span
-							style="font-size:0.6rem; color:var(--d2-text-muted); letter-spacing:0.06em; text-transform:uppercase; font-weight:500;"
-							>{w.slot} · {w.type}</span
-						>
+			<div style="display:flex;align-items:stretch;">
+				<!-- Search icon -->
+				<div
+					style="padding:0 12px 0 28px;display:flex;align-items:center;color:var(--d2-text-muted);flex-shrink:0;opacity:0.6;"
+				>
+					<svg
+						style="width:18px;height:18px;"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+						/>
+					</svg>
+				</div>
+
+				<!-- Input -->
+				<input
+					bind:value={name}
+					oninput={onInput}
+					onkeydown={onKeydown}
+					onblur={onBlur}
+					placeholder="SEARCH GUARDIAN — name#0000"
+					style="
+                        flex:1; background:transparent; border:none; outline:none;
+                        padding:1.4rem 8px;
+                        font-family:var(--font-family-display);
+                        font-size:0.95rem; font-weight:500;
+                        letter-spacing:0.08em;
+                        color:var(--d2-text-primary);
+                        min-width:0;
+                    "
+				/>
+
+				{#if loading}
+					<div style="margin-right:12px;display:flex;align-items:center;">
+						<div
+							style="width:16px;height:16px;border:1.5px solid rgba(255,255,255,0.15);border-top-color:var(--gambit-green);border-radius:50%;animation:spin 0.7s linear infinite;"
+						></div>
 					</div>
-				{/each}
+				{/if}
+
+				<!-- Search button -->
+				<button
+					onclick={search}
+					style="
+                    padding:0 36px;
+                    background:rgba(61,174,119,0.08);
+                    border:none;border-left:1px solid rgba(255,255,255,0.06);
+                    font-family:var(--font-family-display);
+                    font-size:0.85rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+                    color:var(--gambit-green);
+                    cursor:pointer;
+                    transition:all 0.2s;
+                "
+					onmouseenter={(e) => {
+						e.currentTarget.style.background = 'rgba(61,174,119,0.18)';
+						e.currentTarget.style.color = '#6de8b0';
+					}}
+					onmouseleave={(e) => {
+						e.currentTarget.style.background = 'rgba(61,174,119,0.08)';
+						e.currentTarget.style.color = 'var(--gambit-green)';
+					}}
+				>
+					Search
+				</button>
 			</div>
 		</div>
-	</div>
 
-	<!-- ── Feature grid ── -->
-	<div
+		<!-- Suggestions dropdown -->
+		{#if suggestions.length}
+			<div
+				style="
+                position:absolute;top:calc(100% + 16px);left:0;right:0;z-index:50;
+                background:rgba(6,8,12,0.96);
+                border:1px solid rgba(255,255,255,0.08);
+                border-radius:2rem;
+                backdrop-filter:blur(40px);
+                box-shadow:0 24px 80px rgba(0,0,0,0.9);
+                overflow:hidden;
+            "
+		>
+			{#each suggestions as s, i}
+				<button
+					onmousedown={() => navigate(s)}
+					style="
+                        width:100%;display:flex;align-items:center;gap:16px;
+                        padding:16px 24px;text-align:left;
+                        background:{i === selIdx ? 'rgba(61,174,119,0.08)' : 'transparent'};
+                        border:none;border-bottom:1px solid rgba(255,255,255,0.04);
+                        cursor:pointer;
+                    "
+					onmouseenter={(e) => {
+						if (i !== selIdx) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+					}}
+					onmouseleave={(e) => {
+						if (i !== selIdx) e.currentTarget.style.background = 'transparent';
+					}}
+				>
+					{#if s.iconPath}
+						<img
+							src="https://www.bungie.net{s.iconPath}"
+							alt=""
+							style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0;"
+						/>
+					{:else}
+						<div
+							style="width:40px;height:40px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;flex-shrink:0;"
+						></div>
+					{/if}
+					<span
+						style="font-family:var(--font-family-display);font-size:1rem;font-weight:500;letter-spacing:0.04em;color:var(--d2-text-primary);flex:1;text-align:left;"
+					>
+						{s.name}<span style="color:var(--d2-text-muted); opacity:0.6;">#{s.code}</span>
+					</span>
+					<svg
+						style="width:14px;height:14px;color:var(--d2-text-muted);opacity:0.4;"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9 5l7 7-7 7"
+						/>
+					</svg>
+				</button>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- Hint -->
+	<p
 		style="
-        position:relative;margin-top:5rem;
-        display:flex;flex-wrap:wrap;justify-content:center;gap:12px;
-        max-width:800px;
+        margin-top:2rem;
+        font-size:0.7rem;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;
+        color:rgba(255,255,255,0.22);
     "
 	>
-		{#each features as feat, i}
-			<div
-				class="anim-in"
-				style="
-                animation-delay:{0.4 + i * 0.08}s;
-                padding:12px 24px;
-                background:rgba(255,255,255,0.02);
-                border:1px solid rgba(255,255,255,0.05);
-                border-radius:1.25rem;
-                backdrop-filter:blur(8px);
-                display:flex;flex-direction:column;gap:4px;
-                min-width:160px;
-                text-align:center;
-                transition: transform 0.3s ease, background 0.3s ease;
-            "
-				onmouseenter={(e) => {
-					e.currentTarget.style.transform = 'translateY(-4px)';
-					e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-				}}
-				onmouseleave={(e) => {
-					e.currentTarget.style.transform = 'translateY(0)';
-					e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-				}}
-			>
+		Type to search · name#code to navigate directly
+	</p>
+
+	<!-- Error -->
+	{#if error}
+		<p
+			style="font-size:0.8rem;color:#f87171;margin-top:16px;font-family:var(--font-family-display);letter-spacing:0.05em;opacity:0.9;"
+		>
+			{error}
+		</p>
+	{/if}
+</div>
+
+<!-- Right: Meta -->
+<div
+	style="
+    flex:1; max-width:340px;
+    background:rgba(6,8,12,0.35);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:2rem;
+    backdrop-filter:blur(24px);
+    padding:2rem;
+    display:none;
+"
+	class="side-panel anim-in"
+>
+	<h3
+		style="
+        font-family:var(--font-family-display); font-size:0.8rem; font-weight:700;
+        letter-spacing:0.25em; text-transform:uppercase; color:var(--gambit-green);
+        margin-bottom:1.75rem; opacity:0.8;
+    "
+	>
+		Weapon Meta
+	</h3>
+	<div style="display:flex; flex-direction:column; gap:1.25rem;">
+		{#each weaponMeta as w}
+			<div style="display:flex; flex-direction:column; gap:6px;">
+				<div style="display:flex; align-items:center; justify-content:space-between;">
+					<span
+						style="font-family:var(--font-family-sans); font-size:0.9rem; color:var(--d2-text-primary); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+						>{w.name}</span
+					>
+					<span style="font-size:0.75rem; color:var(--gambit-green); opacity:0.8; font-weight:700;"
+						>{w.usage}</span
+					>
+				</div>
 				<span
-					style="
-                    font-size:0.75rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
-                    color:var(--d2-text-secondary);
-                    font-family: var(--font-family-display);
-                ">{feat.label}</span
-				>
-				<span
-					style="
-                    font-size:0.65rem;font-weight:400;letter-spacing:0.04em;
-                    color:var(--d2-text-muted);font-family:var(--font-family-sans);
-                    opacity:0.8;
-                ">{feat.desc}</span
+					style="font-size:0.65rem; color:var(--d2-text-muted); letter-spacing:0.08em; text-transform:uppercase; font-weight:600;"
+					>{w.slot} · {w.type}</span
 				>
 			</div>
 		{/each}
 	</div>
+</div>
+</div>
 </main>
 
 <style>
