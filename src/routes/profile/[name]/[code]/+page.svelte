@@ -219,7 +219,12 @@
 		invasions: 0,
 		shutDowns: 0,
 		motesDenied: 0,
-		armyOfOne: 0
+		armyOfOne: 0,
+		massacre: 0,
+		locksmith: 0,
+		halfBanked: 0,
+		firstToBlock: 0,
+		motesHaveBeen: 0
 	});
 
 	$effect(() => {
@@ -228,6 +233,15 @@
 		const car = career?.totals ?? {};
 		const medals = career?.medals ?? [];
 		const aoo = medals.find((m) => m.key === 'armyOfOne')?.count ?? 0;
+		const ver = data.verifiedMedals ?? {};
+
+		// Extract Medal Triumphs from Pursuits
+		const purMedals = pursuits?.records?.filter(r => r.recordType === 'Medals') ?? [];
+		const aooTriumph = purMedals.find(r => r.hash === 511083400 || r.name === 'Army of One');
+		const aooCount = aooTriumph?.objectives?.[0]?.progress ?? 0;
+		
+		const massTriumph = purMedals.find(r => r.hash === 1112617357 || r.name === 'Massacre');
+		const massCount = massTriumph?.objectives?.[0]?.progress ?? 0;
 
 		// We use Math.max to ensure stats only ever go UP during a session refresh
 		statsCache.entered = Math.max(
@@ -311,7 +325,18 @@
 			car.motesDenied || 0,
 			dMotesDenied || 0
 		);
-		statsCache.armyOfOne = Math.max(statsCache.armyOfOne, parseInt(aoo) || 0, dbr.armyOfOne || 0);
+		statsCache.armyOfOne = Math.max(
+			statsCache.armyOfOne, 
+			parseInt(aoo) || 0, 
+			dbr.armyOfOne || 0,
+			aooCount,
+			ver.armyOfOne || 0
+		);
+		statsCache.massacre = Math.max(statsCache.massacre, massCount, ver.massacre || 0);
+		statsCache.locksmith = Math.max(statsCache.locksmith, ver.locksmith || 0);
+		statsCache.halfBanked = Math.max(statsCache.halfBanked, ver.halfBanked || 0);
+		statsCache.firstToBlock = Math.max(statsCache.firstToBlock, ver.firstToBlock || 0);
+		statsCache.motesHaveBeen = Math.max(statsCache.motesHaveBeen, ver.motesHaveBeen || 0);
 	});
 	async function fetchCareer() {
 		if (careerLoading) return;
@@ -373,7 +398,8 @@
 	}
 
 	$effect(() => {
-		if (tab === 'pursuits' && !pursuits && !pursuitsLoading) {
+		// Background Intelligence Fetch
+		if (!pursuits && !pursuitsLoading) {
 			fetchPursuits();
 		}
 	});
@@ -571,7 +597,12 @@
 	);
 	const dArmyOfOne = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.armyOfOne ?? 0, data.dbTotals?.recent?.armyOfOne ?? 0)
+			? Math.max(seasonalTotal?.armyOfOne ?? 0, statsCache.armyOfOne)
+			: 0
+	);
+	const dMassacre = $derived(
+		seasonFilter === 'all'
+			? Math.max(seasonalTotal?.massacre ?? 0, statsCache.massacre)
 			: 0
 	);
 	const dSmallBlockers = $derived(
@@ -1494,6 +1525,9 @@
 												{@render detailStatCompact({ label: 'Kills', value: fmt(dKills), awakened: dKills > 1000 })}
 												{@render detailStatCompact({ label: 'Deaths', value: fmt(dDeaths) })}
 												{@render detailStatCompact({ label: 'K/D Ratio', value: fmtF(dKD, 2), awakened: dKD >= 1.0 })}
+												{#if dMassacre > 0}
+													{@render detailStatCompact({ label: 'Massacre Medals', value: fmt(dMassacre), awakened: true })}
+												{/if}
 												{@render detailStatCompact({ label: 'Avg Kills / Match', value: fmtF(dEntered > 0 ? dKills / dEntered : 0, 1) })}
 												{@render detailStatCompact({ label: 'Precision Kills', value: fmt(dPrecision) })}
 											</div>
@@ -1527,6 +1561,15 @@
 													awakened: (dMotes / (dMotes + (dMotesLost || 1))) > 0.9
 												})}
 												{@render detailStatCompact({ label: 'Avg Motes / Match', value: fmtF(dAvgMotes, 1) })}
+												{#if statsCache.locksmith > 0}
+													{@render detailStatCompact({ label: 'Locksmith Medals', value: fmt(statsCache.locksmith), awakened: true })}
+												{/if}
+												{#if statsCache.firstToBlock > 0}
+													{@render detailStatCompact({ label: 'First to Block Medals', value: fmt(statsCache.firstToBlock), awakened: true })}
+												{/if}
+												{#if statsCache.halfBanked > 0}
+													{@render detailStatCompact({ label: 'Half-Banked Medals', value: fmt(statsCache.halfBanked), awakened: true })}
+												{/if}
 												{@render detailStatCompact({ label: 'Primeval Damage', value: fmt(dPrimevalDmg), awakened: dPrimevalDmg > 1000000 })}
 											</div>
 										</div>
@@ -1537,6 +1580,9 @@
 												{@render detailStatCompact({ label: 'Invasions', value: fmt(dInvasions), awakened: dInvasions > 100 })}
 												{@render detailStatCompact({ label: 'Invasion Kills', value: fmt(dInvKills), awakened: dInvKills > 200 })}
 												{@render detailStatCompact({ label: 'Army of One Medals', value: fmt(dArmyOfOne), awakened: dArmyOfOne > 0 })}
+												{#if statsCache.motesHaveBeen > 0}
+													{@render detailStatCompact({ label: 'Motes Have Been Medals', value: fmt(statsCache.motesHaveBeen), awakened: true })}
+												{/if}
 												{@render detailStatCompact({ label: 'Kills / Invasion', value: fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
 												{@render detailStatCompact({ label: 'Motes Denied', value: fmt(dMotesDenied), awakened: dMotesDenied > 500 })}
 												{@render detailStatCompact({ label: 'Invaders Defeated', value: fmt(dShutDowns) })}

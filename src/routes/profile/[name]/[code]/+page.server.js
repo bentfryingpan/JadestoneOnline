@@ -164,7 +164,19 @@ export async function load({ params, parent, url, setHeaders }) {
 	}
 
 	// 1. Fetch Basic Profile & Triumphs (Records)
+	// Targeted verified Gambit medal hashes for instant intelligence
+	const VERIFIED_HASHES = {
+		armyOfOne: 511083400,
+		massacre: 1112617357,
+		locksmith: 3687454390,
+		halfBanked: 2963266545,
+		firstToBlock: 3565692839,
+		motesHaveBeen: 579515765
+	};
+
 	let triumphs = {};
+	let verifiedMedals = {};
+
 	try {
 		const triRes = await fetch(
 			`https://www.bungie.net/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=900`,
@@ -172,11 +184,14 @@ export async function load({ params, parent, url, setHeaders }) {
 		);
 		const triData = await triRes.json();
 		triumphs = triData?.Response?.profileRecords?.data?.records ?? {};
+		
+		for (const [key, hash] of Object.entries(VERIFIED_HASHES)) {
+			const record = triumphs[hash];
+			verifiedMedals[key] = record?.objectives?.[0]?.progress ?? 0;
+		}
 	} catch {}
 
-	// Army of One Record (Hash: 1358909062)
-	const armyOfOneRecord = triumphs[1358909062];
-	const triumphArmyOfOne = armyOfOneRecord?.objectives?.[0]?.progress ?? 0;
+	const triumphArmyOfOne = verifiedMedals.armyOfOne ?? 0;
 
 	// Determine base statsSource
 	let source = !lifetimeStats ? 'none' : lifetimeStats._synthetic ? 'recent' : 'bungie';
@@ -319,6 +334,7 @@ export async function load({ params, parent, url, setHeaders }) {
 		isOwner: user?.membershipId === membershipId,
 		canClaim: user?.membershipId === membershipId && !dbPlayer?.claimed_by,
 		seasonal: seasonalStream,
-		dbTotals
+		dbTotals,
+		verifiedMedals
 	};
 }

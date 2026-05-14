@@ -26,46 +26,57 @@ export async function GET({ url }) {
 		const records = profileData?.Response?.profileRecords?.data?.records ?? {};
 		const collectibles = profileData?.Response?.profileCollectibles?.data?.collectibles ?? {};
 
-		// 2. We want to find Gambit-related pursuits.
-		// Instead of hardcoding 1000s of hashes, we'll scan the presentation nodes
-		// for the "Gambit" category and its children.
+		// 2. Comprehensive Node Discovery
+		// We'll target several known Gambit root nodes and any nodes named "Gambit"
+		const GAMBIT_ROOTS = [
+			97371225,   // Triumphs -> Lifetime -> Competitive -> Gambit
+			3783427643, // Triumphs -> Medals -> Gambit
+			4111024827, // Collections -> Gambit
+			22122108    // Legacy/Other Gambit
+		];
 
-		// Gambit Triumphs Root Node: 1864115160
-		const gambitRootNode = await getPresentationNodeDef(1864115160);
-		const allGambitRecordHashes = new Set();
+		const allRecordHashes = new Set();
+		const allCollectibleHashes = new Set();
 
-		if (gambitRootNode) {
-			// Recursive scan of children nodes to find all records
-			async function scanNode(nodeHash) {
-				const node = await getPresentationNodeDef(nodeHash);
-				if (!node) return;
+		async function scanNode(nodeHash) {
+			const node = await getPresentationNodeDef(nodeHash);
+			if (!node) return;
 
-				for (const r of node.children?.records ?? []) {
-					allGambitRecordHashes.add(r.recordHash);
-				}
-				for (const childNode of node.children?.presentationNodes ?? []) {
-					await scanNode(childNode.presentationNodeHash);
-				}
+			for (const r of node.children?.records ?? []) {
+				allRecordHashes.add(r.recordHash);
 			}
-			await scanNode(1864115160);
+			for (const c of node.children?.collectibles ?? []) {
+				allCollectibleHashes.add(c.collectibleHash);
+			}
+			for (const childNode of node.children?.presentationNodes ?? []) {
+				await scanNode(childNode.presentationNodeHash);
+			}
 		}
 
-		const gambitRecords = [];
-		for (const hash of allGambitRecordHashes) {
+		// Execute recursive scan
+		for (const root of GAMBIT_ROOTS) {
+			await scanNode(root);
+		}
+
+		// 3. Process Records (Triumphs & Medals)
+		const processedRecords = [];
+		for (const hash of allRecordHashes) {
 			const def = await getRecordDef(hash);
 			if (!def || def.redacted) continue;
 
-			const state = records[hash]?.state ?? 0;
-			const isCompleted = !(state & 1); // 1 = objective not completed
-			const objectives = records[hash]?.objectives ?? [];
+			const recordState = records[hash] ?? {};
+			const state = recordState.state ?? 0;
+			const isCompleted = !(state & 1); 
+			const objectives = recordState.objectives ?? [];
 
-			gambitRecords.push({
+			processedRecords.push({
 				hash,
 				name: def.displayProperties?.name,
 				description: def.displayProperties?.description,
 				icon: def.displayProperties?.hasIcon ? BUNGIE_ROOT + def.displayProperties.icon : null,
 				isCompleted,
 				state,
+				recordType: def.recordTypeName || 'Triumph',
 				objectives: objectives.map((obj) => ({
 					progress: obj.progress,
 					completionValue: obj.completionValue,
@@ -74,32 +85,15 @@ export async function GET({ url }) {
 			});
 		}
 
-		// 3. Similarly for Collectibles (Shaders/Emblems)
-		// Gambit Collectibles Node: 3514751421 (Gambit Gear)
-		const allGambitCollHashes = new Set();
-		const collRoot = await getPresentationNodeDef(3514751421);
-		if (collRoot) {
-			async function scanColl(nodeHash) {
-				const node = await getPresentationNodeDef(nodeHash);
-				if (!node) return;
-				for (const c of node.children?.collectibles ?? []) {
-					allGambitCollHashes.add(c.collectibleHash);
-				}
-				for (const childNode of node.children?.presentationNodes ?? []) {
-					await scanColl(childNode.presentationNodeHash);
-				}
-			}
-			await scanColl(3514751421);
-		}
-
-		const gambitCollectibles = [];
-		for (const hash of allGambitCollHashes) {
+		// 4. Process Collectibles
+		const processedCollectibles = [];
+		for (const hash of allCollectibleHashes) {
 			const def = await getCollectibleDef(hash);
 			if (!def) continue;
 			const state = collectibles[hash]?.state ?? 0;
 			const acquired = !(state & 1);
 
-			gambitCollectibles.push({
+			processedCollectibles.push({
 				hash,
 				name: def.displayProperties?.name,
 				icon: BUNGIE_ROOT + def.displayProperties.icon,
@@ -109,10 +103,16 @@ export async function GET({ url }) {
 		}
 
 		return json({
-			records: gambitRecords.sort((a, b) =>
+			records: processedRecords.sort((a, b) =>
 				a.isCompleted === b.isCompleted ? 0 : a.isCompleted ? 1 : -1
 			),
-			collectibles: gambitCollectibles
+			collectibles: processedCollectibles,
+			summary: {
+				totalRecords: processedRecords.length,
+				completedRecords: processedRecords.filter(r => r.isCompleted).length,
+				totalCollectibles: processedCollectibles.length,
+				acquiredCollectibles: processedCollectibles.filter(c => c.acquired).length
+			}
 		});
 	} catch (e) {
 		console.error('Pursuits fetch failed', e);
