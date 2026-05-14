@@ -164,14 +164,34 @@ export async function load({ params, parent, url, setHeaders }) {
 	}
 
 	// 1. Fetch Basic Profile & Triumphs (Records)
-	// Targeted verified Gambit medal hashes for instant intelligence
+	// Targeted verified Gambit medal and triumph hashes for instant intelligence
 	const VERIFIED_HASHES = {
+		// Medals (The "Records" that track medal counts)
 		armyOfOne: 511083400,
-		massacre: 1112617357,
-		locksmith: 3687454390,
-		halfBanked: 2963266545,
-		firstToBlock: 3565692839,
-		motesHaveBeen: 579515765
+		massacre: 3483842827,
+		maximumCarnage: 1639297179,
+		locksmith: 3976371416,
+		halfBanked: 1197518485,
+		firstToBlock: 1622244172,
+		moteHaveBeen: 947052851,
+		killmonger: 1438116414,
+		overkillmonger: 433799052,
+		thrillmonger: 2257346269,
+		notOnMyWatch: 1334533602,
+		bigGameHunter: 3359240632,
+		fastFill: 2918365694,
+		lastGuardianStanding: 4220005143,
+		noEscape: 2476159161,
+		payback: 3800921268,
+		blockbuster: 2345177128,
+		rapidPayback: 353633377,
+		
+		// Major Triumphs
+		protectTheRunner: 2467484432,
+		lightVersusLight: 572729504,
+		darkAgeArsenal: 1965921084,
+		prestige: 1306483854,
+		mostMotes: 1398935792
 	};
 
 	let triumphs = {};
@@ -187,7 +207,8 @@ export async function load({ params, parent, url, setHeaders }) {
 		
 		for (const [key, hash] of Object.entries(VERIFIED_HASHES)) {
 			const record = triumphs[hash];
-			verifiedMedals[key] = record?.objectives?.[0]?.progress ?? 0;
+			// Some medals are binary, some are counters. objectives[0].progress is the count.
+			verifiedMedals[key] = record?.objectives?.[0]?.progress ?? (record?.state === 0 ? 1 : 0);
 		}
 	} catch {}
 
