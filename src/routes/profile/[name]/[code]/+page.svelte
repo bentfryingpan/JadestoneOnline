@@ -529,11 +529,14 @@
 	const historySum = $derived(
 		history.matches.reduce(
 			(acc, m) => {
-				acc.motes += m.motesDeposited ?? 0;
-				acc.count++;
+				const s = m.stats_json || m.ego?.raw || {};
+				const motes = s.motesDeposited || s.motesBanked || 0;
+				acc.motes += motes;
+				if (m.stats_json) acc.enrichedCount++;
+				acc.totalCount++;
 				return acc;
 			},
-			{ motes: 0, count: 0 }
+			{ motes: 0, enrichedCount: 0, totalCount: 0 }
 		)
 	);
 
@@ -663,7 +666,7 @@
 	const dKD = $derived(dDeaths > 0 ? dKills / dDeaths : null);
 	const dAvgMotes = $derived(
 		seasonFilter === 'all'
-			? (history.matches.length > 0 ? historySum.motes / 250 : (dEntered > 0 ? dMotes / dEntered : 0))
+			? (historySum.enrichedCount > 0 ? historySum.motes / 250 : (dEntered > 0 ? dMotes / dEntered : 0))
 			: (dEntered > 0 ? dMotes / dEntered : 0)
 	);
 
