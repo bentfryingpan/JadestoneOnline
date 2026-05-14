@@ -114,18 +114,41 @@
 	);
 
 	const weaponMeta = [
+		// Kinetic
 		{ name: 'Malfeasance', type: 'Exotic HC', slot: 'Kinetic', usage: '18.4%' },
 		{ name: 'Breakneck', type: 'Auto Rifle', slot: 'Kinetic', usage: '12.1%' },
 		{ name: 'Witherhoard', type: 'Exotic GL', slot: 'Kinetic', usage: '9.8%' },
 		{ name: 'Heritage', type: 'Shotgun', slot: 'Kinetic', usage: '7.5%' },
+		{ name: 'Servant Leader', type: 'Scout Rifle', slot: 'Kinetic', usage: '6.2%' },
+		{ name: 'Chroma Rush', type: 'Auto Rifle', slot: 'Kinetic', usage: '5.4%' },
+		{ name: 'Submission', type: 'SMG', slot: 'Kinetic', usage: '4.8%' },
+		{ name: 'Fatebringer', type: 'Hand Cannon', slot: 'Kinetic', usage: '3.9%' },
+		{ name: 'Blinding GL', type: 'Grenade Launcher', slot: 'Kinetic', usage: '3.1%' },
+		{ name: 'Wish-Ender', type: 'Exotic Bow', slot: 'Kinetic', usage: '2.8%' },
+		
+		// Energy
 		{ name: 'Trust', type: 'Hand Cannon', slot: 'Energy', usage: '15.2%' },
 		{ name: 'Borrowed Time', type: 'SMG', slot: 'Energy', usage: '10.5%' },
 		{ name: 'Calus Mini-Tool', type: 'SMG', slot: 'Energy', usage: '9.2%' },
 		{ name: 'Ikelos_SG_v1.0.3', type: 'Shotgun', slot: 'Energy', usage: '6.4%' },
+		{ name: 'Sunshot', type: 'Exotic HC', slot: 'Energy', usage: '5.9%' },
+		{ name: 'Null Composure', type: 'Fusion Rifle', slot: 'Energy', usage: '5.1%' },
+		{ name: 'BXR-55 Battler', type: 'Pulse Rifle', slot: 'Energy', usage: '4.7%' },
+		{ name: 'Le Monarque', type: 'Exotic Bow', slot: 'Energy', usage: '3.8%' },
+		{ name: 'Forbearance', type: 'Grenade Launcher', slot: 'Energy', usage: '3.2%' },
+		{ name: 'Gnawing Hunger', type: 'Auto Rifle', slot: 'Energy', usage: '2.5%' },
+		
+		// Power
 		{ name: 'Eyes of Tomorrow', type: 'Exotic RL', slot: 'Power', usage: '22.8%' },
 		{ name: 'Gjallarhorn', type: 'Exotic RL', slot: 'Power', usage: '14.6%' },
 		{ name: 'Leviathan\'s Breath', type: 'Exotic Bow', slot: 'Power', usage: '11.3%' },
-		{ name: 'Commemoration', type: 'Machine Gun', slot: 'Power', usage: '10.1%' }
+		{ name: 'Commemoration', type: 'Machine Gun', slot: 'Power', usage: '10.1%' },
+		{ name: 'Xenophage', type: 'Exotic MG', slot: 'Power', usage: '8.4%' },
+		{ name: 'The Hothead', type: 'Rocket Launcher', slot: 'Power', usage: '6.7%' },
+		{ name: 'Two-Tailed Fox', type: 'Exotic RL', slot: 'Power', usage: '5.2%' },
+		{ name: 'Falling Guillotine', type: 'Sword', slot: 'Power', usage: '4.5%' },
+		{ name: 'Thunderlord', type: 'Exotic MG', slot: 'Power', usage: '3.8%' },
+		{ name: 'Apex Predator', type: 'Rocket Launcher', slot: 'Power', usage: '2.9%' }
 	];
 
 	const filteredMeta = $derived(weaponMeta.filter((w) => w.slot === selectedSlot));
@@ -505,25 +528,27 @@
 	</div>
 
 	<div style="display:flex; flex-direction:column; gap:1.25rem;">
-		{#each filteredMeta as w}
-			<div style="display:flex; flex-direction:column; gap:6px;">
-				<div style="display:flex; align-items:center; justify-content:space-between;">
+		{#each filteredMeta as w, i}
+			<div style="display:flex; align-items:center; gap:16px;">
+				<span style="font-size:0.7rem; color:var(--d2-text-muted); width:18px; font-weight:600;">{i + 1}</span>
+				<div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:0;">
+					<div style="display:flex; align-items:center; justify-content:space-between;">
+						<span
+							style="font-family:var(--font-family-sans); font-size:0.9rem; color:var(--d2-text-primary); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+							>{w.name}</span
+						>
+						<span style="font-size:0.75rem; color:var(--gambit-green); opacity:0.8; font-weight:700;"
+							>{w.usage}</span
+						>
+					</div>
 					<span
-						style="font-family:var(--font-family-sans); font-size:0.9rem; color:var(--d2-text-primary); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
-						>{w.name}</span
-					>
-					<span style="font-size:0.75rem; color:var(--gambit-green); opacity:0.8; font-weight:700;"
-						>{w.usage}</span
+						style="font-size:0.65rem; color:var(--d2-text-muted); letter-spacing:0.08em; text-transform:uppercase; font-weight:600;"
+						>{w.type}</span
 					>
 				</div>
-				<span
-					style="font-size:0.65rem; color:var(--d2-text-muted); letter-spacing:0.08em; text-transform:uppercase; font-weight:600;"
-					>{w.type}</span
-				>
 			</div>
 		{/each}
-	</div>
-</div>
+	</div></div>
 </div>
 </main>
 
