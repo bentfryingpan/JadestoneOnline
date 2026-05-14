@@ -1580,7 +1580,18 @@
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: 'MOTE_ANALYSIS (RECENT 250)', className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Motes Deposited', value: fmt(dMotes), awakened: dMotes > 5000 })}
+												{@render detailStatCompact({ 
+													label: 'Motes Deposited', 
+													value: fmt(dMotes), 
+													rank: historySum.enrichedCount > 0 ? `${fmt(historySum.motes)} TOTAL` : null,
+													awakened: dMotes > 5000 
+												})}
+												{@render detailStatCompact({ 
+													label: 'Recent 250 Average', 
+													value: fmtF(historySum.motes / 250, 1),
+													rank: 'SUM / 250',
+													awakened: (historySum.motes / 250) > 40
+												})}
 												{@render detailStatCompact({ label: 'Motes Lost', value: fmt(dMotesLost) })}
 												{@render detailStatCompact({ 
 													label: 'Mote Efficiency', 
