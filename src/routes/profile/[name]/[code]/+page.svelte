@@ -525,6 +525,18 @@
 		})()
 	);
 
+	// ── History Aggregation (Instant Recent 250) ──────────────────────────────
+	const historySum = $derived(
+		history.matches.reduce(
+			(acc, m) => {
+				acc.motes += m.motesDeposited ?? 0;
+				acc.count++;
+				return acc;
+			},
+			{ motes: 0, count: 0 }
+		)
+	);
+
 	const dEntered = $derived(
 		seasonFilter === 'all'
 			? Math.max(seasonalTotal?.activitiesEntered ?? 0, sv('activitiesEntered'), data.dbTotals?.lifetime?.entered ?? 0)
@@ -547,7 +559,7 @@
 	);
 	const dMotes = $derived(
 		seasonFilter === 'all'
-			? Math.max(seasonalTotal?.motesDeposited ?? 0, ltMotes, data.dbTotals?.recent?.motes ?? 0)
+			? Math.max(seasonalTotal?.motesDeposited ?? 0, ltMotes, data.dbTotals?.recent?.motes ?? 0, historySum.motes)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.motesDeposited ?? 0)
 	);
 	const dMotesLost = $derived(
@@ -651,7 +663,7 @@
 	const dKD = $derived(dDeaths > 0 ? dKills / dDeaths : null);
 	const dAvgMotes = $derived(
 		seasonFilter === 'all'
-			? (data.dbTotals?.recent?.entered > 0 ? data.dbTotals.recent.motes / data.dbTotals.recent.entered : (dEntered > 0 ? dMotes / dEntered : 0))
+			? (history.matches.length > 0 ? historySum.motes / 250 : (dEntered > 0 ? dMotes / dEntered : 0))
 			: (dEntered > 0 ? dMotes / dEntered : 0)
 	);
 
