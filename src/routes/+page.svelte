@@ -184,10 +184,10 @@
 			></div>
 			<span
 				style="
-		font-size:0.65rem;font-weight:500;
+		font-size:0.65rem;font-weight:600;
 		letter-spacing:0.4em;text-transform:uppercase;
 		color:var(--gambit-green);
-		opacity:0.8;
+		opacity:0.85;
 		font-family: var(--font-family-display);
 		">Gambit Intelligence Platform</span
 			>
@@ -196,14 +196,15 @@
 			></div>
 		</div>
 
-		<!-- Main title — Medium weight, elegant spacing -->
+		<!-- Main title — Bold, Italic, Elegant -->
 		<h1
 			class="anim-in-d2"
 			style="
 		font-family:var(--font-family-display);
 		font-size:clamp(3rem,10vw,5.5rem);
-		font-weight:500;
-		letter-spacing:0.25em;
+		font-weight:700;
+		font-style:italic;
+		letter-spacing:0.2em;
 		text-transform:uppercase;
 		color:var(--d2-text-primary);
 		line-height:1.1;
@@ -230,8 +231,8 @@
 		margin:0 auto;
 		line-height:1.8;
 		letter-spacing:0.06em;
-		opacity:0.85;
-		font-weight: 400;
+		opacity:0.9;
+		font-weight: 500;
 		"
 		>
 			Career statistics, match history &amp; EGO performance data for Destiny 2 Gambit
@@ -261,9 +262,9 @@
 		>
 			<h3
 				style="
-		font-family:var(--font-family-display); font-size:0.75rem; font-weight:500;
+		font-family:var(--font-family-display); font-size:0.75rem; font-weight:600;
 		letter-spacing:0.3em; text-transform:uppercase; color:var(--gambit-green);
-		margin-bottom:2rem; opacity:0.7;
+		margin-bottom:2rem; opacity:0.75;
 		"
 			>
 				Top Players
@@ -281,12 +282,12 @@
 						onclick={() => (selectedMetric = metric)}
 						style="
 		flex:1; padding:8px 0; border:none; border-radius:1rem;
-		font-family:var(--font-family-display); font-size:0.6rem; font-weight:600;
+		font-family:var(--font-family-display); font-size:0.6rem; font-weight:700;
 		letter-spacing:0.15em; text-transform:uppercase;
 		cursor:pointer; transition:all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 		background:{selectedMetric === metric ? 'rgba(61,174,119,0.1)' : 'transparent'};
 		color:{selectedMetric === metric ? 'var(--gambit-green)' : 'var(--d2-text-muted)'};
-		opacity:{selectedMetric === metric ? '1' : '0.6'};
+		opacity:{selectedMetric === metric ? '1' : '0.7'};
 		"
 					>
 						{metric}
@@ -297,14 +298,14 @@
 			<div style="display:flex; flex-direction:column; gap:1.25rem;">
 				{#each currentLeaderboard as p, i}
 					<div style="display:flex; align-items:center; gap:16px;" class="list-item-anim">
-						<span style="font-size:0.65rem; color:var(--d2-text-muted); width:18px; font-weight:400; opacity:0.6;">{i + 1}</span>
+						<span style="font-size:0.65rem; color:var(--d2-text-muted); width:18px; font-weight:600; opacity:0.6;">{i + 1}</span>
 						<span
-							style="font-family:var(--font-family-sans); font-size:0.85rem; color:var(--d2-text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:400; opacity:0.9;"
+							style="font-family:var(--font-family-sans); font-size:0.85rem; color:var(--d2-text-primary); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; opacity:1;"
 							>{p.name}</span
 						>
 						<span
 							class="ego-tier-{p.tier}"
-							style="font-family:var(--font-family-display); font-size:0.8rem; font-weight:600; opacity:0.9; letter-spacing:0.05em;"
+							style="font-family:var(--font-family-display); font-size:0.8rem; font-weight:700; opacity:1; letter-spacing:0.05em;"
 						>
 							{selectedMetric === 'ELO' ? p.score : p.score.toFixed(selectedMetric === 'EFF' ? 2 : 1)}
 						</span>
@@ -332,7 +333,7 @@
 			<div style="display:flex;align-items:stretch;">
 				<!-- Search icon -->
 				<div
-					style="padding:0 12px 0 32px;display:flex;align-items:center;color:var(--d2-text-muted);flex-shrink:0;opacity:0.5;"
+					style="padding:0 12px 0 32px;display:flex;align-items:center;color:var(--d2-text-muted);flex-shrink:0;opacity:0.6;"
 				>
 					<svg
 						style="width:18px;height:18px;"
@@ -360,11 +361,11 @@
 		flex:1; background:transparent; border:none; outline:none;
 		padding:1.6rem 8px;
 		font-family:var(--font-family-display);
-		font-size:0.9rem; font-weight:400;
+		font-size:0.9rem; font-weight:500;
 		letter-spacing:0.12em;
 		color:var(--d2-text-primary);
 		min-width:0;
-		opacity:0.9;
+		opacity:1;
 		"
 				/>
 
@@ -384,21 +385,19 @@
 		background:rgba(61,174,119,0.05);
 		border:none;border-left:1px solid rgba(255,255,255,0.04);
 		font-family:var(--font-family-display);
-		font-size:0.8rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;
+		font-size:0.8rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;
 		color:var(--gambit-green);
 		cursor:pointer;
 		transition:all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-		opacity:0.9;
+		opacity:1;
 		"
 					onmouseenter={(e) => {
 						e.currentTarget.style.background = 'rgba(61,174,119,0.12)';
 						e.currentTarget.style.color = '#6de8b0';
-						e.currentTarget.style.opacity = '1';
 					}}
 					onmouseleave={(e) => {
 						e.currentTarget.style.background = 'rgba(61,174,119,0.05)';
 						e.currentTarget.style.color = 'var(--gambit-green)';
-						e.currentTarget.style.opacity = '0.9';
 					}}
 				>
 					Search
@@ -449,12 +448,12 @@
 						></div>
 					{/if}
 					<span
-						style="font-family:var(--font-family-display);font-size:1rem;font-weight:400;letter-spacing:0.08em;color:var(--d2-text-primary);flex:1;text-align:left;opacity:0.9;"
+						style="font-family:var(--font-family-display);font-size:1rem;font-weight:500;letter-spacing:0.08em;color:var(--d2-text-primary);flex:1;text-align:left;opacity:1;"
 					>
-						{s.name}<span style="color:var(--d2-text-muted); opacity:0.6;">#{s.code}</span>
+						{s.name}<span style="color:var(--d2-text-muted); opacity:0.7;">#{s.code}</span>
 					</span>
 					<svg
-						style="width:16px;height:16px;color:var(--d2-text-muted);opacity:0.3;"
+						style="width:16px;height:16px;color:var(--d2-text-muted);opacity:0.4;"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -475,8 +474,8 @@
 		<p
 		style="
 		margin-top:2rem;
-		font-size:0.6rem;font-weight:500;letter-spacing:0.25em;text-transform:uppercase;
-		color:rgba(255,255,255,0.2);
+		font-size:0.6rem;font-weight:600;letter-spacing:0.25em;text-transform:uppercase;
+		color:rgba(255,255,255,0.25);
 		"
 		>
 		Type to search · name#code to navigate directly
@@ -485,7 +484,7 @@
 		<!-- Error -->
 		{#if error}
 		<p
-			style="font-size:0.75rem;color:#f87171;margin-top:20px;font-family:var(--font-family-display);letter-spacing:0.08em;opacity:0.8;font-weight:400;"
+			style="font-size:0.75rem;color:#f87171;margin-top:20px;font-family:var(--font-family-display);letter-spacing:0.08em;opacity:0.9;font-weight:500;"
 		>
 			{error}
 		</p>
@@ -507,9 +506,9 @@
 		>
 		<h3
 		style="
-		font-family:var(--font-family-display); font-size:0.75rem; font-weight:500;
+		font-family:var(--font-family-display); font-size:0.75rem; font-weight:600;
 		letter-spacing:0.3em; text-transform:uppercase; color:var(--gambit-green);
-		margin-bottom:2rem; opacity:0.7;
+		margin-bottom:2rem; opacity:0.75;
 		"
 		>
 		Weapon Meta
@@ -527,12 +526,12 @@
 				onclick={() => (selectedSlot = slot)}
 				style="
 		flex:1; padding:8px 0; border:none; border-radius:1rem;
-		font-family:var(--font-family-display); font-size:0.6rem; font-weight:600;
+		font-family:var(--font-family-display); font-size:0.6rem; font-weight:700;
 		letter-spacing:0.15em; text-transform:uppercase;
 		cursor:pointer; transition:all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 		background:{selectedSlot === slot ? 'rgba(61,174,119,0.1)' : 'transparent'};
 		color:{selectedSlot === slot ? 'var(--gambit-green)' : 'var(--d2-text-muted)'};
-		opacity:{selectedSlot === slot ? '1' : '0.6'};
+		opacity:{selectedSlot === slot ? '1' : '0.7'};
 		"
 			>
 				{slot}
@@ -543,19 +542,19 @@
 		<div style="display:flex; flex-direction:column; gap:1.25rem;">
 		{#each filteredMeta as w, i}
 			<div style="display:flex; align-items:center; gap:16px;" class="list-item-anim">
-				<span style="font-size:0.65rem; color:var(--d2-text-muted); width:18px; font-weight:400; opacity:0.6;">{i + 1}</span>
+				<span style="font-size:0.65rem; color:var(--d2-text-muted); width:18px; font-weight:600; opacity:0.6;">{i + 1}</span>
 				<div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:0;">
 					<div style="display:flex; align-items:center; justify-content:space-between;">
 						<span
-							style="font-family:var(--font-family-sans); font-size:0.85rem; color:var(--d2-text-primary); font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:0.95;"
+							style="font-family:var(--font-family-sans); font-size:0.85rem; color:var(--d2-text-primary); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:1;"
 							>{w.name}</span
 						>
-						<span style="font-size:0.7rem; color:var(--gambit-green); opacity:0.8; font-weight:600; letter-spacing:0.05em;"
+						<span style="font-size:0.7rem; color:var(--gambit-green); opacity:0.9; font-weight:700; letter-spacing:0.05em;"
 							>{w.usage}</span
 						>
 					</div>
 					<span
-						style="font-size:0.6rem; color:var(--d2-text-muted); letter-spacing:0.1em; text-transform:uppercase; font-weight:500; opacity:0.7;"
+						style="font-size:0.6rem; color:var(--d2-text-muted); letter-spacing:0.1em; text-transform:uppercase; font-weight:600; opacity:0.8;"
 						>{w.type}</span
 					>
 				</div>
