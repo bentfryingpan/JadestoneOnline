@@ -6,6 +6,7 @@
 	let suggestions = $state([]);
 	let loading = $state(false);
 	let selIdx = $state(-1);
+	let selectedSlot = $state('Kinetic');
 	let debounce = null;
 
 	function onInput() {
@@ -84,11 +85,19 @@
 	const weaponMeta = [
 		{ name: 'Malfeasance', type: 'Exotic HC', slot: 'Kinetic', usage: '18.4%' },
 		{ name: 'Breakneck', type: 'Auto Rifle', slot: 'Kinetic', usage: '12.1%' },
+		{ name: 'Witherhoard', type: 'Exotic GL', slot: 'Kinetic', usage: '9.8%' },
+		{ name: 'Heritage', type: 'Shotgun', slot: 'Kinetic', usage: '7.5%' },
 		{ name: 'Trust', type: 'Hand Cannon', slot: 'Energy', usage: '15.2%' },
 		{ name: 'Borrowed Time', type: 'SMG', slot: 'Energy', usage: '10.5%' },
+		{ name: 'Calus Mini-Tool', type: 'SMG', slot: 'Energy', usage: '9.2%' },
+		{ name: 'Ikelos_SG_v1.0.3', type: 'Shotgun', slot: 'Energy', usage: '6.4%' },
 		{ name: 'Eyes of Tomorrow', type: 'Exotic RL', slot: 'Power', usage: '22.8%' },
-		{ name: 'Gjallarhorn', type: 'Exotic RL', slot: 'Power', usage: '14.6%' }
+		{ name: 'Gjallarhorn', type: 'Exotic RL', slot: 'Power', usage: '14.6%' },
+		{ name: 'Leviathan\'s Breath', type: 'Exotic Bow', slot: 'Power', usage: '11.3%' },
+		{ name: 'Commemoration', type: 'Machine Gun', slot: 'Power', usage: '10.1%' }
 	];
+
+	const filteredMeta = $derived(weaponMeta.filter((w) => w.slot === selectedSlot));
 </script>
 
 <!-- ── Hero ────────────────────────────────────────────────────────────────── -->
@@ -413,8 +422,33 @@
 	>
 		Weapon Meta
 	</h3>
+
+	<!-- Slot Tabs -->
+	<div
+		style="
+        display:flex; gap:4px; margin-bottom:1.5rem;
+        background:rgba(255,255,255,0.03); padding:4px; border-radius:1rem;
+    "
+	>
+		{#each ['Kinetic', 'Energy', 'Power'] as slot}
+			<button
+				onclick={() => (selectedSlot = slot)}
+				style="
+                    flex:1; padding:6px 0; border:none; border-radius:0.8rem;
+                    font-family:var(--font-family-display); font-size:0.65rem; font-weight:700;
+                    letter-spacing:0.1em; text-transform:uppercase;
+                    cursor:pointer; transition:all 0.2s;
+                    background:{selectedSlot === slot ? 'rgba(61,174,119,0.15)' : 'transparent'};
+                    color:{selectedSlot === slot ? 'var(--gambit-green)' : 'var(--d2-text-muted)'};
+                "
+			>
+				{slot}
+			</button>
+		{/each}
+	</div>
+
 	<div style="display:flex; flex-direction:column; gap:1.25rem;">
-		{#each weaponMeta as w}
+		{#each filteredMeta as w}
 			<div style="display:flex; flex-direction:column; gap:6px;">
 				<div style="display:flex; align-items:center; justify-content:space-between;">
 					<span
@@ -427,7 +461,7 @@
 				</div>
 				<span
 					style="font-size:0.65rem; color:var(--d2-text-muted); letter-spacing:0.08em; text-transform:uppercase; font-weight:600;"
-					>{w.slot} · {w.type}</span
+					>{w.type}</span
 				>
 			</div>
 		{/each}
