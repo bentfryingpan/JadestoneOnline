@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
+	import { egoColor } from '$lib/ego.js';
 	import SubclassScreen from '$lib/SubclassScreen.svelte';
 	import CharacterScreen from '$lib/CharacterScreen.svelte';
 
@@ -525,20 +526,184 @@
 		})()
 	);
 
+	// ── Match list (must come before historySum since historySum uses it) ────────
+	const matchesList = $derived(
+		(history?.matches ?? []).map((m) => {
+			const sj = m.stats_json ?? {};
+			const ego = m.ego ?? {};
+			return {
+				instanceId: m.instanceId,
+				result: m.win ? 'WIN' : 'LOSS',
+				map: m.mapName ?? 'Gambit',
+				period: m.period,
+				date: m.period ? timeAgo(m.period) : '',
+				isEnriched: m.isEnriched ?? false,
+				// EGO
+				egoScore: ego.finalScore ?? null,
+				egoBase: ego.basePps ?? null,
+				egoPem: ego.pem ?? null,
+				egoMoteEff: ego.moteEff ?? null,
+				egoComponents: ego.components ?? null,
+				// Combat
+				kills: m.kills ?? sj.kills ?? ((sj.mobKills ?? 0) + (sj.invasionKills ?? 0)),
+				deaths: m.deaths ?? sj.deaths ?? 0,
+				assists: m.assists ?? sj.assists ?? 0,
+				kd: m.kd ?? 0,
+				// Invasion
+				invKills: m.invasionKills ?? sj.invasionKills ?? 0,
+				invDeaths: sj.invaderDeaths ?? sj.invasionDeaths ?? 0,
+				// Motes
+				motesDeposited: m.motesDeposited ?? sj.motesDeposited ?? 0,
+				motesDenied: m.motesDenied ?? sj.motesDenied ?? 0,
+				motesPickedUp: m.motesPickedUp ?? sj.motesPickedUp ?? 0,
+				motesLost: m.motesLost ?? sj.motesLost ?? 0,
+				// Damage
+				primevalDamage: m.primevalDamage ?? sj.primevalDamage ?? 0,
+				// Ability
+				meleeKills: sj.meleeKills ?? sj.weaponKillsMelee ?? 0,
+				grenadeKills: sj.grenadeKills ?? sj.weaponKillsGrenade ?? 0,
+				superKills: sj.superKills ?? sj.weaponKillsSuper ?? 0,
+				precisionKills: sj.precisionKills ?? 0,
+				// Carry
+				fireteamSize: m.fireteamSize ?? sj.fireteam_size ?? 1,
+				isHardCarry: m.isHardCarry ?? false,
+				isCarried: m.isCarried ?? false,
+				// Medals (only present on PGCR-enriched matches)
+				medals: sj.medals ?? {},
+			};
+		})
+	);
+
 	// ── History Aggregation (Instant Recent 250) ──────────────────────────────
+	// Uses matchesList so all field names are already normalised.
 	const historySum = $derived(
-		history.matches.reduce(
+		matchesList.reduce(
 			(acc, m) => {
-				const s = m.stats_json || m.ego?.raw || {};
-				const motes = s.motesDeposited || s.motesBanked || 0;
-				acc.motes += motes;
-				if (m.stats_json) acc.enrichedCount++;
 				acc.totalCount++;
+				if (m.result === 'WIN') acc.wins++;
+
+				acc.kills         += m.kills         ?? 0;
+				acc.deaths        += m.deaths        ?? 0;
+				acc.assists       += m.assists       ?? 0;
+				acc.invKills      += m.invKills      ?? 0;
+				acc.invDeaths     += m.invDeaths     ?? 0;
+				acc.motes         += m.motesDeposited ?? 0;
+				acc.motesPickedUp += m.motesPickedUp  ?? 0;
+				acc.motesLost     += m.motesLost      ?? 0;
+				acc.motesDenied   += m.motesDenied    ?? 0;
+				acc.primevalDmg   += m.primevalDamage ?? 0;
+				acc.meleeKills    += m.meleeKills     ?? 0;
+				acc.grenadeKills  += m.grenadeKills   ?? 0;
+				acc.superKills    += m.superKills     ?? 0;
+				acc.precisionKills += m.precisionKills ?? 0;
+
+				if (m.egoScore != null) {
+					acc.egoSum   += m.egoScore;
+					acc.egoCount++;
+				}
+
+				if (m.isEnriched) {
+					acc.enrichedCount++;
+					if (m.isHardCarry) acc.hardCarryCount++;
+					if (m.isCarried)   acc.carriedCount++;
+					if ((m.fireteamSize ?? 1) > 1) {
+						acc.fireteamSum   += m.fireteamSize;
+						acc.fireteamCount++;
+					}
+					// Aggregate medals (only available on enriched PGCR matches)
+					for (const [mk, mv] of Object.entries(m.medals ?? {})) {
+						if (typeof mv === 'number') acc.medals[mk] = (acc.medals[mk] ?? 0) + mv;
+					}
+				}
 				return acc;
 			},
-			{ motes: 0, enrichedCount: 0, totalCount: 0 }
+			{
+				totalCount: 0, wins: 0,
+				kills: 0, deaths: 0, assists: 0,
+				invKills: 0, invDeaths: 0,
+				motes: 0, motesPickedUp: 0, motesLost: 0, motesDenied: 0,
+				primevalDmg: 0,
+				meleeKills: 0, grenadeKills: 0, superKills: 0, precisionKills: 0,
+				egoSum: 0, egoCount: 0,
+				enrichedCount: 0, hardCarryCount: 0, carriedCount: 0,
+				fireteamSum: 0, fireteamCount: 0,
+				medals: {}
+			}
 		)
 	);
+
+	// ── 250-match calculated metrics ──────────────────────────────────────────
+	// These REQUIRE our own calculation — Bungie API doesn't expose per-game averages.
+	const h250 = $derived((() => {
+		const n  = historySum.totalCount;
+		const en = historySum.enrichedCount;
+		if (n === 0) return {
+			moteEff: null, avgMotes: null, avgEgo: null,
+			winRate250: null, kd250: null,
+			avgKills: null, avgDeaths: null, avgAssists: null,
+			avgInvKills: null, avgInvDeaths: null,
+			avgMotesDenied: null, avgMotesLost: null,
+			avgPrimDmg: null, avgMeleeKills: null, avgGrenadeKills: null, avgSuperKills: null,
+			precisionPct: null,
+			hardCarryRate: null, carriedRate: null, avgStack: null,
+			medals: {}, medalsPerGame: {},
+			n: 0, en: 0
+		};
+
+		// Mote Efficiency: deposited / pickedUp (PGCR-accurate).
+		// Fallback: deposited / (deposited + lost) when pickedUp unavailable (activity history).
+		const deposited   = historySum.motes;
+		const pickedUp    = historySum.motesPickedUp;
+		const lost        = historySum.motesLost;
+		const moteEff = pickedUp > 0
+			? +(deposited / pickedUp * 100).toFixed(1)
+			: (deposited + lost) > 0
+				? +(deposited / (deposited + lost) * 100).toFixed(1)
+				: null;
+
+		// Medal per-game rates (enriched matches only — need PGCR data)
+		const medals = historySum.medals;
+		const mpg = en > 0
+			? Object.fromEntries(Object.entries(medals).map(([k, v]) => [k, +(v / en).toFixed(2)]))
+			: {};
+
+		const pg = (val, dp = 1) => n > 0 ? +(val / n).toFixed(dp) : null;
+
+		return {
+			// Motes
+			moteEff,
+			avgMotes:        pg(deposited),
+			avgMotesLost:    pg(lost),
+			avgMotesDenied:  pg(historySum.motesDenied),
+			// EGO
+			avgEgo:          historySum.egoCount > 0 ? +(historySum.egoSum / historySum.egoCount).toFixed(1) : null,
+			// Win / K/D
+			winRate250:      pg(historySum.wins * 100),
+			kd250:           historySum.deaths > 0 ? +(historySum.kills / historySum.deaths).toFixed(2) : historySum.kills > 0 ? +historySum.kills.toFixed(2) : null,
+			// Combat per game
+			avgKills:        pg(historySum.kills),
+			avgDeaths:       pg(historySum.deaths),
+			avgAssists:      pg(historySum.assists),
+			precisionPct:    historySum.kills > 0 ? +(historySum.precisionKills / historySum.kills * 100).toFixed(1) : null,
+			// Ability per game
+			avgMeleeKills:   pg(historySum.meleeKills),
+			avgGrenadeKills: pg(historySum.grenadeKills),
+			avgSuperKills:   pg(historySum.superKills),
+			// Invasion per game
+			avgInvKills:     pg(historySum.invKills, 2),
+			avgInvDeaths:    pg(historySum.invDeaths, 2),
+			// Damage per game
+			avgPrimDmg:      n > 0 ? Math.round(historySum.primevalDmg / n) : null,
+			// Carry rates (enriched only)
+			hardCarryRate:   en > 0 ? +(historySum.hardCarryCount / en * 100).toFixed(1) : null,
+			carriedRate:     en > 0 ? +(historySum.carriedCount   / en * 100).toFixed(1) : null,
+			avgStack:        historySum.fireteamCount > 0 ? +(historySum.fireteamSum / historySum.fireteamCount).toFixed(1) : null,
+			// Medals (enriched matches only)
+			medals,
+			medalsPerGame: mpg,
+			n, en
+		};
+	})());
 
 	const dEntered = $derived(
 		seasonFilter === 'all'
@@ -666,7 +831,7 @@
 	const dKD = $derived(dDeaths > 0 ? dKills / dDeaths : null);
 	const dAvgMotes = $derived(
 		seasonFilter === 'all'
-			? (historySum.enrichedCount > 0 ? historySum.motes / 250 : (dEntered > 0 ? dMotes / dEntered : 0))
+			? (h250.avgMotes != null ? h250.avgMotes : (dEntered > 0 ? dMotes / dEntered : 0))
 			: (dEntered > 0 ? dMotes / dEntered : 0)
 	);
 
@@ -690,6 +855,12 @@
 		const num = Number(n);
 		return Number.isFinite(num) ? num.toFixed(d) : '—';
 	}
+	function fmtNum(n) {
+		if (n === null || n === undefined) return '—';
+		if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+		if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+		return String(Math.round(n));
+	}
 	function timeAgo(iso) {
 		if (!iso) return '—';
 		const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -704,22 +875,6 @@
 			id: s.season,
 			label: SEASON_NAMES[s.seasonNumber] ?? `Season ${s.seasonNumber}`
 		})) ?? []
-	);
-
-	const matchesList = $derived(
-		(history?.matches ?? []).map((m) => ({
-			instanceId: m.instanceId,
-			result: m.win ? 'WIN' : 'LOSS',
-			mode: 'Gambit',
-			map: m.mapName,
-			kd: m.kd,
-			invKills: m.stats_json?.invasionKills ?? 0,
-			invDeaths: m.stats_json?.invaderDeaths ?? 0,
-			motes: m.motesDeposited,
-			damage: m.primevalDamage,
-			date: m.period ? timeAgo(m.period) : '',
-			isEnriched: m.isEnriched
-		}))
 	);
 
 	const weaponData = $derived(
@@ -1478,55 +1633,49 @@
 
 								<!-- Summary Bar -->
 								<div class="grid grid-cols-4 gap-4">
-									<div
-										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
-									>
-										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
-											>Deployment Count</span
-										>
+									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Deployment Count</span>
 										<div class="mt-1 flex items-baseline gap-2">
-											<span class="text-3xl font-light tracking-tighter text-white italic"
-												>{fmt(dEntered)}</span
-											>
+											<span class="text-3xl font-light tracking-tighter text-white italic">{fmt(dEntered)}</span>
 											<span class="text-[9px] font-bold text-zinc-700 uppercase">Matches</span>
 										</div>
+										{#if h250.n > 0}
+											<p class="mt-1 text-[8px] text-zinc-600">{h250.n} loaded · {h250.en} enriched</p>
+										{/if}
 									</div>
-									<div
-										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
-									>
-										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
-											>Success Probability</span
-										>
+									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Success Rate</span>
 										<div class="mt-1 flex items-baseline gap-2">
-											<span class="text-3xl font-light tracking-tighter text-emerald-500 italic"
-												>{dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—'}</span
-											>
+											<span class="text-3xl font-light tracking-tighter text-emerald-500 italic">
+												{h250.winRate250 != null ? h250.winRate250 + '%' : (dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—')}
+											</span>
 										</div>
+										<p class="mt-1 text-[8px] text-zinc-600 uppercase tracking-wider">
+											{h250.n > 0 ? `${historySum.wins}W of ${h250.n} recent` : 'lifetime avg'}
+										</p>
 									</div>
-									<div
-										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
-									>
-										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
-											>Lethality Index</span
-										>
+									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Lethality Index</span>
 										<div class="mt-1 flex items-baseline gap-2">
-											<span class="text-3xl font-light tracking-tighter text-white italic"
-												>{dKD != null ? fmtF(dKD, 2) : '—'}</span
-											>
+											<span class="text-3xl font-light tracking-tighter text-white italic">
+												{h250.kd250 != null ? h250.kd250 : (dKD != null ? fmtF(dKD, 2) : '—')}
+											</span>
 											<span class="text-[9px] font-bold text-zinc-700 uppercase">K/D</span>
 										</div>
+										<p class="mt-1 text-[8px] text-zinc-600 uppercase tracking-wider">
+											{h250.avgKills != null ? `${h250.avgKills} kills / game` : ''}
+										</p>
 									</div>
-									<div
-										class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]"
-									>
-										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
-											>EGO Rating</span
-										>
+									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Avg EGO Score</span>
 										<div class="mt-1 flex items-baseline gap-2">
-											<span class="text-3xl font-light tracking-tighter text-amber-500 italic"
-												>{fmt(egoRating)}</span
-											>
+											<span class="text-3xl font-light tracking-tighter text-amber-500 italic">
+												{h250.avgEgo ?? (career?.avgScore ? career.avgScore : fmt(egoRating))}
+											</span>
 										</div>
+										<p class="mt-1 text-[8px] text-zinc-600 uppercase tracking-wider">
+											{h250.n > 0 ? `per game · ${h250.n} matches` : 'career estimate'}
+										</p>
 									</div>
 								</div>
 
@@ -1535,42 +1684,41 @@
 									<!-- Combat & Efficiency -->
 									<div class="space-y-8">
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'COMBAT_PERFORMANCE (RECENT 250)', className: 'mb-6' })}
+											{@render ghostLabel({ text: `COMBAT_PERFORMANCE · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Kills', value: fmt(dKills), awakened: dKills > 1000 })}
-												{@render detailStatCompact({ label: 'Deaths', value: fmt(dDeaths) })}
-												{@render detailStatCompact({ label: 'K/D Ratio', value: fmtF(dKD, 2), awakened: dKD >= 1.0 })}
-												{#if statsCache.maximumCarnage > 0}
-													{@render detailStatCompact({ label: 'Maximum Carnage Medals', value: fmt(statsCache.maximumCarnage), awakened: true })}
+												{@render detailStatCompact({ label: 'K/D Ratio', value: h250.kd250 ?? fmtF(dKD, 2), awakened: (h250.kd250 ?? dKD ?? 0) >= 1.0, rank: h250.n > 0 ? `${fmt(historySum.kills)}K · ${fmt(historySum.deaths)}D` : null })}
+												{@render detailStatCompact({ label: 'Kills / Game', value: h250.avgKills ?? fmtF(dKills, 0), rank: h250.n > 0 ? `${fmt(historySum.kills)} total` : null, awakened: (h250.avgKills ?? 0) > 20 })}
+												{@render detailStatCompact({ label: 'Deaths / Game', value: h250.avgDeaths ?? fmtF(dDeaths, 0), rank: h250.n > 0 ? `${fmt(historySum.deaths)} total` : null })}
+												{@render detailStatCompact({ label: 'Assists / Game', value: h250.avgAssists ?? '—', rank: h250.n > 0 ? `${fmt(historySum.assists)} total` : null })}
+												{@render detailStatCompact({ label: 'Precision %', value: h250.precisionPct != null ? h250.precisionPct + '%' : '—', awakened: (h250.precisionPct ?? 0) > 30 })}
+												{#if (h250.medals?.maximumCarnage ?? 0) > 0 || statsCache.maximumCarnage > 0}
+													{@render detailStatCompact({ label: 'Maximum Carnage', value: fmt(Math.max(h250.medals?.maximumCarnage ?? 0, statsCache.maximumCarnage)), awakened: true, rank: h250.medalsPerGame?.maximumCarnage ? h250.medalsPerGame.maximumCarnage + '/game' : null })}
 												{/if}
-												{#if dMassacre > 0}
-													{@render detailStatCompact({ label: 'Massacre Medals', value: fmt(dMassacre), awakened: true })}
+												{#if (h250.medals?.massacre ?? 0) > 0 || dMassacre > 0}
+													{@render detailStatCompact({ label: 'Massacre Medals', value: fmt(Math.max(h250.medals?.massacre ?? 0, dMassacre)), awakened: true, rank: h250.medalsPerGame?.massacre ? h250.medalsPerGame.massacre + '/game' : null })}
 												{/if}
-												{#if statsCache.thrillmonger > 0}
-													{@render detailStatCompact({ label: 'Thrillmonger Medals', value: fmt(statsCache.thrillmonger), awakened: true })}
+												{#if (h250.medals?.thrillmonger ?? 0) > 0 || statsCache.thrillmonger > 0}
+													{@render detailStatCompact({ label: 'Thrillmonger Medals', value: fmt(Math.max(h250.medals?.thrillmonger ?? 0, statsCache.thrillmonger)), awakened: true, rank: h250.medalsPerGame?.thrillmonger ? h250.medalsPerGame.thrillmonger + '/game' : null })}
 												{/if}
-												{#if statsCache.overkillmonger > 0}
-													{@render detailStatCompact({ label: 'Overkillmonger Medals', value: fmt(statsCache.overkillmonger) })}
+												{#if (h250.medals?.overkillmonger ?? 0) > 0 || statsCache.overkillmonger > 0}
+													{@render detailStatCompact({ label: 'Overkillmonger Medals', value: fmt(Math.max(h250.medals?.overkillmonger ?? 0, statsCache.overkillmonger)), rank: h250.medalsPerGame?.overkillmonger ? h250.medalsPerGame.overkillmonger + '/game' : null })}
 												{/if}
-												{@render detailStatCompact({ label: 'Avg Kills / Match', value: fmtF(dEntered > 0 ? dKills / dEntered : 0, 1) })}
-												{@render detailStatCompact({ label: 'Precision Kills', value: fmt(dPrecision) })}
+												{#if (h250.medals?.killmonger ?? 0) > 0 || statsCache.killmonger > 0}
+													{@render detailStatCompact({ label: 'Killmonger Medals', value: fmt(Math.max(h250.medals?.killmonger ?? 0, statsCache.killmonger)), rank: h250.medalsPerGame?.killmonger ? h250.medalsPerGame.killmonger + '/game' : null })}
+												{/if}
 											</div>
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'ABILITY_METRICS (RECENT 250)', className: 'mb-6' })}
+											{@render ghostLabel({ text: `ABILITY_METRICS · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Super Kills', value: fmt(dSuperKills), awakened: dSuperKills > 100 })}
-												{@render detailStatCompact({ label: 'Melee Kills', value: fmt(dMeleeKills) })}
-												{@render detailStatCompact({ label: 'Grenade Kills', value: fmt(dGrenadeKills) })}
-												{#if statsCache.lightVersusLight > 0}
-													{@render detailStatCompact({ label: 'Light Versus Light (Super Kills)', value: fmt(statsCache.lightVersusLight), awakened: true })}
+												{@render detailStatCompact({ label: 'Super Kills / Game', value: h250.avgSuperKills ?? fmtF(dSuperKills, 0), rank: h250.n > 0 ? `${fmt(historySum.superKills)} total` : null, awakened: (h250.avgSuperKills ?? 0) > 0.5 })}
+												{@render detailStatCompact({ label: 'Melee Kills / Game', value: h250.avgMeleeKills ?? fmtF(dMeleeKills, 0), rank: h250.n > 0 ? `${fmt(historySum.meleeKills)} total` : null })}
+												{@render detailStatCompact({ label: 'Grenade Kills / Game', value: h250.avgGrenadeKills ?? fmtF(dGrenadeKills, 0), rank: h250.n > 0 ? `${fmt(historySum.grenadeKills)} total` : null })}
+												{@render detailStatCompact({ label: 'Ability Kills / Game', value: h250.avgMeleeKills != null && h250.avgGrenadeKills != null ? fmtF(h250.avgMeleeKills + h250.avgGrenadeKills, 1) : fmt(dAbility), awakened: (h250.avgMeleeKills ?? 0) + (h250.avgGrenadeKills ?? 0) > 3 })}
+												{#if (h250.medals?.lightVersusLight ?? 0) > 0 || statsCache.lightVersusLight > 0}
+													{@render detailStatCompact({ label: 'Light vs. Light (Super)', value: fmt(Math.max(h250.medals?.lightVersusLight ?? 0, statsCache.lightVersusLight)), awakened: true, rank: h250.medalsPerGame?.lightVersusLight ? h250.medalsPerGame.lightVersusLight + '/game' : null })}
 												{/if}
-												{@render detailStatCompact({ 
-													label: 'Total Ability Kills', 
-													value: fmt(dAbility),
-													awakened: dAbility > 500
-												})}
 											</div>
 										</div>
 									</div>
@@ -1578,68 +1726,60 @@
 									<!-- Objectives & Invasion -->
 									<div class="space-y-8">
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'MOTE_ANALYSIS (RECENT 250)', className: 'mb-6' })}
+											{@render ghostLabel({ text: `MOTE_ANALYSIS · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ 
-													label: 'Motes Deposited', 
-													value: fmt(dMotes), 
-													rank: historySum.enrichedCount > 0 ? `${fmt(historySum.motes)} TOTAL` : null,
-													awakened: dMotes > 5000 
-												})}
-												{@render detailStatCompact({ 
-													label: 'Recent 250 Average', 
-													value: fmtF(historySum.motes / 250, 1),
-													rank: 'SUM / 250',
-													awakened: (historySum.motes / 250) > 40
-												})}
-												{@render detailStatCompact({ label: 'Motes Lost', value: fmt(dMotesLost) })}
-												{@render detailStatCompact({ 
-													label: 'Mote Efficiency', 
-													value: (dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '100%',
-													awakened: (dMotes / (dMotes + (dMotesLost || 1))) > 0.9
-												})}
-												{@render detailStatCompact({ label: 'Avg Motes / Match', value: fmtF(dAvgMotes, 1) })}
+												{@render detailStatCompact({ label: 'Banked / Game', value: h250.avgMotes ?? fmtF(dAvgMotes, 1), rank: h250.n > 0 ? `${fmt(historySum.motes)} total` : null, awakened: (h250.avgMotes ?? 0) > 40 })}
+												{@render detailStatCompact({ label: 'Mote Efficiency', value: h250.moteEff != null ? h250.moteEff + '%' : ((dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '—'), awakened: (h250.moteEff ?? 0) > 90, rank: h250.moteEff != null ? (h250.moteEff > 90 ? 'ELITE' : h250.moteEff > 80 ? 'SOLID' : 'LOW') : null })}
+												{@render detailStatCompact({ label: 'Lost / Game', value: h250.avgMotesLost ?? fmtF(dMotesLost, 0), rank: h250.n > 0 ? `${fmt(historySum.motesLost)} total` : null })}
+												{@render detailStatCompact({ label: 'Denied / Game', value: h250.avgMotesDenied ?? fmtF(dMotesDenied, 0), rank: h250.n > 0 ? `${fmt(historySum.motesDenied)} total` : null, awakened: (h250.avgMotesDenied ?? 0) > 5 })}
+												{@render detailStatCompact({ label: 'Primeval Dmg / Game', value: h250.avgPrimDmg != null ? fmtNum(h250.avgPrimDmg) : fmtNum(dPrimevalDmg), rank: h250.n > 0 ? `${fmtNum(historySum.primevalDmg)} total` : null, awakened: (h250.avgPrimDmg ?? 0) > 200000 })}
+												{#if (h250.medals?.halfBanked ?? 0) > 0 || statsCache.halfBanked > 0}
+													{@render detailStatCompact({ label: 'Half-Banked Medals', value: fmt(Math.max(h250.medals?.halfBanked ?? 0, statsCache.halfBanked)), awakened: true, rank: h250.medalsPerGame?.halfBanked ? h250.medalsPerGame.halfBanked + '/game' : null })}
+												{/if}
+												{#if (h250.medals?.fastFill ?? 0) > 0 || statsCache.fastFill > 0}
+													{@render detailStatCompact({ label: 'Fast Fill Medals', value: fmt(Math.max(h250.medals?.fastFill ?? 0, statsCache.fastFill)), rank: h250.medalsPerGame?.fastFill ? h250.medalsPerGame.fastFill + '/game' : null })}
+												{/if}
+												{#if (h250.medals?.locksmith ?? 0) > 0 || statsCache.locksmith > 0}
+													{@render detailStatCompact({ label: 'Locksmith Medals', value: fmt(Math.max(h250.medals?.locksmith ?? 0, statsCache.locksmith)), awakened: true, rank: h250.medalsPerGame?.locksmith ? h250.medalsPerGame.locksmith + '/game' : null })}
+												{/if}
+												{#if (h250.medals?.firstToBlock ?? 0) > 0 || statsCache.firstToBlock > 0}
+													{@render detailStatCompact({ label: 'First to Block', value: fmt(Math.max(h250.medals?.firstToBlock ?? 0, statsCache.firstToBlock)), rank: h250.medalsPerGame?.firstToBlock ? h250.medalsPerGame.firstToBlock + '/game' : null })}
+												{/if}
+												{#if (h250.medals?.blockbuster ?? 0) > 0 || statsCache.blockbuster > 0}
+													{@render detailStatCompact({ label: 'Blockbuster Medals', value: fmt(Math.max(h250.medals?.blockbuster ?? 0, statsCache.blockbuster)), rank: h250.medalsPerGame?.blockbuster ? h250.medalsPerGame.blockbuster + '/game' : null })}
+												{/if}
 												{#if statsCache.protectTheRunner > 0}
-													{@render detailStatCompact({ label: 'Protect the Runner Completed', value: fmt(statsCache.protectTheRunner), awakened: true })}
+													{@render detailStatCompact({ label: 'Protect the Runner', value: fmt(statsCache.protectTheRunner), awakened: true })}
 												{/if}
-												{#if statsCache.halfBanked > 0}
-													{@render detailStatCompact({ label: 'Half-Banked Medals', value: fmt(statsCache.halfBanked), awakened: true })}
-												{/if}
-												{#if statsCache.fastFill > 0}
-													{@render detailStatCompact({ label: 'Fast Fill Medals', value: fmt(statsCache.fastFill) })}
-												{/if}
-												{#if statsCache.locksmith > 0}
-													{@render detailStatCompact({ label: 'Locksmith Medals', value: fmt(statsCache.locksmith), awakened: true })}
-												{/if}
-												{#if statsCache.firstToBlock > 0}
-													{@render detailStatCompact({ label: 'First to Block Medals', value: fmt(statsCache.firstToBlock) })}
-												{/if}
-												{@render detailStatCompact({ label: 'Primeval Damage', value: fmt(dPrimevalDmg), awakened: dPrimevalDmg > 1000000 })}
 											</div>
 										</div>
 
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
-											{@render ghostLabel({ text: 'INVASION_REPORT (RECENT 250)', className: 'mb-6' })}
+											{@render ghostLabel({ text: `INVASION_REPORT · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Invasions', value: fmt(dInvasions), awakened: dInvasions > 100 })}
-												{@render detailStatCompact({ label: 'Invasion Kills', value: fmt(dInvKills), awakened: dInvKills > 200 })}
-												{@render detailStatCompact({ label: 'Army of One Medals', value: fmt(dArmyOfOne), awakened: dArmyOfOne > 0 })}
-												{#if statsCache.moteHaveBeen > 0}
-													{@render detailStatCompact({ label: 'Motes Have Been Medals', value: fmt(statsCache.moteHaveBeen), awakened: true })}
+												{@render detailStatCompact({ label: 'Inv. Kills / Game', value: h250.avgInvKills ?? fmtF(dInvKills, 0), rank: h250.n > 0 ? `${fmt(historySum.invKills)} total` : null, awakened: (h250.avgInvKills ?? 0) >= 1 })}
+												{@render detailStatCompact({ label: 'Inv. Deaths / Game', value: h250.avgInvDeaths ?? fmtF(dInvaderDeaths, 0), rank: h250.n > 0 ? `${fmt(historySum.invDeaths)} total` : null })}
+												{@render detailStatCompact({ label: 'Kills / Invasion', value: (historySum.invKills > 0 && historySum.n > 0) ? fmtF(historySum.invKills / Math.max(1, historySum.n * (h250.avgInvKills ?? 0) / Math.max(1, historySum.invKills)), 1) : fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
+												{@render detailStatCompact({ label: 'Motes Denied / Game', value: h250.avgMotesDenied ?? fmtF(dMotesDenied, 0), rank: h250.n > 0 ? `${fmt(historySum.motesDenied)} total` : null, awakened: (h250.avgMotesDenied ?? 0) > 5 })}
+												{@render detailStatCompact({ label: 'Invaders Shut Down', value: fmt(dShutDowns), rank: h250.n > 0 && dShutDowns > 0 ? fmtF(dShutDowns / h250.n, 2) + '/game' : null })}
+												{#if (h250.medals?.armyOfOne ?? 0) > 0 || dArmyOfOne > 0}
+													{@render detailStatCompact({ label: 'Army of One', value: fmt(Math.max(h250.medals?.armyOfOne ?? 0, dArmyOfOne)), awakened: true, rank: h250.medalsPerGame?.armyOfOne ? h250.medalsPerGame.armyOfOne + '/game' : null })}
 												{/if}
-												{#if statsCache.notOnMyWatch > 0}
-													{@render detailStatCompact({ label: 'Not on My Watch Medals', value: fmt(statsCache.notOnMyWatch), awakened: true })}
+												{#if (h250.medals?.notOnMyWatch ?? 0) > 0 || statsCache.notOnMyWatch > 0}
+													{@render detailStatCompact({ label: 'Not on My Watch', value: fmt(Math.max(h250.medals?.notOnMyWatch ?? 0, statsCache.notOnMyWatch)), awakened: true, rank: h250.medalsPerGame?.notOnMyWatch ? h250.medalsPerGame.notOnMyWatch + '/game' : null })}
 												{/if}
-												{#if statsCache.bigGameHunter > 0}
-													{@render detailStatCompact({ label: 'Big Game Hunter Medals', value: fmt(statsCache.bigGameHunter) })}
+												{#if (h250.medals?.bigGameHunter ?? 0) > 0 || statsCache.bigGameHunter > 0}
+													{@render detailStatCompact({ label: 'Big Game Hunter', value: fmt(Math.max(h250.medals?.bigGameHunter ?? 0, statsCache.bigGameHunter)), rank: h250.medalsPerGame?.bigGameHunter ? h250.medalsPerGame.bigGameHunter + '/game' : null })}
 												{/if}
-												{@render detailStatCompact({ label: 'Kills / Invasion', value: fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
-												{@render detailStatCompact({ label: 'Motes Denied', value: fmt(dMotesDenied), awakened: dMotesDenied > 500 })}
-												{@render detailStatCompact({ label: 'Invaders Defeated', value: fmt(dShutDowns) })}
-												{#if statsCache.noEscape > 0}
-													{@render detailStatCompact({ label: 'No Escape Medals', value: fmt(statsCache.noEscape) })}
+												{#if (h250.medals?.noEscape ?? 0) > 0 || statsCache.noEscape > 0}
+													{@render detailStatCompact({ label: 'No Escape Medals', value: fmt(Math.max(h250.medals?.noEscape ?? 0, statsCache.noEscape)), rank: h250.medalsPerGame?.noEscape ? h250.medalsPerGame.noEscape + '/game' : null })}
 												{/if}
-												{@render detailStatCompact({ label: 'Invasion Deaths', value: fmt(dInvaderDeaths) })}
+												{#if (h250.medals?.payback ?? 0) > 0 || statsCache.payback > 0}
+													{@render detailStatCompact({ label: 'Payback Medals', value: fmt(Math.max(h250.medals?.payback ?? 0, statsCache.payback)), rank: h250.medalsPerGame?.payback ? h250.medalsPerGame.payback + '/game' : null })}
+												{/if}
+												{#if (h250.medals?.lastGuardianStanding ?? 0) > 0 || statsCache.lastGuardianStanding > 0}
+													{@render detailStatCompact({ label: 'Last Guardian Standing', value: fmt(Math.max(h250.medals?.lastGuardianStanding ?? 0, statsCache.lastGuardianStanding)), awakened: true, rank: h250.medalsPerGame?.lastGuardianStanding ? h250.medalsPerGame.lastGuardianStanding + '/game' : null })}
+												{/if}
 											</div>
 										</div>
 									</div>
@@ -1664,58 +1804,119 @@
 								{#each matchesList as m}
 									<a
 										href="/match/{m.instanceId}"
-										class="group relative block flex items-center gap-6 border border-zinc-800 bg-[#0c0c0c] p-3 font-sans no-underline transition-all hover:border-emerald-500/50"
+										class="group relative block border font-sans no-underline transition-all duration-300 {m.result === 'WIN' ? 'border-zinc-800 hover:border-emerald-500/40' : 'border-zinc-800 hover:border-rose-500/30'} bg-[#0c0c0c]"
 									>
+										<!-- Win/loss accent bar -->
 										<div
-											class="absolute top-1/2 left-0 h-10 w-1 -translate-y-1/2 {m.result === 'WIN'
-												? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
-												: 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'}"
+											class="absolute top-0 left-0 h-full w-0.5 {m.result === 'WIN'
+												? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+												: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]'}"
 										></div>
-										<div class="w-12 text-center">
-											<p
-												class="text-xs font-black italic {m.result === 'WIN'
-													? 'text-emerald-500'
-													: 'text-rose-500'}"
-											>
-												{m.result}
-											</p>
-										</div>
-										<div class="flex-1">
-											<p class="font-sans text-[10px] tracking-widest text-zinc-300 uppercase">
-												{m.mode}
-											</p>
-											<p class="text-sm font-bold text-zinc-100 uppercase">{m.map}</p>
-										</div>
-										<div class="grid grid-cols-3 gap-8 border-x border-zinc-800/50 px-6">
-											<div>
-												<p class="font-sans text-[8px] tracking-widest text-zinc-600 uppercase">
-													Invasion
-												</p>
-												<p class="text-xs font-bold text-rose-500">{m.invKills} / {m.invDeaths}</p>
+
+										<div class="flex items-stretch gap-0 pl-3">
+											<!-- Left: outcome + map + date -->
+											<div class="flex w-40 shrink-0 flex-col justify-center py-3 pl-2 pr-4">
+												<p class="text-xs font-black italic {m.result === 'WIN' ? 'text-emerald-400' : 'text-rose-400'}">{m.result}</p>
+												<p class="mt-0.5 truncate text-[11px] font-bold text-zinc-100 uppercase leading-tight">{m.map}</p>
+												<p class="mt-1 text-[8px] text-zinc-600 uppercase tracking-wider">{m.date}</p>
 											</div>
-											<div>
-												<p class="font-sans text-[8px] tracking-widest text-zinc-600 uppercase">
-													Motes
-												</p>
-												<p class="text-xs font-bold text-zinc-100">{m.motes}</p>
+
+											<!-- EGO score block -->
+											<div class="flex w-24 shrink-0 flex-col items-center justify-center border-x border-zinc-800/60 px-3 py-3">
+												{#if m.egoScore != null}
+													<span class="text-2xl font-light italic leading-none" style="color: {egoColor(m.egoScore)}">{m.egoScore.toFixed(1)}</span>
+													<span class="mt-0.5 text-[7px] font-bold tracking-[0.2em] text-zinc-700 uppercase">EGO</span>
+													{#if m.egoBase != null}
+														<div class="mt-1.5 flex gap-2 text-[7px] text-zinc-600">
+															<span>{m.egoBase.toFixed(1)} <span class="text-zinc-700">BASE</span></span>
+															<span class="text-zinc-800">|</span>
+															<span class="text-violet-500/70">{m.egoPem?.toFixed(2)} <span class="text-zinc-700">PEM</span></span>
+														</div>
+													{/if}
+												{:else}
+													<span class="text-xs text-zinc-700 italic">—</span>
+													<span class="mt-0.5 text-[7px] font-bold tracking-[0.2em] text-zinc-700 uppercase">EGO</span>
+												{/if}
 											</div>
-											<div>
-												<p class="font-sans text-[8px] tracking-widest text-zinc-600 uppercase">
-													Damage
-												</p>
-												<p class="text-xs font-bold text-amber-500">{m.damage}</p>
+
+											<!-- Main stats grid -->
+											<div class="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3">
+												<!-- Combat row -->
+												<div class="flex items-center gap-5">
+													<div class="min-w-[3rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Kills</p>
+														<p class="text-xs font-bold text-zinc-100">{m.kills}</p>
+													</div>
+													<div class="min-w-[3rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Deaths</p>
+														<p class="text-xs font-bold text-rose-400">{m.deaths}</p>
+													</div>
+													<div class="min-w-[3rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Assists</p>
+														<p class="text-xs font-bold text-sky-400">{m.assists}</p>
+													</div>
+													<div class="min-w-[3.5rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">K/D</p>
+														<p class="text-xs font-bold text-zinc-300">{m.kd.toFixed(2)}</p>
+													</div>
+												</div>
+
+												<div class="h-8 w-px bg-zinc-800/60 self-center"></div>
+
+												<!-- Motes row -->
+												<div class="flex items-center gap-5">
+													<div class="min-w-[3rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Banked</p>
+														<p class="text-xs font-bold text-emerald-400">{m.motesDeposited}</p>
+													</div>
+													<div class="min-w-[3rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Denied</p>
+														<p class="text-xs font-bold text-violet-400">{m.motesDenied}</p>
+													</div>
+													<div class="min-w-[3rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Lost</p>
+														<p class="text-xs font-bold text-rose-400/80">{m.motesLost}</p>
+													</div>
+												</div>
+
+												<div class="h-8 w-px bg-zinc-800/60 self-center"></div>
+
+												<!-- Invasion + Damage -->
+												<div class="flex items-center gap-5">
+													<div class="min-w-[3.5rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Invasion</p>
+														<p class="text-xs font-bold text-violet-400">{m.invKills} <span class="text-zinc-700">/</span> <span class="text-rose-500/70">{m.invDeaths}</span></p>
+													</div>
+													<div class="min-w-[4rem]">
+														<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Dmg</p>
+														<p class="text-xs font-bold text-amber-400">{fmtNum(m.primevalDamage)}</p>
+													</div>
+													{#if m.fireteamSize > 1}
+														<div class="min-w-[2.5rem]">
+															<p class="text-[7px] font-bold tracking-widest text-zinc-600 uppercase">Stack</p>
+															<p class="text-xs font-bold text-zinc-300">{m.fireteamSize}×</p>
+														</div>
+													{/if}
+												</div>
+											</div>
+
+											<!-- Right: carry badges + enriched -->
+											<div class="flex shrink-0 flex-col items-end justify-center gap-1.5 px-4 py-3">
+												{#if m.isHardCarry}
+													<span class="border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[7px] font-black tracking-widest text-emerald-400 uppercase">CARRY</span>
+												{/if}
+												{#if m.isCarried}
+													<span class="border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[7px] font-black tracking-widest text-rose-400 uppercase">CARRIED</span>
+												{/if}
+												{#if m.isEnriched}
+													<div class="mt-auto flex h-3.5 w-3.5 rotate-45 items-center justify-center border border-emerald-500/60 bg-emerald-500/10">
+														<div class="h-1 w-1 bg-emerald-500"></div>
+													</div>
+												{:else}
+													<div class="mt-auto h-3.5 w-3.5 rotate-45 border border-zinc-800 bg-zinc-900/50"></div>
+												{/if}
 											</div>
 										</div>
-										<div class="w-20 text-right">
-											<p class="font-sans text-[9px] text-zinc-700 uppercase">{m.date}</p>
-										</div>
-										{#if m.isEnriched}
-											<div
-												class="flex h-4 w-4 rotate-45 items-center justify-center border border-emerald-500 bg-emerald-500/10"
-											>
-												<div class="h-1.5 w-1.5 bg-emerald-500"></div>
-											</div>
-										{/if}
 									</a>
 								{/each}
 								{#if history.matches.length === 0 && !historyLoading}

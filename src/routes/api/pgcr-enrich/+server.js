@@ -236,7 +236,9 @@ export async function POST({ request }) {
 						ego_pem: enriched.ego.pem,
 						kd: enriched.ego.simpleKd,
 						mote_eff: enriched.ego.moteEff,
-						fireteam_size: enriched.stats_json.fireteam_size,
+						fireteam_size: enriched.stats_json.fireteam_size ?? enriched.stats.fireteam_size ?? 1,
+						is_hard_carry: enriched.stats_json.is_hard_carry ?? false,
+						is_carried: enriched.stats_json.is_carried ?? false,
 						stats_json: enriched.stats_json,
 						period: pgcrRes.Response.period,
 						created_at: new Date().toISOString()

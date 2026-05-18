@@ -117,8 +117,14 @@ export async function GET({ url, setHeaders }) {
 				mapName,
 				win: completed === 1 && standing === 0,
 				kd: deaths > 0 ? +(kills / deaths).toFixed(2) : kills,
+				kills,
+				deaths,
+				assists,
 				invasionKills,
 				motesDeposited,
+				motesDenied,
+				motesPickedUp,
+				motesLost,
 				primevalDamage,
 				ego
 			};
@@ -139,7 +145,7 @@ export async function GET({ url, setHeaders }) {
 				const chunk = instanceIds.slice(i, i + CHUNK_SIZE);
 				const { data } = await supabaseAdmin
 					.from('matches')
-					.select('id, ego_score, stats_json')
+					.select('id, ego_score, ego_base, ego_pem, mote_eff, fireteam_size, is_hard_carry, is_carried, stats_json')
 					.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
 					.in('id', chunk);
 				if (data) enriched.push(...data);
@@ -152,7 +158,25 @@ export async function GET({ url, setHeaders }) {
 					if (e) {
 						m.isEnriched = true;
 						if (e.ego_score != null) m.ego = { ...m.ego, finalScore: e.ego_score };
-						if (e.stats_json) m.stats_json = e.stats_json;
+						if (e.ego_base != null) m.ego = { ...m.ego, basePps: e.ego_base };
+						if (e.ego_pem != null) m.ego = { ...m.ego, pem: e.ego_pem };
+						if (e.mote_eff != null) m.ego = { ...m.ego, moteEff: e.mote_eff };
+						if (e.fireteam_size != null) m.fireteamSize = e.fireteam_size;
+						if (e.is_hard_carry != null) m.isHardCarry = e.is_hard_carry;
+						if (e.is_carried != null) m.isCarried = e.is_carried;
+						if (e.stats_json) {
+							m.stats_json = e.stats_json;
+							// Override activity-history stats with richer PGCR data when available
+							if (e.stats_json.kills != null) m.kills = e.stats_json.kills;
+							if (e.stats_json.deaths != null) m.deaths = e.stats_json.deaths;
+							if (e.stats_json.assists != null) m.assists = e.stats_json.assists;
+							if (e.stats_json.invasionKills != null) m.invasionKills = e.stats_json.invasionKills;
+							if (e.stats_json.motesDeposited != null) m.motesDeposited = e.stats_json.motesDeposited;
+							if (e.stats_json.motesDenied != null) m.motesDenied = e.stats_json.motesDenied;
+							if (e.stats_json.motesPickedUp != null) m.motesPickedUp = e.stats_json.motesPickedUp;
+							if (e.stats_json.motesLost != null) m.motesLost = e.stats_json.motesLost;
+							if (e.stats_json.primevalDamage != null) m.primevalDamage = e.stats_json.primevalDamage;
+						}
 					}
 				}
 			}
