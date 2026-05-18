@@ -360,8 +360,10 @@
 	let deepScanProgress = $state({ current: 0, total: 0 });
 
 	$effect(() => {
-		if (tab === 'matches' || tab === 'weaponry' || tab === 'synergy' || tab === 'maps') {
-			if (history.matches.length === 0) fetchHistory();
+		// Fetch history on any stat-bearing tab so h250 / avgEgo are populated immediately.
+		// Overview needs it for the EGO average card; other tabs need it for their tables.
+		if (tab === 'overview' || tab === 'matches' || tab === 'weaponry' || tab === 'synergy' || tab === 'maps') {
+			if (history.matches.length === 0 && !historyLoading) fetchHistory();
 			if (!career) fetchCareer();
 		}
 	});
@@ -515,15 +517,11 @@
 			: null
 	);
 
+	// egoRating: actual average EGO score from enriched match history.
+	// h250.avgEgo is authoritative (computed from real PGCR EGO scores).
+	// Falls back to Supabase career average once history loads.
 	const egoRating = $derived(
-		(() => {
-			const wins = dWon;
-			const kills = dKills;
-			const inv = dInvKills;
-			const motes = dMotes;
-			const denied = dMotesDenied;
-			return Math.floor(wins * 15 + kills * 0.3 + inv * 5 + motes * 0.1 + denied * 2);
-		})()
+		h250.avgEgo ?? career?.avgScore ?? null
 	);
 
 	// ── Match list (must come before historySum since historySum uses it) ────────
@@ -697,8 +695,8 @@
 			avgMotes:        pg(deposited),
 			avgMotesLost:    pg(lost),
 			avgMotesDenied:  pg(historySum.motesDenied),
-			// EGO
-			avgEgo:          historySum.egoCount > 0 ? +(historySum.egoSum / historySum.egoCount).toFixed(1) : null,
+			// EGO — average over enriched matches that have real PGCR EGO scores
+			avgEgo:          historySum.egoCount > 0 ? +(historySum.egoSum / historySum.egoCount).toFixed(1) : (en > 0 && career?.avgScore ? career.avgScore : null),
 			// Win / K/D
 			winRate250:      pg(historySum.wins * 100),
 			kd250:           historySum.deaths > 0 ? +(historySum.kills / historySum.deaths).toFixed(2) : historySum.kills > 0 ? +historySum.kills.toFixed(2) : null,
@@ -849,7 +847,19 @@
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.precisionKills ?? 0)
 	);
 
-	const dWinRate = $derived(dEntered > 0 ? (dWon / dEntered) * 100 : null);
+	// For "all seasons" use a consistent source to avoid mixing wins from one pool
+	// with entries from another (Math.max independently picks different sources).
+	// Priority: Bungie lifetime (same API call, same denominator) → Supabase stats → 250-match history.
+	const ltEntered = $derived(sv('activitiesEntered'));
+	const dWinRate = $derived(
+		seasonFilter !== 'all'
+			? (dEntered > 0 ? (dWon / dEntered) * 100 : null)
+			: ltEntered > 0 && ltWon > 0
+				? (ltWon / ltEntered) * 100
+				: data.dbTotals?.lifetime?.entered > 0
+					? (data.dbTotals.lifetime.wins / data.dbTotals.lifetime.entered) * 100
+					: h250.winRate250
+	);
 	const dKD = $derived(dDeaths > 0 ? dKills / dDeaths : null);
 	const dAvgMotes = $derived(
 		seasonFilter === 'all'
@@ -929,20 +939,35 @@
 			name: data.player.bungieGlobalDisplayName,
 			code: data.player.bungieGlobalDisplayNameCode,
 			clan: data.clan?.name ?? null,
-			rating: career?.source === 'supabase' && career.avgScore ? career.avgScore : egoRating,
+			// avgEgo: authoritative EGO average from PGCR history, then Supabase career
+			avgEgo: egoRating,
+			// jprBestRank: best rank position across all leaderboard segments (null until crawler runs)
+			jprBestRank: (() => {
+				const jr = data.jprRanks;
+				if (!jr) return null;
+				const ranks = Object.values(jr).map(v => v.rank).filter(Number.isFinite);
+				return ranks.length > 0 ? Math.min(...ranks) : null;
+			})(),
+			// jprAvgRank: average rank across all segments the player appears in
+			jprAvgRank: (() => {
+				const jr = data.jprRanks;
+				if (!jr) return null;
+				const ranks = Object.values(jr).map(v => v.rank).filter(Number.isFinite);
+				return ranks.length > 0 ? Math.round(ranks.reduce((a, b) => a + b, 0) / ranks.length) : null;
+			})(),
 			level: data.gambitProgression?.level ?? 0,
 			rank: gambitRank,
 			rankValue: gambitPct
 		},
 		overview: {
+			// Win rate: use the consistent Bungie-source dWinRate (see dWinRate derivation above).
+			// Falls back to season filter's career source if dWinRate unavailable.
 			winRatio:
-				statsCache.wins > 0 && statsCache.entered > 0
-					? fmtF((statsCache.wins / statsCache.entered) * 100, 1) + '%'
+				dWinRate != null
+					? fmtF(dWinRate, 1) + '%'
 					: career?.source === 'supabase'
 						? career.winRate + '%'
-						: dWinRate != null
-							? fmtF(dWinRate, 1) + '%'
-							: '—',
+						: '—',
 			wins: statsCache.wins,
 			kd: statsCache.kills > 0 && statsCache.deaths > 0 
 				? fmtF(statsCache.kills / statsCache.deaths, 2) 
@@ -1157,7 +1182,18 @@
 {/snippet}
 
 {#snippet rankMedallion({ tier, value })}
-	<div class="absolute -top-4 -right-4 z-30 flex h-12 w-12 items-center justify-center">
+	{@const jr = data.jprRanks}
+	{@const segments = [
+		{ key: 'solo',  label: 'SOLO QUEUE' },
+		{ key: 'duo',   label: 'DUO STACK' },
+		{ key: 'trio',  label: 'TRIO STACK' },
+		{ key: 'stack', label: 'FULL STACK' }
+	]}
+	{@const activeSegs = jr ? segments.filter(s => jr[s.key]) : []}
+	{@const bestRank = activeSegs.length > 0
+		? Math.min(...activeSegs.map(s => jr[s.key].rank))
+		: null}
+	<div class="group/rank absolute -top-4 -right-4 z-30 flex h-12 w-12 items-center justify-center">
 		<div
 			class="absolute inset-0 rotate-45 animate-[spin_10s_linear_infinite] border-2 border-emerald-500/20"
 		></div>
@@ -1165,12 +1201,51 @@
 			class="absolute inset-1 -rotate-45 animate-[spin_15s_linear_infinite] border border-emerald-500/40"
 		></div>
 		<div
-			class="flex h-8 w-8 rotate-45 flex-col items-center justify-center bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.6)]"
+			class="flex h-8 w-8 rotate-45 flex-col items-center justify-center bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.6)] cursor-help"
 		>
-			<span class="-rotate-45 text-[8px] leading-none font-black text-black">RANK</span>
-			<span class="mt-0.5 -rotate-45 text-[14px] leading-none font-black text-black"
-				>{tier.substring(0, 1)}</span
-			>
+			{#if bestRank != null}
+				<span class="-rotate-45 text-[7px] leading-none font-black text-black">#</span>
+				<span class="mt-0.5 -rotate-45 text-[11px] leading-none font-black text-black"
+					>{bestRank > 999 ? '999+' : bestRank}</span
+				>
+			{:else}
+				<span class="-rotate-45 text-[8px] leading-none font-black text-black">RANK</span>
+				<span class="mt-0.5 -rotate-45 text-[14px] leading-none font-black text-black"
+					>{tier.substring(0, 1)}</span
+				>
+			{/if}
+		</div>
+
+		<!-- Hover popup -->
+		<div
+			class="pointer-events-none absolute top-full right-0 z-[200] mt-3 w-52 border border-zinc-700 bg-[#0a0a0a] shadow-2xl opacity-0 transition-all duration-200 group-hover/rank:opacity-100 group-hover/rank:pointer-events-auto"
+		>
+			<div class="border-b border-zinc-800 px-3 py-2">
+				<p class="text-[8px] font-black tracking-[0.25em] text-emerald-500 uppercase">LEADERBOARD RANK</p>
+			</div>
+			<div class="divide-y divide-zinc-900">
+				{#each segments as seg}
+					{@const entry = jr?.[seg.key]}
+					<div class="flex items-center justify-between px-3 py-2">
+						<span class="text-[9px] font-bold tracking-widest text-zinc-500 uppercase">{seg.label}</span>
+						{#if entry}
+							<div class="flex items-center gap-1.5">
+								<span class="text-xs font-black text-emerald-400">#{entry.rank}</span>
+								<span class="text-[8px] text-zinc-600">{entry.jpr?.toFixed(0)} JPR</span>
+							</div>
+						{:else}
+							<span class="text-[9px] font-bold text-zinc-700">—</span>
+						{/if}
+					</div>
+				{/each}
+			</div>
+			{#if activeSegs.length === 0}
+				<div class="px-3 py-2">
+					<p class="text-[8px] text-zinc-600 italic">No leaderboard data yet</p>
+				</div>
+			{/if}
+			<!-- Arrow pointing up toward diamond -->
+			<div class="absolute -top-1.5 right-4 h-3 w-3 rotate-45 border-t border-l border-zinc-700 bg-[#0a0a0a]"></div>
 		</div>
 	</div>
 {/snippet}
@@ -1483,18 +1558,49 @@
 				</div>
 				<div class="relative z-10 mb-2 flex shrink-0 gap-14 text-right font-sans">
 					<div class="flex flex-col items-end gap-6">
+						<!-- Top: leaderboard rank number (or avg EGO while JPR not yet populated) -->
 						<div>
-							{@render ghostLabel({ text: 'RATING' })}
+							{@render ghostLabel({ text: playerData.identity.jprBestRank != null ? 'LEADERBOARD RANK' : 'AVG EGO RATING' })}
 							<div class="flex flex-col items-end">
-								<span class="font-sans text-5xl leading-none font-light tracking-tighter text-white"
-									>{playerData.identity.rating?.toLocaleString() ?? '—'}</span
-								>
-								<span
-									class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md"
-									>#WORLDWIDE</span
-								>
+								{#if playerData.identity.jprBestRank != null}
+									<span class="font-sans text-5xl leading-none font-light tracking-tighter text-white">
+										#{playerData.identity.jprBestRank.toLocaleString()}
+									</span>
+								{:else if playerData.identity.avgEgo != null}
+									<span class="font-sans text-5xl leading-none font-light tracking-tighter text-white">
+										{playerData.identity.avgEgo}
+									</span>
+								{:else}
+									<span class="font-sans text-5xl leading-none font-light tracking-tighter text-zinc-700">—</span>
+								{/if}
+								<!-- Green rank label -->
+								{#if playerData.identity.jprAvgRank != null}
+									<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
+										#{ playerData.identity.jprAvgRank } WORLDWIDE
+									</span>
+								{:else if playerData.identity.avgEgo != null}
+									<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
+										LAST {h250.n || '?'} MATCHES
+									</span>
+								{:else}
+									<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-zinc-700 uppercase italic">
+										LOADING…
+									</span>
+								{/if}
 							</div>
 						</div>
+						<!-- Secondary: avg EGO when showing rank as primary -->
+						{#if playerData.identity.jprBestRank != null && playerData.identity.avgEgo != null}
+							<div>
+								{@render ghostLabel({ text: 'AVG EGO' })}
+								<span class="font-sans text-2xl leading-none font-light tracking-tighter text-amber-400">
+									{playerData.identity.avgEgo}
+								</span>
+								<p class="mt-1 text-[8px] font-bold tracking-widest text-zinc-600 uppercase">
+									LAST {h250.n || '?'} MATCHES
+								</p>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>
@@ -1691,12 +1797,22 @@
 									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
 										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Avg EGO Score</span>
 										<div class="mt-1 flex items-baseline gap-2">
-											<span class="text-3xl font-light tracking-tighter text-amber-500 italic">
-												{h250.avgEgo ?? (career?.avgScore ? career.avgScore : fmt(egoRating))}
-											</span>
+											{#if h250.avgEgo != null}
+												<span class="text-3xl font-light tracking-tighter text-amber-500 italic">
+													{h250.avgEgo}
+												</span>
+											{:else if career?.avgScore}
+												<span class="text-3xl font-light tracking-tighter text-amber-500 italic">
+													{career.avgScore}
+												</span>
+											{:else if historyLoading}
+												<span class="text-3xl font-light tracking-tighter text-zinc-700 italic animate-pulse">—</span>
+											{:else}
+												<span class="text-3xl font-light tracking-tighter text-zinc-700 italic">—</span>
+											{/if}
 										</div>
 										<p class="mt-1 text-[8px] text-zinc-600 uppercase tracking-wider">
-											{h250.n > 0 ? `per game · ${h250.n} matches` : 'career estimate'}
+											{h250.en > 0 ? `per game · ${h250.en} enriched matches` : historyLoading ? 'loading…' : 'no data yet'}
 										</p>
 									</div>
 								</div>

@@ -17,8 +17,10 @@ const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT  = 'https://stats.bungie.net';
 const HISTORY_TTL = 120_000;
 const PGCR_TTL    = 86_400_000; // 24 h — PGCRs never change
-// Max PGCRs to fetch inline per request (keeps p50 latency acceptable)
-const INLINE_PGCR_LIMIT = 50;
+// Max PGCRs to fetch inline per request.
+// 100 covers the full "last season" for most active players on first load.
+// After the first load all matches are cached in Supabase so subsequent loads are instant.
+const INLINE_PGCR_LIMIT = 100;
 
 async function bungieGet(url) {
 	const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });

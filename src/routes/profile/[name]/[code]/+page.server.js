@@ -338,6 +338,32 @@ export async function load({ params, parent, url, setHeaders }) {
 			? computeSeasonal(membershipType, membershipId, sortedCharIds, 25).catch(() => null)
 			: null);
 
+	// ── JPR Leaderboard Ranks ────────────────────────────────────────────────
+	// Graceful: table may not exist yet — returns null until crawler populates it
+	let jprRanks = null;
+	try {
+		const idStr = String(membershipId);
+		const { data: jprRows, error: jprErr } = await supabaseAdmin
+			.from('player_jpr')
+			.select('segment, jpr, games_played')
+			.eq('player_id', idStr);
+
+		if (!jprErr && jprRows?.length) {
+			// Fetch rank position for each segment in parallel
+			const rankResults = await Promise.all(
+				jprRows.map(async (row) => {
+					const { count } = await supabaseAdmin
+						.from('player_jpr')
+						.select('*', { count: 'exact', head: true })
+						.eq('segment', row.segment)
+						.gt('jpr', row.jpr);
+					return { segment: row.segment, rank: (count ?? 0) + 1, jpr: row.jpr, games: row.games_played };
+				})
+			);
+			jprRanks = Object.fromEntries(rankResults.map((r) => [r.segment, { rank: r.rank, jpr: r.jpr, games: r.games }]));
+		}
+	} catch {}
+
 	const mainChar = characters[mainCharId];
 	return {
 		player: {
@@ -361,6 +387,7 @@ export async function load({ params, parent, url, setHeaders }) {
 		canClaim: user?.membershipId === membershipId && !dbPlayer?.claimed_by,
 		seasonal: seasonalStream,
 		dbTotals,
-		verifiedMedals
+		verifiedMedals,
+		jprRanks
 	};
 }
