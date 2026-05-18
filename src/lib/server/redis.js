@@ -5,8 +5,10 @@
  */
 
 import Redis from 'ioredis';
-import { REDIS_URL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { cacheGet as memGet, cacheSet as memSet } from './cache.js';
+
+const REDIS_URL = env.REDIS_URL ?? '';
 
 let redis = null;
 
