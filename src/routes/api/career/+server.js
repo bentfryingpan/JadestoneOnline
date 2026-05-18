@@ -19,10 +19,10 @@ export async function GET({ url }) {
 		// Robust query: Target both exact ID and potential rounded BigInts
 		const { data: rows, error } = await supabaseAdmin
 			.from('matches')
-			.select('id, map_name, created_at, outcome, ego_score, stats_json, player_id')
+			.select('id, map_name, period, created_at, outcome, ego_score, stats_json, player_id')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
 			.not('stats_json', 'is', null)
-			.order('created_at', { ascending: false })
+			.order('period', { ascending: false })
 			.limit(10000);
 
 		if (error || !rows?.length) {

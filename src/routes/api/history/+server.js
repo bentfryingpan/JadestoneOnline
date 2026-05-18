@@ -83,8 +83,10 @@ export async function GET({ url, setHeaders }) {
 			const kills = n(act, 'kills');
 			const deaths = n(act, 'deaths');
 			const assists = n(act, 'assists');
+			const invasionKills = n(act, 'invasionKills');
 			const motesDeposited = n(act, 'motesDeposited');
 			const motesDenied = n(act, 'motesDenied');
+			const motesPickedUp = n(act, 'motesPickedUp');
 			const motesLost = n(act, 'motesLost');
 			const primevalDamage = n(act, 'primevalDamage');
 
@@ -98,8 +100,10 @@ export async function GET({ url, setHeaders }) {
 						kills,
 						deaths,
 						assists,
+						invasionKills,
 						motesDeposited,
 						motesDenied,
+						motesPickedUp,
 						motesLost,
 						primevalDamage,
 						fireteamSize: 1,
@@ -113,6 +117,7 @@ export async function GET({ url, setHeaders }) {
 				mapName,
 				win: completed === 1 && standing === 0,
 				kd: deaths > 0 ? +(kills / deaths).toFixed(2) : kills,
+				invasionKills,
 				motesDeposited,
 				primevalDamage,
 				ego

@@ -108,11 +108,11 @@ export async function GET({ url }) {
 		const { data: rows } = await supabaseAdmin
 			.from('matches')
 			.select(
-				'id,map_name,created_at,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats_json'
+				'id,map_name,period,created_at,outcome,ego_score,ego_base,ego_pem,mote_eff,kd,fireteam_size,is_hard_carry,is_carried,stats_json'
 			)
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
 			.not('stats_json', 'is', null)
-			.order('created_at', { ascending: false })
+			.order('period', { ascending: false })
 			.limit(count);
 
 		if (rows?.length) {
@@ -123,7 +123,7 @@ export async function GET({ url }) {
 				lines.push(
 					csvRow([
 						rows.length - i,
-						fmtDate(row.created_at),
+						fmtDate(row.period ?? row.created_at),
 						row.map_name ?? 'Gambit',
 						row.outcome ?? '',
 						row.fireteam_size ?? 1,

@@ -220,7 +220,7 @@ export async function load({ params, parent, url, setHeaders }) {
 	// 2. Fetch Performance Intelligence (Lifetime Summary + Recent Detailed)
 	let dbTotals = {
 		lifetime: { entered: 0, wins: 0, kills: 0, deaths: 0, motes: 0, invKills: 0 },
-		recent: { entered: 0, wins: 0, kills: 0, deaths: 0, assists: 0, precision: 0, motes: 0, motesLost: 0, motesPickedUp: 0, primevalDmg: 0, primevalHeal: 0, invasions: 0, shutDowns: 0, ability: 0, super: 0, invKills: 0, invDeaths: 0, motesDenied: 0, armyOfOne: triumphArmyOfOne }
+		recent: { entered: 0, wins: 0, kills: 0, deaths: 0, assists: 0, precision: 0, motes: 0, motesLost: 0, motesPickedUp: 0, primevalDmg: 0, primevalHeal: 0, invasions: 0, shutDowns: 0, ability: 0, super: 0, meleeKills: 0, grenadeKills: 0, blockers: 0, invKills: 0, invDeaths: 0, motesDenied: 0, armyOfOne: triumphArmyOfOne }
 	};
 
 	try {
@@ -248,9 +248,9 @@ export async function load({ params, parent, url, setHeaders }) {
 		// Fetch Recent 250 for Intelligence
 		const { data: mData } = await supabaseAdmin
 			.from('matches')
-			.select('stats_json, outcome, created_at')
+			.select('stats_json, outcome, period, created_at')
 			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-			.order('created_at', { ascending: false })
+			.order('period', { ascending: false, nullsFirst: false })
 			.limit(250);
 
 		if (mData?.length) {
@@ -278,13 +278,18 @@ export async function load({ params, parent, url, setHeaders }) {
 					acc.primevalHeal += stats.primevalHealing ?? 0;
 					acc.invasions += stats.invasions ?? 0;
 					acc.shutDowns += stats.invasionsDefeated ?? 0;
-					acc.ability += (stats.meleeKills ?? stats.weaponKillsMelee ?? 0) + (stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0);
+					const meleek = stats.meleeKills ?? stats.weaponKillsMelee ?? 0;
+					const grenadek = stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0;
+					acc.meleeKills += meleek;
+					acc.grenadeKills += grenadek;
+					acc.ability += meleek + grenadek;
 					acc.super += stats.superKills ?? stats.weaponKillsSuper ?? 0;
+					acc.blockers += (stats.smallBlockersSent ?? 0) + (stats.mediumBlockersSent ?? 0) + (stats.largeBlockersSent ?? 0);
 					acc.invKills += stats.invasionKills ?? 0;
 					acc.invDeaths += stats.invaderDeaths ?? stats.invasionDeaths ?? 0;
 					acc.motesDenied += stats.motesDenied ?? 0;
 					const mds = stats.medals ?? {};
-					if (mds.armyOfOne) acc.armyOfOne = Math.max(acc.armyOfOne, mds.armyOfOne + (acc.armyOfOne - triumphArmyOfOne));
+					acc.armyOfOne += mds.armyOfOne ?? 0;
 					return acc;
 				},
 				{ ...dbTotals.recent }
