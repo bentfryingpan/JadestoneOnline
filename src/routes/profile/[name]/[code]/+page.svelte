@@ -948,12 +948,19 @@
 				const ranks = Object.values(jr).map(v => v.rank).filter(Number.isFinite);
 				return ranks.length > 0 ? Math.min(...ranks) : null;
 			})(),
-			// jprAvgRank: average rank across all segments the player appears in
+			// jprAvgRank: average rank position across all segments the player appears in
 			jprAvgRank: (() => {
 				const jr = data.jprRanks;
 				if (!jr) return null;
 				const ranks = Object.values(jr).map(v => v.rank).filter(Number.isFinite);
 				return ranks.length > 0 ? Math.round(ranks.reduce((a, b) => a + b, 0) / ranks.length) : null;
+			})(),
+			// jprAvgRating: average JPR score value across all segments (the actual rating number)
+			jprAvgRating: (() => {
+				const jr = data.jprRanks;
+				if (!jr) return null;
+				const scores = Object.values(jr).map(v => v.jpr).filter(v => v != null && Number.isFinite(v));
+				return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 			})(),
 			level: data.gambitProgression?.level ?? 0,
 			rank: gambitRank,
@@ -1558,49 +1565,22 @@
 				</div>
 				<div class="relative z-10 mb-2 flex shrink-0 gap-14 text-right font-sans">
 					<div class="flex flex-col items-end gap-6">
-						<!-- Top: leaderboard rank number (or avg EGO while JPR not yet populated) -->
+						<!-- Leaderboard rating (avg JPR across all 4 segments) — null until crawler runs -->
 						<div>
-							{@render ghostLabel({ text: playerData.identity.jprBestRank != null ? 'LEADERBOARD RANK' : 'AVG EGO RATING' })}
+							{@render ghostLabel({ text: 'RATING' })}
 							<div class="flex flex-col items-end">
-								{#if playerData.identity.jprBestRank != null}
-									<span class="font-sans text-5xl leading-none font-light tracking-tighter text-white">
-										#{playerData.identity.jprBestRank.toLocaleString()}
-									</span>
-								{:else if playerData.identity.avgEgo != null}
-									<span class="font-sans text-5xl leading-none font-light tracking-tighter text-white">
-										{playerData.identity.avgEgo}
-									</span>
-								{:else}
-									<span class="font-sans text-5xl leading-none font-light tracking-tighter text-zinc-700">—</span>
-								{/if}
-								<!-- Green rank label -->
-								{#if playerData.identity.jprAvgRank != null}
-									<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
-										#{ playerData.identity.jprAvgRank } WORLDWIDE
-									</span>
-								{:else if playerData.identity.avgEgo != null}
-									<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
-										LAST {h250.n || '?'} MATCHES
-									</span>
-								{:else}
-									<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-zinc-700 uppercase italic">
-										LOADING…
-									</span>
-								{/if}
+								<span class="font-sans text-5xl leading-none font-light tracking-tighter {playerData.identity.jprAvgRating != null ? 'text-white' : 'text-zinc-700'}">
+									{playerData.identity.jprAvgRating != null ? playerData.identity.jprAvgRating.toLocaleString() : '—'}
+								</span>
+								<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
+									{#if playerData.identity.jprAvgRank != null}
+										#{playerData.identity.jprAvgRank} WORLDWIDE
+									{:else}
+										#WORLDWIDE
+									{/if}
+								</span>
 							</div>
 						</div>
-						<!-- Secondary: avg EGO when showing rank as primary -->
-						{#if playerData.identity.jprBestRank != null && playerData.identity.avgEgo != null}
-							<div>
-								{@render ghostLabel({ text: 'AVG EGO' })}
-								<span class="font-sans text-2xl leading-none font-light tracking-tighter text-amber-400">
-									{playerData.identity.avgEgo}
-								</span>
-								<p class="mt-1 text-[8px] font-bold tracking-widest text-zinc-600 uppercase">
-									LAST {h250.n || '?'} MATCHES
-								</p>
-							</div>
-						{/if}
 					</div>
 				</div>
 			</div>
