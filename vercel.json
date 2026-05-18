@@ -8,5 +8,15 @@
 			"source": "/favicon(.*)",
 			"headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
 		}
+	],
+	"crons": [
+		{
+			"path": "/api/cron/crawl",
+			"schedule": "*/5 * * * *"
+		},
+		{
+			"path": "/api/cron/meta",
+			"schedule": "0 * * * *"
+		}
 	]
 }

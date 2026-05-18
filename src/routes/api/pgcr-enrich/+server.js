@@ -11,6 +11,7 @@ import { supabaseAdmin } from '$lib/supabase-server.js';
 import { calcEgo, extractMedals as _extractMedals, detectRole } from '$lib/server/ego.js';
 import { getItemDef, getActivityDef } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
+import { calcJPR, saveJPR } from '$lib/server/jpr.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT = 'https://stats.bungie.net';
@@ -277,18 +278,93 @@ export async function POST({ request }) {
 		.select('ngr,games_played')
 		.eq('id', String(membershipId))
 		.single();
-	const newGames = (p?.games_played ?? 0) + toUpsert.length;
-	const newNgr =
-		((p?.ngr ?? 0) * (p?.games_played ?? 0) + toUpsert.reduce((s, m) => s + m.ego_score, 0)) /
-		newGames;
+
+	let currentNgr   = p?.ngr ?? 0;
+	let currentGames = p?.games_played ?? 0;
+
+	// Build rating_history rows and update running NGR incrementally
+	const ratingHistoryRows = [];
+	for (const m of toUpsert) {
+		const before    = currentNgr;
+		currentGames   += 1;
+		currentNgr      = (before * (currentGames - 1) + m.ego_score) / currentGames;
+		ratingHistoryRows.push({
+			player_id:     String(membershipId),
+			instance_id:   m.id,
+			period:        m.period,
+			ego_score:     m.ego_score,
+			rating_before: Math.round(before * 10) / 10,
+			rating_after:  Math.round(currentNgr * 10) / 10,
+		});
+	}
+
+	// Write rating history (fire-and-forget — non-blocking)
+	supabaseAdmin
+		.from('rating_history')
+		.upsert(ratingHistoryRows, { onConflict: 'player_id,instance_id' })
+		.then(() => {}).catch(() => {});
 
 	await supabaseAdmin.from('players').upsert({
 		id: String(membershipId),
-		ngr: Math.round(newNgr * 10) / 10,
-		ego_score_avg: Math.round(newNgr * 10) / 10,
-		games_played: newGames,
-		updated_at: new Date().toISOString()
-	});
+		bungie_name:     bungieDisplayName,
+		bungie_code:     String(bungieDisplayCode).padStart(4, '0'),
+		membership_type: parseInt(membershipType),
+		ngr:           Math.round(currentNgr * 10) / 10,
+		ego_score_avg: Math.round(currentNgr * 10) / 10,
+		games_played:  currentGames,
+		updated_at:    new Date().toISOString()
+	}, { onConflict: 'id' });
+
+	// Queue all roster-mates discovered in this enrichment batch
+	const allRosterPlayers = toUpsert.flatMap(m => m.stats_json?.roster ?? []);
+	const rosterSeen = new Set();
+	const queueRows  = [];
+	for (const r of allRosterPlayers) {
+		if (!r.id || r.id === '0' || String(r.id) === String(membershipId) || rosterSeen.has(r.id)) continue;
+		rosterSeen.add(r.id);
+		queueRows.push({
+			player_id:       String(r.id),
+			membership_type: r.membershipType ?? 3,
+			bungie_name:     r.name ?? null,
+			bungie_code:     r.code ?? null,
+			priority:        1,
+			added_at:        new Date().toISOString(),
+		});
+	}
+	if (queueRows.length) {
+		supabaseAdmin
+			.from('player_queue')
+			.upsert(queueRows, { onConflict: 'player_id', ignoreDuplicates: true })
+			.then(() => {}).catch(() => {});
+	}
+
+	// Recompute JPR from all stored enriched matches (async, fire-and-forget)
+	supabaseAdmin
+		.from('matches')
+		.select('ego_score, outcome, fireteam_size, period')
+		.eq('player_id', String(membershipId))
+		.not('ego_score', 'is', null)
+		.order('period', { ascending: false })
+		.limit(500)
+		.then(({ data: allMatches }) => {
+			if (allMatches?.length) {
+				const jprResult = calcJPR(allMatches);
+				return saveJPR(supabaseAdmin, String(membershipId), jprResult);
+			}
+		})
+		.catch(() => {});
+
+	// Mark the visiting player as elevated priority in queue for future crawls
+	supabaseAdmin
+		.from('player_queue')
+		.upsert({
+			player_id:       String(membershipId),
+			membership_type: parseInt(membershipType),
+			bungie_name:     bungieDisplayName,
+			bungie_code:     String(bungieDisplayCode).padStart(4, '0'),
+			priority:        2, // site visitor = higher crawl priority
+		}, { onConflict: 'player_id' })
+		.then(() => {}).catch(() => {});
 
 	return json({ stored: toUpsert.length });
 }
