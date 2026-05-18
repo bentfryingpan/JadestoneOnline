@@ -687,7 +687,9 @@
 			? Object.fromEntries(Object.entries(medals).map(([k, v]) => [k, +(v / en).toFixed(2)]))
 			: {};
 
-		const pg = (val, dp = 1) => n > 0 ? +(val / n).toFixed(dp) : null;
+		const pg  = (val, dp = 1) => n  > 0 ? +(val / n ).toFixed(dp) : null;
+		// epg: per-game over enriched matches only (stats only available in PGCR data)
+		const epg = (val, dp = 1) => en > 0 ? +(val / en).toFixed(dp) : null;
 
 		return {
 			// Motes
@@ -705,15 +707,15 @@
 			avgDeaths:       pg(historySum.deaths),
 			avgAssists:      pg(historySum.assists),
 			precisionPct:    historySum.kills > 0 ? +(historySum.precisionKills / historySum.kills * 100).toFixed(1) : null,
-			// Ability per game
-			avgMeleeKills:   pg(historySum.meleeKills),
-			avgGrenadeKills: pg(historySum.grenadeKills),
-			avgSuperKills:   pg(historySum.superKills),
+			// Ability per game — divide by enriched count, these stats only come from PGCR
+			avgMeleeKills:   epg(historySum.meleeKills),
+			avgGrenadeKills: epg(historySum.grenadeKills),
+			avgSuperKills:   epg(historySum.superKills),
 			// Invasion per game
 			avgInvKills:     pg(historySum.invKills, 2),
 			avgInvDeaths:    pg(historySum.invDeaths, 2),
-			// Damage per game
-			avgPrimDmg:      n > 0 ? Math.round(historySum.primevalDmg / n) : null,
+			// Damage per game — also PGCR-only
+			avgPrimDmg:      en > 0 ? Math.round(historySum.primevalDmg / en) : null,
 			// Carry rates (enriched only)
 			hardCarryRate:   en > 0 ? +(historySum.hardCarryCount / en * 100).toFixed(1) : null,
 			carriedRate:     en > 0 ? +(historySum.carriedCount   / en * 100).toFixed(1) : null,
