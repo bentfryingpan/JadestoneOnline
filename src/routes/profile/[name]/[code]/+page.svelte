@@ -531,13 +531,39 @@
 		(history?.matches ?? []).map((m) => {
 			const sj = m.stats_json ?? {};
 			const ego = m.ego ?? {};
+			const enriched = m.isEnriched ?? false;
+
+			// When a match is enriched, stats_json (from full PGCR) is the authoritative source.
+			// Activity history often returns 0 for stats like motesDeposited/primevalDamage
+			// (either missing or rounded), so we can't use ?? which treats 0 as valid.
+			// Priority: enriched PGCR (sj) > activity history (m) > 0
+			function pick(sjVal, mVal) {
+				if (enriched && sjVal != null) return sjVal;
+				// Activity history: treat 0 as "no data" only when enriched PGCR has a real value
+				if (mVal != null && mVal !== 0) return mVal;
+				if (enriched && sjVal != null) return sjVal; // sjVal could be 0, that's fine from PGCR
+				return mVal ?? 0;
+			}
+
+			const kills        = enriched ? (sj.kills || (sj.mobKills || 0) + (sj.invasionKills || 0) || m.kills || 0) : (m.kills || 0);
+			const deaths       = pick(sj.deaths,       m.deaths);
+			const assists      = pick(sj.assists,      m.assists);
+			const invasionKills = pick(sj.invasionKills, m.invasionKills);
+			const motesDeposited = pick(sj.motesDeposited, m.motesDeposited);
+			const motesDenied  = pick(sj.motesDenied,  m.motesDenied);
+			const motesPickedUp = pick(sj.motesPickedUp, m.motesPickedUp);
+			const motesLost    = pick(sj.motesLost,    m.motesLost);
+			// primevalDamage is NOT in activity history — always use stats_json when enriched
+			const primevalDamage = enriched ? (sj.primevalDamage ?? 0) : (m.primevalDamage ?? 0);
+			const kd = deaths > 0 ? +(kills / deaths).toFixed(2) : (kills || m.kd || 0);
+
 			return {
 				instanceId: m.instanceId,
 				result: m.win ? 'WIN' : 'LOSS',
 				map: m.mapName ?? 'Gambit',
 				period: m.period,
 				date: m.period ? timeAgo(m.period) : '',
-				isEnriched: m.isEnriched ?? false,
+				isEnriched: enriched,
 				// EGO
 				egoScore: ego.finalScore ?? null,
 				egoBase: ego.basePps ?? null,
@@ -545,29 +571,23 @@
 				egoMoteEff: ego.moteEff ?? null,
 				egoComponents: ego.components ?? null,
 				// Combat
-				kills: m.kills ?? sj.kills ?? ((sj.mobKills ?? 0) + (sj.invasionKills ?? 0)),
-				deaths: m.deaths ?? sj.deaths ?? 0,
-				assists: m.assists ?? sj.assists ?? 0,
-				kd: m.kd ?? 0,
+				kills, deaths, assists, kd,
 				// Invasion
-				invKills: m.invasionKills ?? sj.invasionKills ?? 0,
+				invKills: invasionKills,
 				invDeaths: sj.invaderDeaths ?? sj.invasionDeaths ?? 0,
 				// Motes
-				motesDeposited: m.motesDeposited ?? sj.motesDeposited ?? 0,
-				motesDenied: m.motesDenied ?? sj.motesDenied ?? 0,
-				motesPickedUp: m.motesPickedUp ?? sj.motesPickedUp ?? 0,
-				motesLost: m.motesLost ?? sj.motesLost ?? 0,
+				motesDeposited, motesDenied, motesPickedUp, motesLost,
 				// Damage
-				primevalDamage: m.primevalDamage ?? sj.primevalDamage ?? 0,
-				// Ability
-				meleeKills: sj.meleeKills ?? sj.weaponKillsMelee ?? 0,
-				grenadeKills: sj.grenadeKills ?? sj.weaponKillsGrenade ?? 0,
-				superKills: sj.superKills ?? sj.weaponKillsSuper ?? 0,
+				primevalDamage,
+				// Ability (only from PGCR)
+				meleeKills:    sj.meleeKills    ?? sj.weaponKillsMelee    ?? 0,
+				grenadeKills:  sj.grenadeKills  ?? sj.weaponKillsGrenade  ?? 0,
+				superKills:    sj.superKills    ?? sj.weaponKillsSuper    ?? 0,
 				precisionKills: sj.precisionKills ?? 0,
 				// Carry
 				fireteamSize: m.fireteamSize ?? sj.fireteam_size ?? 1,
 				isHardCarry: m.isHardCarry ?? false,
-				isCarried: m.isCarried ?? false,
+				isCarried:   m.isCarried   ?? false,
 				// Medals (only present on PGCR-enriched matches)
 				medals: sj.medals ?? {},
 			};
