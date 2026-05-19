@@ -73,21 +73,30 @@ export async function load({ params, parent, url, setHeaders }) {
 	}
 
 	const profileKey = `profile:${membershipId}`;
-	let profileBundle, dbPlayer;
+	const idStr = String(membershipId);
+
+	let profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows;
 	try {
-		[profileBundle, dbPlayer] = await Promise.all([
+		[profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows] = await Promise.all([
+			// ── Bungie: profile + clan + account stats + triumphs all in one shot ──
 			cacheWrap(profileKey, PROFILE_TTL, async () => {
-				const [profileData, clanData, acctStats] = await Promise.all([
+				const [profileData, clanData, acctStats, triRes] = await Promise.all([
 					bungieGet(
 						`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,104,200,202,205`
 					),
 					bungieGet(`/Platform/GroupV2/User/${membershipType}/${membershipId}/0/1/`),
 					bungieGet(
 						`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Stats/?modes=63&groups=1,2`
-					)
+					),
+					// Triumphs moved in here — no longer a sequential waterfall after profile
+					fetch(
+						`${BUNGIE_ROOT}/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=900`,
+						{ headers: { 'X-API-Key': BUNGIE_API_KEY } }
+					).then(r => r.text()).then(t => JSON.parse(t)).catch(() => null),
 				]);
-				return { profileData, clanData, acctStats };
+				return { profileData, clanData, acctStats, triData: triRes };
 			}),
+			// ── DB: claim check ──
 			(async () => {
 				const claimKey = `claim:${membershipId}`;
 				const cachedClaim = cacheGet(claimKey);
@@ -101,14 +110,39 @@ export async function load({ params, parent, url, setHeaders }) {
 					.catch(() => null);
 				cacheSet(claimKey, r, CLAIM_TTL);
 				return r;
-			})()
+			})(),
+			// ── DB: lifetime gambit stats — in parallel with Bungie calls ──
+			supabaseAdmin
+				.from('player_gambit_stats')
+				.select('*')
+				.eq('player_id', idStr)
+				.single()
+				.then(r => r.data ?? null)
+				.catch(() => null),
+			// ── DB: recent matches — in parallel with Bungie calls ──
+			supabaseAdmin
+				.from('matches')
+				.select('stats_json, outcome, period, created_at')
+				.eq('player_id', idStr)
+				.order('period', { ascending: false, nullsFirst: false })
+				.limit(150)
+				.then(r => r.data ?? [])
+				.catch(() => []),
+			// ── DB: JPR rows — in parallel with Bungie calls ──
+			supabaseAdmin
+				.from('player_jpr')
+				.select('segment, jpr, games_played')
+				.eq('player_id', idStr)
+				.gte('games_played', 20)
+				.then(r => r.data ?? [])
+				.catch(() => []),
 		]);
 	} catch (e) {
 		if (e?.status) throw e;
 		throw error(502, 'Bungie API unavailable');
 	}
 
-	const { profileData, clanData, acctStats } = profileBundle;
+	const { profileData, clanData, acctStats, triData } = profileBundle;
 	const profile = profileData?.Response ?? {};
 	const charIds = profile?.profile?.data?.characterIds ?? [];
 	const characters = profile?.characters?.data ?? {};
@@ -215,20 +249,12 @@ export async function load({ params, parent, url, setHeaders }) {
 		mostMotes: 1398935792
 	};
 
-	let triumphs = {};
 	let verifiedMedals = {};
 
 	try {
-		const triRes = await fetch(
-			`https://www.bungie.net/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=900`,
-			{ headers: { 'X-API-Key': BUNGIE_API_KEY } }
-		);
-		const triData = await triRes.json();
-		triumphs = triData?.Response?.profileRecords?.data?.records ?? {};
-		
+		const triumphs = triData?.Response?.profileRecords?.data?.records ?? {};
 		for (const [key, hash] of Object.entries(VERIFIED_HASHES)) {
 			const record = triumphs[hash];
-			// Some medals are binary, some are counters. objectives[0].progress is the count.
 			verifiedMedals[key] = record?.objectives?.[0]?.progress ?? (record?.state === 0 ? 1 : 0);
 		}
 	} catch {}
@@ -238,47 +264,28 @@ export async function load({ params, parent, url, setHeaders }) {
 	// Determine base statsSource
 	let source = !lifetimeStats ? 'none' : lifetimeStats._synthetic ? 'recent' : 'bungie';
 
-	// 2. Fetch Performance Intelligence (Lifetime Summary + Recent Detailed)
+	// 2. Aggregate Performance Intelligence from pre-loaded DB data
 	let dbTotals = {
 		lifetime: { entered: 0, wins: 0, kills: 0, deaths: 0, motes: 0, invKills: 0 },
 		recent: { entered: 0, wins: 0, kills: 0, deaths: 0, assists: 0, precision: 0, motes: 0, motesLost: 0, motesPickedUp: 0, primevalDmg: 0, primevalHeal: 0, invasions: 0, shutDowns: 0, ability: 0, super: 0, meleeKills: 0, grenadeKills: 0, blockers: 0, invKills: 0, invDeaths: 0, motesDenied: 0, armyOfOne: triumphArmyOfOne }
 	};
 
 	try {
-		const idStr = String(membershipId);
-		const prefix = idStr.substring(0, 15);
-
-		// Fetch Lifetime Summary from cache table
-		const { data: sData } = await supabaseAdmin
-			.from('player_gambit_stats')
-			.select('*')
-			.eq('player_id', idStr)
-			.single();
-
-		if (sData) {
+		if (dbGambitStats) {
 			dbTotals.lifetime = {
-				entered: sData.activities_entered || 0,
-				wins: sData.activities_won || 0,
-				kills: sData.kills || 0,
-				deaths: sData.deaths || 0,
-				motes: sData.motes_deposited || 0,
-				invKills: sData.invasion_kills || 0
+				entered: dbGambitStats.activities_entered || 0,
+				wins: dbGambitStats.activities_won || 0,
+				kills: dbGambitStats.kills || 0,
+				deaths: dbGambitStats.deaths || 0,
+				motes: dbGambitStats.motes_deposited || 0,
+				invKills: dbGambitStats.invasion_kills || 0
 			};
 		}
 
-		// Fetch Recent 250 for Intelligence
-		const { data: mData } = await supabaseAdmin
-			.from('matches')
-			.select('stats_json, outcome, period, created_at')
-			.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
-			.order('period', { ascending: false, nullsFirst: false })
-			.limit(250);
-
-		if (mData?.length) {
+		if (dbMatches?.length) {
 			const targetPrefix = name ? String(name).split('#')[0].toLowerCase() : null;
 			const targetCodeStr = code ? String(code).padStart(4, '0') : null;
-
-			const recentAgg = mData.reduce(
+			const recentAgg = dbMatches.reduce(
 				(acc, m) => {
 					const stats = m.stats_json ?? {};
 					const roster = stats.roster ?? [];
@@ -360,23 +367,17 @@ export async function load({ params, parent, url, setHeaders }) {
 			: null);
 
 	// ── JPR Leaderboard Ranks ────────────────────────────────────────────────
-	// Graceful: table may not exist yet — returns null until crawler populates it
+	// dbJprRows already loaded in parallel — just need rank counts now
 	let jprRanks = null;
 	try {
-		const idStr = String(membershipId);
-		const { data: jprRows, error: jprErr } = await supabaseAdmin
-			.from('player_jpr')
-			.select('segment, jpr, games_played')
-			.eq('player_id', idStr);
-
-		if (!jprErr && jprRows?.length) {
-			// Fetch rank position for each segment in parallel
+		if (dbJprRows?.length) {
 			const rankResults = await Promise.all(
-				jprRows.map(async (row) => {
+				dbJprRows.map(async (row) => {
 					const { count } = await supabaseAdmin
 						.from('player_jpr')
 						.select('*', { count: 'exact', head: true })
 						.eq('segment', row.segment)
+						.gte('games_played', 20)
 						.gt('jpr', row.jpr);
 					return { segment: row.segment, rank: (count ?? 0) + 1, jpr: row.jpr, games: row.games_played };
 				})

@@ -36,7 +36,7 @@ const BATCH_SIZE      = 20;   // players per cycle
 const HISTORY_COUNT   = 50;   // recent matches to check per character
 const MAX_NEW_PGCRS   = 25;   // max new PGCRs to enrich per player per cycle
 const PGCR_PARALLEL   = 8;    // parallel PGCR fetches
-const META_INTERVAL   = 10 * 60 * 1000; // recompute weapon meta every 10 min
+const META_INTERVAL   = 60 * 60 * 1000; // recompute weapon meta every hour
 const SLOT_BUCKETS    = { 1491708835: 'Kinetic', 2465295065: 'Energy', 95395402: 'Power' };
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
