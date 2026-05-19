@@ -7,7 +7,8 @@
  * Protected by CRON_SECRET.
  */
 
-import { CRON_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
+const CRON_SECRET = env.CRON_SECRET;
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 

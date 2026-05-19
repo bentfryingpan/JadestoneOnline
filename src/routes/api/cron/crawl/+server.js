@@ -15,7 +15,9 @@
  *   BATCH_SIZE players × (1 history call + MAX_NEW_PGCRS pgcr calls) + Supabase writes
  */
 
-import { BUNGIE_API_KEY, CRON_SECRET } from '$env/static/private';
+import { BUNGIE_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
+const CRON_SECRET = env.CRON_SECRET;
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';

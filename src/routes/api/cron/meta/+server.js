@@ -6,7 +6,8 @@
  * from the last 30 days of enriched matches and writes to meta_cache.
  */
 
-import { CRON_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
+const CRON_SECRET = env.CRON_SECRET;
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 
