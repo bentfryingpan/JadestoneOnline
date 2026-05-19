@@ -12,7 +12,8 @@ const BUNGIE_ROOT = 'https://www.bungie.net';
 async function bungieGet(url) {
 	const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
 	if (!res.ok) throw new Error(`Bungie ${res.status}: ${url}`);
-	return res.json();
+	const text = await res.text();
+	return JSON.parse(text.replace(/:\s*(\d{15,})/g, ': "$1"'));
 }
 
 export async function load({ params, parent, url, setHeaders }) {
