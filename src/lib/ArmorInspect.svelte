@@ -271,7 +271,7 @@
 								class="mb-3 block font-sans text-[9px] font-black tracking-[0.4em] text-zinc-600 uppercase"
 								>CLASSIFICATION_DATA</span
 							>
-							<p class="indent-6 font-serif text-xs leading-relaxed text-zinc-400 italic">
+							<p class="indent-6 font-sans font-normal text-xs leading-relaxed text-zinc-300">
 								{armor.flavorText}
 							</p>
 						</div>
@@ -314,7 +314,7 @@
 					<p class="mb-1.5 text-[11px] font-black uppercase italic tracking-wider text-sky-400">
 						{hoveredMod.name ?? 'Unknown Mod'}
 					</p>
-					<p class="font-serif text-[10px] leading-relaxed text-zinc-300 italic opacity-95">
+					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
 						{hoveredMod.description || 'No modification data available.'}
 					</p>
 					{#if hoveredMod.statBonuses?.length}

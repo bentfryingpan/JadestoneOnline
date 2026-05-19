@@ -217,7 +217,7 @@
 								</p>
 								{#if superAbility.description || superAbility.perkDescription}
 									<p
-										class="mt-3 font-serif text-xs leading-relaxed text-zinc-300"
+										class="mt-3 font-sans font-normal text-xs leading-relaxed text-zinc-300"
 										style="-webkit-line-clamp: 4; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 									>
 										{superAbility.description || superAbility.perkDescription}
@@ -277,7 +277,7 @@
 										</p>
 										{#if ability.description || ability.perkDescription}
 											<p
-												class="mt-2 font-serif text-[11px] leading-relaxed text-zinc-300"
+												class="mt-2 font-sans font-normal text-[11px] leading-relaxed text-zinc-300"
 												style="-webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 											>
 												{ability.description || ability.perkDescription}
@@ -334,7 +334,7 @@
 										</p>
 										{#if aspect.description || aspect.perkDescription}
 											<p
-												class="mt-1.5 font-serif text-[11px] leading-relaxed text-zinc-300"
+												class="mt-1.5 font-sans font-normal text-[11px] leading-relaxed text-zinc-300"
 												style="-webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 											>
 												{aspect.description || aspect.perkDescription}
@@ -479,7 +479,7 @@
 					<p class="mb-1.5 text-[11px] font-black uppercase italic tracking-wider {el.accent}">
 						{hoveredFragment.name ?? 'Unknown Fragment'}
 					</p>
-					<p class="font-serif text-xs leading-relaxed text-zinc-200">
+					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
 						{hoveredFragment.description ||
 							hoveredFragment.perkDescription ||
 							'No fragment data available.'}

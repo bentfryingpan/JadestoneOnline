@@ -238,7 +238,7 @@
 							class="mb-4 block font-sans text-[9px] font-black tracking-[0.4em] text-zinc-600 uppercase"
 							>TACTICAL_ARCHIVE_DATA</span
 						>
-						<p class="indent-6 font-serif text-xs leading-relaxed text-zinc-400 italic">
+						<p class="indent-6 font-sans font-normal text-xs leading-relaxed text-zinc-300">
 							{details.description || 'No classification data found in tactical archives.'}
 						</p>
 					</div>
@@ -323,7 +323,7 @@
 					>
 						{hoveredPerk.name}
 					</p>
-					<p class="font-serif text-[10px] leading-relaxed text-zinc-300 italic opacity-95">
+					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
 						{hoveredPerk.description || 'Active Tactical Component.'}
 					</p>
 					<div

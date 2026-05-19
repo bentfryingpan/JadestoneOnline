@@ -91,29 +91,35 @@
 		}
 	});
 
-	// ── Lazy loadout ───────────────────────────────────────────────────────────
-	let loadout = $state(null);
+	// ── Lazy loadout — cached per character ───────────────────────────────────
+	let loadouts = $state({});        // { [charId]: loadoutData }
 	let loadoutLoading = $state(false);
-	let loadoutCharId = $state(null);
+	let loadingCharId = $state(null); // which char is currently being fetched
 	let inspectedWeapon = $state(null);
 	let inspectedArmor = $state(null);
 	let inspectedSubclass = $state(null);
 
-	async function fetchLoadout() {
-		if (loadoutLoading || loadoutCharId === activeChar || !activeChar) return;
+	async function fetchLoadout(charId = activeChar) {
+		if (!charId || loadouts[charId] || loadingCharId === charId) return;
+		loadingCharId = charId;
 		loadoutLoading = true;
 		try {
 			const res = await fetch(
-				`/api/loadout?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${activeChar}`
+				`/api/loadout?membershipType=${data.membershipType}&membershipId=${data.membershipId}&charId=${charId}`
 			);
 			const d = await res.json();
-			loadout = d;
-			loadoutCharId = activeChar;
+			loadouts = { ...loadouts, [charId]: d };
 		} catch (e) {
 			console.error('Loadout fetch failed', e);
 		} finally {
 			loadoutLoading = false;
+			loadingCharId = null;
 		}
+	}
+
+	function switchLoadoutChar(charId) {
+		activeChar = charId;
+		fetchLoadout(charId);
 	}
 
 	// ── Seasonal stats (server-streamed) ──────────────────────────────────────
@@ -414,13 +420,14 @@
 	});
 
 	$effect(() => {
-		if ((tab === 'loadout' || tab === 'subclass') && activeChar && activeChar !== loadoutCharId) {
-			fetchLoadout();
+		if ((tab === 'loadout' || tab === 'subclass') && activeChar) {
+			fetchLoadout(activeChar);
 		}
 	});
 
 	// ── Derived ────────────────────────────────────────────────────────────────
 	const char = $derived(data.characters[activeChar] ?? {});
+	const loadout = $derived(loadouts[activeChar] ?? null);
 	const eq = $derived(loadout?.equipment ?? {});
 
 	const gambitRank = $derived(
@@ -2295,6 +2302,59 @@
 							</div>
 						{:else if profileTab === 'loadout'}
 							<div class="animate-in fade-in zoom-in-95 mx-auto max-w-6xl px-4 py-10 duration-700">
+
+								<!-- Character selector -->
+								{#if data.characterIds.length > 1}
+									<div class="mb-8 flex items-center gap-3">
+										<span class="text-[9px] font-bold tracking-[0.25em] text-zinc-600 uppercase shrink-0">CHARACTER</span>
+										<div class="flex gap-2">
+											{#each data.characterIds as charId}
+												{@const c = data.characters[charId] ?? {}}
+												{@const classLabel = ({ 0: 'Titan', 1: 'Hunter', 2: 'Warlock' })[c.classType] ?? 'Guardian'}
+												{@const isActive = activeChar === charId}
+												{@const isLoading = loadingCharId === charId}
+												<button
+													onclick={() => switchLoadoutChar(charId)}
+													class="group relative flex items-center gap-2.5 border px-4 py-2.5 transition-all duration-300
+														{isActive
+															? 'border-emerald-500/50 bg-emerald-500/10 text-white'
+															: 'border-zinc-800 bg-zinc-900/40 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}"
+												>
+													{#if c.emblemPath}
+														<img
+															src="https://www.bungie.net{c.emblemPath}"
+															alt={classLabel}
+															class="h-6 w-6 rounded-sm object-cover opacity-80 group-hover:opacity-100"
+														/>
+													{:else}
+														<div class="h-6 w-6 rounded-sm border border-zinc-700 bg-zinc-800"></div>
+													{/if}
+													<div class="text-left">
+														<p class="text-[10px] font-black tracking-wider uppercase leading-none {isActive ? 'text-white' : ''}">
+															{classLabel}
+														</p>
+														{#if c.light}
+															<p class="mt-0.5 text-[9px] font-bold text-zinc-500">
+																{c.light}
+																<span class="text-yellow-500/80">&#9670;</span>
+															</p>
+														{/if}
+													</div>
+													{#if isLoading}
+														<div class="h-3 w-3 animate-spin rounded-full border border-emerald-500 border-t-transparent"></div>
+													{/if}
+													{#if isActive}
+														<span class="absolute bottom-0 left-0 h-[2px] w-full bg-emerald-500"></span>
+													{/if}
+												</button>
+											{/each}
+										</div>
+										{#if loadoutLoading}
+											<span class="text-[9px] font-bold tracking-widest text-zinc-600 uppercase animate-pulse">Loading...</span>
+										{/if}
+									</div>
+								{/if}
+
 								<div class="grid grid-cols-12 items-start gap-12 font-sans">
 									<div class="col-span-3 flex flex-col items-center space-y-12">
 										<!-- Subclass slot -->
