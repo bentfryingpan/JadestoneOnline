@@ -140,23 +140,12 @@ export async function load({ params, parent, url, setHeaders }) {
 	let profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows;
 	try {
 		[profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows] = await Promise.all([
-			// ── Bungie: profile + clan + account stats + triumphs all in one shot ──
+			// ── Bungie: profile + triumphs in one call — clan/stats served from DB ──
 			cacheWrap(profileKey, PROFILE_TTL, async () => {
-				const [profileData, clanData, acctStats, triRes] = await Promise.all([
-					bungieGet(
-						`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,104,200,202,205`
-					),
-					bungieGet(`/Platform/GroupV2/User/${membershipType}/${membershipId}/0/1/`),
-					bungieGet(
-						`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Stats/?modes=63&groups=1,2`
-					),
-					// Triumphs moved in here — no longer a sequential waterfall after profile
-					fetch(
-						`${BUNGIE_ROOT}/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=900`,
-						{ headers: { 'X-API-Key': BUNGIE_API_KEY } }
-					).then(r => r.text()).then(t => JSON.parse(t)).catch(() => null),
-				]);
-				return { profileData, clanData, acctStats, triData: triRes };
+				const profileData = await bungieGet(
+					`/Platform/Destiny2/${membershipType}/Profile/${membershipId}/?components=100,104,200,202,205,900`
+				);
+				return { profileData };
 			}),
 			// ── DB: claim check ──
 			(async () => {
@@ -204,13 +193,14 @@ export async function load({ params, parent, url, setHeaders }) {
 		throw error(502, 'Bungie API unavailable');
 	}
 
-	const { profileData, clanData, acctStats, triData } = profileBundle;
+	const { profileData } = profileBundle;
 	const profile = profileData?.Response ?? {};
 	const charIds = profile?.profile?.data?.characterIds ?? [];
 	const characters = profile?.characters?.data ?? {};
 	const progressions = profile?.characterProgressions?.data ?? {};
-	const clan = clanData?.Response?.results?.[0]?.group ?? null;
-	const _statsResults = acctStats?.Response?.mergedAllCharacters?.results ?? {};
+	const triData = profileData; // triumphs fetched as component 900 on the same call
+	const clan = null; // scanner doesn't store clan — skipped to eliminate extra Bungie call
+	const _statsResults = {}; // no longer fetching acctStats from Bungie
 
 	const sortedCharIds = [...charIds].sort(
 		(a, b) =>
@@ -218,67 +208,11 @@ export async function load({ params, parent, url, setHeaders }) {
 	);
 	const mainCharId = sortedCharIds[0];
 
-	let recentMatches = [];
-	if (sortedCharIds.length > 0) {
-		const perCharData = await Promise.all(
-			sortedCharIds.map((charId) => {
-				const key = `matches:${membershipId}:${charId}`;
-				return cacheWrap(key, PROFILE_TTL, () =>
-					bungieGet(
-						`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${charId}/Stats/Activities/?mode=63&count=25&page=0`
-					)
-				).then((d) => d?.Response?.activities ?? []);
-			})
-		);
-		const seen = new Set();
-		const merged = [];
-		for (const charMatches of perCharData) {
-			for (const m of charMatches) {
-				const id = m.activityDetails?.instanceId;
-				if (id && !seen.has(id)) {
-					seen.add(id);
-					merged.push(m);
-				}
-			}
-		}
-		recentMatches = merged
-			.sort((a, b) => new Date(b.period ?? 0) - new Date(a.period ?? 0))
-			.slice(0, 25);
-	}
+	// recentMatches served from DB — no Bungie activity history calls needed
+	const recentMatches = [];
 
-	let lifetimeStats =
-		_statsResults?.gambit?.allTime ??
-		_statsResults?.pvecomp_gambit?.allTime ??
-		_statsResults?.allPveCompetitive?.allTime ??
-		_statsResults?.allPvECompetitive?.allTime ??
-		Object.values(_statsResults).find((r) => (r?.allTime?.activitiesEntered?.basic?.value ?? 0) > 0)
-			?.allTime ??
-		null;
-
-	if (!lifetimeStats && mainCharId) {
-		try {
-			const cr =
-				(
-					await cacheWrap(`charstats:${membershipId}:${mainCharId}`, PROFILE_TTL, () =>
-						bungieGet(
-							`/Platform/Destiny2/${membershipType}/Account/${membershipId}/Character/${mainCharId}/Stats/?modes=63`
-						)
-					)
-				)?.Response ?? {};
-			lifetimeStats =
-				cr?.gambit?.allTime ??
-				cr?.pvecomp_gambit?.allTime ??
-				cr?.allPveCompetitive?.allTime ??
-				cr?.allPvECompetitive?.allTime ??
-				Object.values(cr).find((r) => (r?.allTime?.activitiesEntered?.basic?.value ?? 0) > 0)
-					?.allTime ??
-				null;
-		} catch {}
-	}
-
-	if (lifetimeStats && !lifetimeStats.motesBanked && lifetimeStats.motesDeposited) {
-		lifetimeStats = { ...lifetimeStats, motesBanked: lifetimeStats.motesDeposited };
-	}
+	// lifetimeStats served from DB — scanner keeps player_gambit_stats up to date
+	const lifetimeStats = null;
 
 	// 1. Fetch Basic Profile & Triumphs (Records)
 	// Targeted verified Gambit medal and triumph hashes for instant intelligence
@@ -314,7 +248,7 @@ export async function load({ params, parent, url, setHeaders }) {
 	let verifiedMedals = {};
 
 	try {
-		const triumphs = triData?.Response?.profileRecords?.data?.records ?? {};
+		const triumphs = profile?.profileRecords?.data?.records ?? {};
 		for (const [key, hash] of Object.entries(VERIFIED_HASHES)) {
 			const record = triumphs[hash];
 			verifiedMedals[key] = record?.objectives?.[0]?.progress ?? (record?.state === 0 ? 1 : 0);
@@ -323,8 +257,8 @@ export async function load({ params, parent, url, setHeaders }) {
 
 	const triumphArmyOfOne = verifiedMedals.armyOfOne ?? 0;
 
-	// Determine base statsSource
-	let source = !lifetimeStats ? 'none' : lifetimeStats._synthetic ? 'recent' : 'bungie';
+	// Stats source is now always DB
+	const source = dbGambitStats ? 'db' : (dbMatches?.length ? 'recent' : 'none');
 
 	// 2. Aggregate Performance Intelligence from pre-loaded DB data
 	let dbTotals = {
@@ -388,37 +322,7 @@ export async function load({ params, parent, url, setHeaders }) {
 		}
 	} catch {}
 
-	if (lifetimeStats) {
-		const s = lifetimeStats;
-		const entered = s.activitiesEntered?.basic?.value ?? 0;
-		const won = s.activitiesWon?.basic?.value ?? 0;
-		const kills = s.kills?.basic?.value ?? 0;
-		const deaths = s.deaths?.basic?.value ?? 0;
-		
-		// Update lifetime summary in background
-		supabaseAdmin.from('player_gambit_stats').upsert({
-			player_id: String(membershipId),
-			bungie_name: name,
-			bungie_code: code,
-			membership_type: membershipType,
-			activities_entered: entered,
-			activities_won: won,
-			kills, deaths,
-			assists: s.assists?.basic?.value ?? 0,
-			invasions: s.invasions?.basic?.value ?? 0,
-			invasion_kills: s.invasionKills?.basic?.value ?? 0,
-			invasions_defeated: s.invasionsDefeated?.basic?.value ?? 0,
-			motes_deposited: s.motesBanked?.basic?.value ?? 0,
-			motes_lost: s.motesLost?.basic?.value ?? 0,
-			kd_ratio: deaths > 0 ? +(kills / deaths).toFixed(2) : kills,
-			win_rate: entered > 0 ? +((won / entered) * 100).toFixed(1) : 0,
-			updated_at: new Date().toISOString()
-		}, { onConflict: 'player_id' }).then(() => {});
-
-		// Ensure dbTotals.lifetime is at least as good as current fetch
-		dbTotals.lifetime.entered = Math.max(dbTotals.lifetime.entered, entered);
-		dbTotals.lifetime.wins = Math.max(dbTotals.lifetime.wins, won);
-	}
+	// Background sync removed — Railway scanner owns player_gambit_stats updates
 
 	setHeaders({ 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' });
 
