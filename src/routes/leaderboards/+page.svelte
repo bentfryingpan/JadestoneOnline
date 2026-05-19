@@ -1,193 +1,289 @@
 <script>
 	import { goto } from '$app/navigation';
+	import { onMount, onDestroy } from 'svelte';
+	import { supabase } from '$lib/supabase.js';
+
 	let { data } = $props();
 
-	const catLabels = {
-		wins: 'Total Wins',
-		winrate: 'Win Rate',
-		kd: 'K/D Ratio',
-		invasions: 'Invasions',
-		motes: 'Motes Banked',
-		matches: 'Total Matches'
+	const SEGMENTS = {
+		solo:  { label: 'Solo Queue',  desc: 'Fireteam of 1' },
+		duo:   { label: 'Duo Stack',   desc: 'Fireteam of 2' },
+		trio:  { label: 'Trio Stack',  desc: 'Fireteam of 3' },
+		stack: { label: 'Full Stack',  desc: 'Fireteam of 4' },
 	};
 
-	function statValue(row, cat) {
-		switch (cat) {
-			case 'winrate':
-				return row.win_rate != null ? row.win_rate.toFixed(1) + '%' : '—';
-			case 'kd':
-				return row.kd_ratio != null ? row.kd_ratio.toFixed(2) : '—';
-			case 'invasions':
-				return (row.invasions ?? 0).toLocaleString();
-			case 'motes':
-				return (row.motes_deposited ?? 0).toLocaleString();
-			case 'wins':
-				return (row.activities_won ?? 0).toLocaleString();
-			case 'matches':
-				return (row.activities_entered ?? 0).toLocaleString();
-			default:
-				return '—';
-		}
+	// ── Reactive state ──────────────────────────────────────────────────────────
+	let rows       = $state(data.rows ?? []);
+	let segment    = $state(data.segment ?? 'solo');
+	let deltas     = $state({});   // player_id → { delta, dir, ts }
+	let liveCount  = $state(0);    // how many updates received this session
+	let isLive     = $state(false);
+	let flashIds   = $state(new Set());
+
+	// ── Derived sorted list ─────────────────────────────────────────────────────
+	let sorted = $derived([...rows].sort((a, b) => (b.jpr ?? 0) - (a.jpr ?? 0)));
+
+	// ── Navigation ──────────────────────────────────────────────────────────────
+	function go(seg) {
+		goto(`/leaderboards?seg=${seg}`, { replaceState: true });
+		segment = seg;
 	}
 
-	function fmt(n) {
-		return n != null ? Number(n).toLocaleString() : '—';
+	// ── Realtime subscription ───────────────────────────────────────────────────
+	let channel;
+
+	function subscribe(seg) {
+		if (channel) supabase.removeChannel(channel);
+
+		channel = supabase
+			.channel(`leaderboard-${seg}`)
+			.on('postgres_changes', {
+				event:  '*',
+				schema: 'public',
+				table:  'player_jpr',
+				filter: `segment=eq.${seg}`,
+			}, (payload) => {
+				const updated = payload.new;
+				if (!updated?.player_id) return;
+
+				liveCount++;
+
+				const existing = rows.find(r => r.player_id === updated.player_id);
+				const oldJpr   = existing?.jpr ?? null;
+				const newJpr   = updated.jpr;
+
+				// Compute delta
+				if (oldJpr !== null && newJpr !== null) {
+					const delta = Math.round((newJpr - oldJpr) * 10) / 10;
+					if (Math.abs(delta) >= 0.1) {
+						deltas[updated.player_id] = {
+							delta,
+							dir: delta > 0 ? 'up' : 'down',
+							ts:  Date.now(),
+						};
+						// Expire delta after 8 seconds
+						setTimeout(() => {
+							deltas = { ...deltas };
+							delete deltas[updated.player_id];
+						}, 8000);
+					}
+				}
+
+				// Flash the row
+				flashIds = new Set([...flashIds, updated.player_id]);
+				setTimeout(() => {
+					flashIds = new Set([...flashIds].filter(id => id !== updated.player_id));
+				}, 1200);
+
+				// Update or insert the row
+				if (existing) {
+					rows = rows.map(r =>
+						r.player_id === updated.player_id
+							? { ...r, ...updated }
+							: r
+					);
+				} else if (updated.jpr != null) {
+					rows = [...rows, updated];
+				}
+			})
+			.subscribe((status) => {
+				isLive = status === 'SUBSCRIBED';
+			});
 	}
 
-	function go(cat) {
-		goto(`/leaderboards?cat=${cat}`, { replaceState: true });
+	$effect(() => {
+		subscribe(segment);
+	});
+
+	onDestroy(() => {
+		if (channel) supabase.removeChannel(channel);
+	});
+
+	// ── Helpers ─────────────────────────────────────────────────────────────────
+	function playerUrl(row) {
+		const name = row.players?.bungie_name ?? row.bungie_name ?? '';
+		const code = row.players?.bungie_code ?? row.bungie_code ?? '0000';
+		return `/profile/${encodeURIComponent(name)}/${code}`;
 	}
 
-	const rankColor = (i) =>
-		i === 0
-			? 'text-yellow-400'
-			: i === 1
-				? 'text-zinc-300'
-				: i === 2
-					? 'text-orange-400'
-					: 'text-zinc-600';
+	function displayName(row) {
+		const name = row.players?.bungie_name ?? row.bungie_name ?? 'Unknown';
+		const code = row.players?.bungie_code ?? row.bungie_code ?? '0000';
+		return `${name}#${code}`;
+	}
+
+	function winRate(row) {
+		// impact = actual WR / expected WR; reverse to get actual WR %
+		const expectedWR = { solo: 0.50, duo: 0.55, trio: 0.62, stack: 0.66 }[segment] ?? 0.50;
+		const wr = (row.impact ?? 1) * expectedWR * 100;
+		return Math.min(100, Math.max(0, wr)).toFixed(1);
+	}
+
+	function formLabel(form) {
+		if (!form) return { label: '—', color: 'text-zinc-500' };
+		if (form >= 1.06) return { label: '▲ Hot',    color: 'text-emerald-400' };
+		if (form >= 1.02) return { label: '↑ Rising', color: 'text-emerald-500/70' };
+		if (form <= 0.94) return { label: '▼ Cold',   color: 'text-red-400' };
+		if (form <= 0.98) return { label: '↓ Fading', color: 'text-red-500/70' };
+		return { label: '→ Steady', color: 'text-zinc-400' };
+	}
+
+	function jprColor(jpr) {
+		if (!jpr) return 'text-zinc-500';
+		if (jpr >= 120) return 'text-yellow-300';
+		if (jpr >= 100) return 'text-emerald-400';
+		if (jpr >= 80)  return 'text-sky-400';
+		if (jpr >= 60)  return 'text-zinc-300';
+		return 'text-zinc-500';
+	}
+
+	function rankStyle(i) {
+		if (i === 0) return 'text-yellow-400 font-bold';
+		if (i === 1) return 'text-zinc-300 font-bold';
+		if (i === 2) return 'text-orange-400 font-bold';
+		return 'text-zinc-600';
+	}
 </script>
 
-<div class="mx-auto max-w-6xl px-6 py-8">
-	<!-- ── Page header ──────────────────────────────────────────────────────── -->
-	<div class="mb-6">
-		<span class="mb-1 block text-xs font-medium tracking-wide text-emerald-500/70">
-			Global Rankings
-		</span>
-		<h1 class="font-serif text-4xl leading-none font-light text-white italic">Leaderboards</h1>
-		<div class="mt-3 h-px w-16 bg-gradient-to-r from-emerald-500/40 to-transparent"></div>
+<div class="mx-auto max-w-6xl px-4 py-8">
+
+	<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+	<div class="mb-6 flex items-end justify-between">
+		<div>
+			<span class="mb-1 block text-xs font-semibold tracking-widest text-emerald-500/70 uppercase">
+				Global Rankings
+			</span>
+			<h1 class="font-display text-4xl font-light italic text-white leading-none">
+				Leaderboards
+			</h1>
+			<div class="mt-3 h-px w-16 bg-gradient-to-r from-emerald-500/40 to-transparent"></div>
+		</div>
+
+		<!-- Live indicator -->
+		<div class="flex items-center gap-2 text-xs">
+			<span class="relative flex h-2 w-2">
+				{#if isLive}
+					<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+					<span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+				{:else}
+					<span class="relative inline-flex h-2 w-2 rounded-full bg-zinc-600"></span>
+				{/if}
+			</span>
+			<span class="text-zinc-500">
+				{#if isLive}
+					Live · {liveCount} update{liveCount !== 1 ? 's' : ''} this session
+				{:else}
+					Connecting…
+				{/if}
+			</span>
+		</div>
 	</div>
 
-	<!-- ── Category selector ────────────────────────────────────────────────── -->
-	<div class="mb-6 flex flex-wrap gap-1.5 border-b border-zinc-800 pb-4">
-		{#each Object.entries(catLabels) as [key, label]}
+	<!-- ── Segment tabs ─────────────────────────────────────────────────────────── -->
+	<div class="mb-6 flex gap-1 border-b border-white/5 pb-0">
+		{#each Object.entries(SEGMENTS) as [seg, cfg]}
 			<button
-				onclick={() => go(key)}
-				class="relative rounded px-4 py-2 text-sm font-medium transition-colors
-                           {data.cat === key
-					? 'border border-zinc-700 bg-zinc-800 text-white'
-					: 'border border-transparent text-zinc-500 hover:border-zinc-800 hover:text-zinc-300'}"
+				onclick={() => go(seg)}
+				class="relative px-5 py-3 text-sm font-semibold tracking-wide transition-colors
+					{segment === seg
+						? 'text-white'
+						: 'text-zinc-500 hover:text-zinc-300'}"
 			>
-				{label}
-				{#if data.cat === key}
-					<span class="absolute bottom-0 left-0 h-px w-full rounded-full bg-emerald-400"></span>
+				{cfg.label}
+				<span class="block text-[10px] font-normal tracking-normal
+					{segment === seg ? 'text-zinc-400' : 'text-zinc-600'}">
+					{cfg.desc}
+				</span>
+				{#if segment === seg}
+					<span class="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-400"></span>
 				{/if}
 			</button>
 		{/each}
 	</div>
 
-	{#if !data.rows.length}
-		<!-- Empty state -->
-		<div class="flex flex-col items-center justify-center gap-4 py-28 text-center">
-			<div class="mb-2 h-8 w-8 rotate-45 border border-zinc-700"></div>
-			<span class="text-base font-medium text-zinc-500">No data yet</span>
-			<p class="max-w-xs text-sm leading-relaxed font-light text-zinc-600">
-				The leaderboard populates automatically as players are tracked. Search for a Guardian to get
-				started.
-			</p>
-			<a
-				href="/"
-				class="mt-2 rounded border
-                      border-emerald-500/30 px-5 py-2 text-sm font-medium
-                      text-emerald-400 transition-colors hover:border-emerald-500/60 hover:bg-emerald-500/5"
-			>
-				Search a player
-			</a>
+	<!-- ── Table ────────────────────────────────────────────────────────────────── -->
+	{#if !sorted.length}
+		<div class="py-24 text-center text-zinc-600">
+			<p class="text-lg">No data yet for this segment.</p>
+			<p class="mt-1 text-sm">The scanner is populating matches — check back soon.</p>
 		</div>
 	{:else}
-		<!-- ── Leaderboard table ─────────────────────────────────────────────── -->
-		<div
-			class="relative overflow-hidden rounded-lg border border-zinc-800 bg-white/[0.02] backdrop-blur-sm"
-		>
-			<!-- Corner accents -->
-			<span
-				class="pointer-events-none absolute top-0 left-0 z-10 h-2 w-2 border-t border-l border-emerald-500/30"
-			></span>
-			<span
-				class="pointer-events-none absolute right-0 bottom-0 z-10 h-2 w-2 border-r border-b border-emerald-500/30"
-			></span>
-
-			<!-- Column header -->
-			<div
-				class="grid grid-cols-[3rem_1fr_6rem_5rem_5rem_5rem_6rem] gap-4 border-b border-zinc-800
-                        bg-black/20 px-4 py-3"
-			>
-				<span class="text-xs font-medium text-zinc-500">#</span>
-				<span class="text-xs font-medium text-zinc-500">Guardian</span>
-				<span class="text-right text-xs font-medium text-zinc-500">Matches</span>
-				<span class="text-right text-xs font-medium text-zinc-500">Win %</span>
-				<span class="text-right text-xs font-medium text-zinc-500">K/D</span>
-				<span class="text-right text-xs font-medium text-zinc-500">Invasions</span>
-				<span class="text-right text-xs font-medium text-emerald-500">
-					{catLabels[data.cat]}
-				</span>
+		<div class="overflow-hidden rounded-lg border border-white/5">
+			<!-- Column headers -->
+			<div class="grid grid-cols-[3rem_1fr_7rem_6rem_6rem_6rem_7rem] border-b border-white/5 bg-white/[0.02] px-4 py-2.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
+				<span>#</span>
+				<span>Guardian</span>
+				<span class="text-right">JPR</span>
+				<span class="text-right">Games</span>
+				<span class="text-right">Win %</span>
+				<span class="text-right">Form</span>
+				<span class="text-right">Δ Rating</span>
 			</div>
 
-			<div class="divide-y divide-zinc-800/50">
-				{#each data.rows as row, i}
-					<a
-						href="/profile/{encodeURIComponent(row.bungie_name)}/{row.bungie_code}"
-						class="group grid grid-cols-[3rem_1fr_6rem_5rem_5rem_5rem_6rem] items-center gap-4
-                              px-4 py-3.5 transition-colors hover:bg-white/[0.04]
-                              {i < 3 ? 'border-l-2' : ''}
-                              {i === 0
-							? 'border-l-yellow-400'
-							: i === 1
-								? 'border-l-zinc-400'
-								: i === 2
-									? 'border-l-orange-400'
-									: ''}"
-					>
-						<!-- Rank -->
-						<span class="font-mono text-sm font-bold {rankColor(i)}">
-							{String(i + 1).padStart(2, '0')}
-						</span>
+			{#each sorted as row, i (row.player_id)}
+				{@const delta  = deltas[row.player_id]}
+				{@const flash  = flashIds.has(row.player_id)}
+				{@const form   = formLabel(row.form)}
+				<a
+					href={playerUrl(row)}
+					class="grid grid-cols-[3rem_1fr_7rem_6rem_6rem_6rem_7rem] items-center px-4 py-3
+						border-b border-white/[0.04] last:border-0
+						transition-colors duration-200
+						hover:bg-white/[0.04]
+						{flash ? 'bg-emerald-500/5' : 'bg-transparent'}"
+				>
+					<!-- Rank -->
+					<span class="text-sm tabular-nums {rankStyle(i)}">
+						{String(i + 1).padStart(2, '0')}
+					</span>
 
-						<!-- Player -->
-						<div>
-							<p class="text-sm text-zinc-200 transition-colors group-hover:text-white">
-								{row.bungie_name}<span class="text-zinc-500">#{row.bungie_code}</span>
-							</p>
-						</div>
-
-						<!-- Matches -->
-						<span class="text-right font-mono text-sm text-zinc-500 tabular-nums">
-							{fmt(row.activities_entered)}
+					<!-- Guardian -->
+					<span class="flex items-center gap-2 min-w-0">
+						{#if i < 3}
+							<span class="text-base leading-none">
+								{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+							</span>
+						{/if}
+						<span class="truncate text-sm text-zinc-200 font-medium">
+							{displayName(row)}
 						</span>
+					</span>
 
-						<!-- Win % -->
-						<span
-							class="text-right font-mono text-sm tabular-nums
-                                     {(row.win_rate ?? 0) >= 55
-								? 'text-emerald-400'
-								: (row.win_rate ?? 0) >= 45
-									? 'text-zinc-300'
-									: 'text-red-400'}"
-						>
-							{row.win_rate != null ? row.win_rate.toFixed(1) + '%' : '—'}
-						</span>
+					<!-- JPR -->
+					<span class="text-right text-sm font-bold tabular-nums {jprColor(row.jpr)}">
+						{row.jpr?.toFixed(1) ?? '—'}
+					</span>
 
-						<!-- K/D -->
-						<span class="text-right font-mono text-sm text-zinc-400 tabular-nums">
-							{row.kd_ratio != null ? row.kd_ratio.toFixed(2) : '—'}
-						</span>
+					<!-- Games -->
+					<span class="text-right text-sm tabular-nums text-zinc-400">
+						{(row.games_played ?? 0).toLocaleString()}
+					</span>
 
-						<!-- Invasions -->
-						<span class="text-right font-mono text-sm text-zinc-500 tabular-nums">
-							{fmt(row.invasions)}
-						</span>
+					<!-- Win % -->
+					<span class="text-right text-sm tabular-nums text-zinc-400">
+						{winRate(row)}%
+					</span>
 
-						<!-- Primary stat -->
-						<span class="text-right font-mono text-sm font-bold text-emerald-400 tabular-nums">
-							{statValue(row, data.cat)}
-						</span>
-					</a>
-				{/each}
-			</div>
+					<!-- Form -->
+					<span class="text-right text-xs font-medium {form.color}">
+						{form.label}
+					</span>
+
+					<!-- Delta -->
+					<span class="text-right text-xs font-bold tabular-nums
+						{delta ? (delta.dir === 'up' ? 'text-emerald-400' : 'text-red-400') : 'text-zinc-700'}">
+						{#if delta}
+							{delta.dir === 'up' ? '+' : ''}{delta.delta.toFixed(1)}
+						{:else}
+							—
+						{/if}
+					</span>
+				</a>
+			{/each}
 		</div>
 
-		<p class="mt-3 text-center text-xs font-light text-zinc-600">
-			Top {data.rows.length} guardians · Min {data.categories[data.cat].min} matches required
+		<p class="mt-3 text-center text-xs text-zinc-700">
+			Top 100 · Minimum 5 matches per segment · Updates live as matches complete
 		</p>
 	{/if}
 </div>
