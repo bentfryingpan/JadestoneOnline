@@ -174,6 +174,7 @@
 
 					{#if sockets?.super}
 						{@const superAbility = sockets.super}
+						{@const superDesc = superAbility.description || superAbility.perkDescription || superAbility.flavorText || ''}
 						<div
 							class="group/slot flex flex-col items-center gap-4 border {el.border} {el.bg} p-6 text-center transition-all duration-300"
 						>
@@ -203,12 +204,12 @@
 								>
 									SUPER ABILITY
 								</p>
-								{#if superAbility.description || superAbility.perkDescription}
+								{#if superDesc}
 									<p
 										class="mt-3 font-sans font-normal text-xs leading-relaxed text-zinc-300"
 										style="-webkit-line-clamp: 4; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 									>
-										{superAbility.description || superAbility.perkDescription}
+										{superDesc}
 									</p>
 								{/if}
 							</div>
@@ -234,6 +235,7 @@
 					{#if sortedAbilities().length}
 						<div class="grid grid-cols-2 gap-4">
 							{#each sortedAbilities() as ability}
+							{@const abilityDesc = ability.description || ability.perkDescription || ability.flavorText || ''}
 								<div
 									class="group/slot flex flex-col items-center gap-3 border {el.border} bg-zinc-900/20 p-4 text-center transition-all duration-300 hover:{el.bg}"
 								>
@@ -263,12 +265,12 @@
 										<p class="mt-0.5 text-xs font-black text-white uppercase italic leading-tight">
 											{ability.name ?? 'Unknown'}
 										</p>
-										{#if ability.description || ability.perkDescription}
+											{#if abilityDesc}
 											<p
 												class="mt-2 font-sans font-normal text-[11px] leading-relaxed text-zinc-300"
 												style="-webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 											>
-												{ability.description || ability.perkDescription}
+												{abilityDesc}
 											</p>
 										{/if}
 									</div>
@@ -297,6 +299,7 @@
 						<div class="grid grid-cols-2 gap-3">
 							{#each (sockets?.aspects ?? []).slice(0, 2) as aspect}
 								{@const aspectBonuses = resolveStatBonuses([...(aspect.statBonuses ?? []), ...(aspect.conditionalBonuses ?? [])])}
+								{@const aspectDesc = aspect.description || aspect.perkDescription || aspect.flavorText || ''}
 								<div
 									class="group/slot flex flex-col gap-3 border {el.border} {el.bg} p-3 transition-all duration-300"
 								>
@@ -318,9 +321,9 @@
 										</p>
 									</div>
 									<!-- Full description -->
-									{#if aspect.description || aspect.perkDescription}
+									{#if aspectDesc}
 										<p class="font-sans font-normal text-[11px] leading-relaxed text-zinc-300">
-											{aspect.description || aspect.perkDescription}
+											{aspectDesc}
 										</p>
 									{/if}
 									<!-- Stat bonuses -->
@@ -368,13 +371,14 @@
 										...(frag.statBonuses ?? []),
 										...(frag.conditionalBonuses ?? [])
 									])}
+									{@const fragDesc = frag.description || frag.perkDescription || frag.flavorText || ''}
 									<div
-										class="flex flex-col gap-2 border {el.border} bg-zinc-900/20 p-2.5 transition-all duration-300"
+										class="group/frag flex flex-col gap-2 border {el.border} bg-zinc-900/20 p-2.5 transition-all duration-300 hover:{el.bg}"
 									>
 										<!-- Icon + name row -->
 										<div class="flex items-center gap-2">
 											<div
-												class="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border {el.iconBorder} bg-zinc-950"
+												class="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
 											>
 												{#if frag.icon}
 													<img src={frag.icon} alt={frag.name} class="h-full w-full object-cover" />
@@ -389,9 +393,9 @@
 											</p>
 										</div>
 										<!-- Description -->
-										{#if frag.description || frag.perkDescription}
-											<p class="font-sans font-normal text-[10px] leading-relaxed text-zinc-400">
-												{frag.description || frag.perkDescription}
+										{#if fragDesc}
+											<p class="font-sans font-normal text-[10px] leading-relaxed text-zinc-400 group-hover/frag:text-zinc-300 transition-colors">
+												{fragDesc}
 											</p>
 										{/if}
 										<!-- Stat bonuses -->

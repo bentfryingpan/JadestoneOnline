@@ -197,9 +197,11 @@ export async function GET({ url, setHeaders }) {
 			.filter((st) => st.value !== 0 && st.isConditionallyActive)
 			.map((st) => ({ statHash: st.statTypeHash, value: st.value }));
 
-		// Collect displayable perk hashes for sandbox perk fallback lookup
+		// Collect perk hashes for sandbox perk fallback lookup.
+		// Do NOT filter by isDisplayable — Bungie leaves that false for most fragment/aspect
+		// perks even though DestinySandboxPerkDefinition does have useful descriptions for them.
 		const perkHashes = (def.perks ?? [])
-			.filter((p) => p.isDisplayable && p.perkHash)
+			.filter((p) => p.perkHash)
 			.map((p) => p.perkHash);
 
 		return {
