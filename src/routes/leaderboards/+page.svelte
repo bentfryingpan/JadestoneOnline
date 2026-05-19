@@ -6,10 +6,11 @@
 	let { data } = $props();
 
 	const SEGMENTS = {
-		solo:  { label: 'Solo Queue',  desc: 'Fireteam of 1' },
-		duo:   { label: 'Duo Stack',   desc: 'Fireteam of 2' },
-		trio:  { label: 'Trio Stack',  desc: 'Fireteam of 3' },
-		stack: { label: 'Full Stack',  desc: 'Fireteam of 4' },
+		solo:    { label: 'Solo Queue',  desc: 'Fireteam of 1' },
+		duo:     { label: 'Duo Stack',   desc: 'Fireteam of 2' },
+		trio:    { label: 'Trio Stack',  desc: 'Fireteam of 3' },
+		stack:   { label: 'Full Stack',  desc: 'Fireteam of 4' },
+		overall: { label: 'Overall',     desc: 'Net JPR across all' },
 	};
 
 	// ── Reactive state ──────────────────────────────────────────────────────────
@@ -19,6 +20,12 @@
 	let liveCount  = $state(0);    // how many updates received this session
 	let isLive     = $state(false);
 	let flashIds   = $state(new Set());
+
+	// ── Sync with server data when navigation occurs ────────────────────────────
+	$effect(() => {
+		rows    = data.rows ?? [];
+		segment = data.segment ?? 'solo';
+	});
 
 	// ── Derived sorted list ─────────────────────────────────────────────────────
 	let sorted = $derived([...rows].sort((a, b) => (b.jpr ?? 0) - (a.jpr ?? 0)));
@@ -35,14 +42,21 @@
 	function subscribe(seg) {
 		if (channel) supabase.removeChannel(channel);
 
+		// Overall tab listens to all segments — use a broad channel
+		const filter = seg === 'overall'
+			? undefined
+			: `segment=eq.${seg}`;
+
+		const channelConfig = {
+			event:  '*',
+			schema: 'public',
+			table:  'player_jpr',
+			...(filter ? { filter } : {}),
+		};
+
 		channel = supabase
 			.channel(`leaderboard-${seg}`)
-			.on('postgres_changes', {
-				event:  '*',
-				schema: 'public',
-				table:  'player_jpr',
-				filter: `segment=eq.${seg}`,
-			}, (payload) => {
+			.on('postgres_changes', channelConfig, (payload) => {
 				const updated = payload.new;
 				if (!updated?.player_id) return;
 
@@ -113,6 +127,7 @@
 	}
 
 	function winRate(row) {
+		if (segment === 'overall') return null;
 		// impact = actual WR / expected WR; reverse to get actual WR %
 		const expectedWR = { solo: 0.50, duo: 0.55, trio: 0.62, stack: 0.66 }[segment] ?? 0.50;
 		const wr = (row.impact ?? 1) * expectedWR * 100;
@@ -209,7 +224,61 @@
 		</div>
 	{:else}
 		<div class="overflow-hidden rounded-lg border border-white/5">
-			<!-- Column headers -->
+			{#if segment === 'overall'}
+			<!-- Overall column headers -->
+			<div class="grid grid-cols-[3rem_1fr_7rem_6rem_5rem_5rem_5rem_5rem] border-b border-white/5 bg-white/[0.02] px-4 py-2.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
+				<span>#</span>
+				<span>Guardian</span>
+				<span class="text-right">Net JPR</span>
+				<span class="text-right">Games</span>
+				<span class="text-right">Solo</span>
+				<span class="text-right">Duo</span>
+				<span class="text-right">Trio</span>
+				<span class="text-right">Stack</span>
+			</div>
+			{#each sorted as row, i (row.player_id)}
+				{@const flash = flashIds.has(row.player_id)}
+				<a
+					href={playerUrl(row)}
+					class="grid grid-cols-[3rem_1fr_7rem_6rem_5rem_5rem_5rem_5rem] items-center px-4 py-3
+						border-b border-white/[0.04] last:border-0
+						transition-colors duration-200
+						hover:bg-white/[0.04]
+						{flash ? 'bg-emerald-500/5' : 'bg-transparent'}"
+				>
+					<span class="text-sm tabular-nums {rankStyle(i)}">
+						{String(i + 1).padStart(2, '0')}
+					</span>
+					<span class="flex items-center gap-2 min-w-0">
+						{#if i < 3}
+							<span class="text-base leading-none">
+								{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+							</span>
+						{/if}
+						<span class="min-w-0">
+							<span class="truncate text-sm text-zinc-200 font-medium block">
+								{displayName(row)}
+							</span>
+							<span class="text-[10px] text-zinc-600">
+								{row.segments_qualified ?? 0} segment{(row.segments_qualified ?? 0) !== 1 ? 's' : ''}
+							</span>
+						</span>
+					</span>
+					<span class="text-right text-sm font-bold tabular-nums {jprColor(row.jpr)}">
+						{row.jpr?.toFixed(1) ?? '—'}
+					</span>
+					<span class="text-right text-sm tabular-nums text-zinc-400">
+						{(row.games_played ?? 0).toLocaleString()}
+					</span>
+					{#each ['solo','duo','trio','stack'] as seg}
+						<span class="text-right text-xs tabular-nums {row.segment_scores?.[seg] != null ? jprColor(row.segment_scores[seg]) : 'text-zinc-700'}">
+							{row.segment_scores?.[seg]?.toFixed(1) ?? '—'}
+						</span>
+					{/each}
+				</a>
+			{/each}
+		{:else}
+			<!-- Segment column headers -->
 			<div class="grid grid-cols-[3rem_1fr_7rem_6rem_6rem_6rem_7rem] border-b border-white/5 bg-white/[0.02] px-4 py-2.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
 				<span>#</span>
 				<span>Guardian</span>
@@ -280,10 +349,12 @@
 					</span>
 				</a>
 			{/each}
+		{/if}
 		</div>
 
 		<p class="mt-3 text-center text-xs text-zinc-700">
-			Top 100 · Minimum 5 matches per segment · Updates live as matches complete
+			Top 100 · Minimum 20 matches per segment · Updates live as matches complete
+			{#if segment === 'overall'} · Overall JPR = average across all qualified segments{/if}
 		</p>
 	{/if}
 </div>

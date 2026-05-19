@@ -181,17 +181,20 @@ function calcJPR(matches) {
   for (const [seg, cfg] of Object.entries(SEGMENT_CONFIG)) {
     const sm = matches.filter(m => m.ego_score != null && m.fireteam_size >= cfg.minFt && m.fireteam_size <= cfg.maxFt)
       .sort((a,b) => new Date(a.period) - new Date(b.period));
-    if (sm.length < 5) { result[seg] = null; continue; }
+    if (sm.length < 20) { result[seg] = null; continue; }
     const scores = sm.map(m => m.ego_score), wins = sm.filter(m => m.outcome==='Win').length, n = sm.length;
     const sorted = [...scores].sort((a,b) => a-b), trimN = Math.max(1,Math.floor(n*0.1));
     const trimmed = sorted.slice(trimN, n-trimN);
     const trimmedMean = trimmed.reduce((a,b)=>a+b,0)/trimmed.length;
     const topAvg = sorted.slice(-Math.max(1,Math.floor(n*0.1))).reduce((a,b)=>a+b,0)/Math.max(1,Math.floor(n*0.1));
     const peakFactor = trimmedMean > 0 ? (topAvg/trimmedMean-1)*0.1 : 0;
-    const priorWeight = Math.max(0,15-n);
-    const blended = priorWeight > 0 ? (trimmedMean*n+cfg.globalAvg*priorWeight)/15 : trimmedMean;
+    const priorWeight = Math.max(0, 30-n);
+    const blended = priorWeight > 0 ? (trimmedMean*n+cfg.globalAvg*priorWeight)/30 : trimmedMean;
     const output = blended*(1+peakFactor);
-    const impact = Math.max(0.5, Math.min(2, (wins/n)/cfg.expectedWR));
+    // Bayesian-smooth win rate toward expected WR so small samples don't inflate impact
+    const impactPrior = 20;
+    const smoothedWR = (wins + cfg.expectedWR * impactPrior) / (n + impactPrior);
+    const impact = Math.max(0.5, Math.min(2, smoothedWR / cfg.expectedWR));
     const recent = scores.slice(-20); let ema = recent[0];
     for (let i=1;i<recent.length;i++) ema = 0.15*recent[i]+0.85*ema;
     const form = Math.max(0.9, Math.min(1.1, trimmedMean>0?ema/trimmedMean:1));
