@@ -132,6 +132,62 @@ export async function GET({ url, setHeaders }) {
 		if (cached) return json({ ...cached, matches: cached.matches.slice(0, count) });
 	}
 
+	const idStr = String(membershipId);
+
+	// ── DB-first: serve from scanner data if available ────────────────────────
+	// The Railway scanner writes full match data for every player it processes.
+	// If we have 10+ matches in DB, skip all Bungie API calls entirely.
+	if (!flush) {
+		try {
+			const { data: dbMatches } = await supabaseAdmin
+				.from('matches')
+				.select('id, ego_score, ego_base, ego_pem, mote_eff, kd, fireteam_size, is_hard_carry, is_carried, stats_json, outcome, period, map_name')
+				.eq('player_id', idStr)
+				.not('ego_score', 'is', null)
+				.order('period', { ascending: false, nullsFirst: false })
+				.limit(count);
+
+			if (dbMatches?.length >= 10) {
+				const matches = dbMatches.map(m => {
+					const stats = m.stats_json ?? {};
+					return {
+						instanceId:     m.id,
+						period:         m.period,
+						mapName:        m.map_name ?? 'Gambit',
+						win:            m.outcome === 'Win',
+						kd:             m.kd ?? 0,
+						kills:          stats.kills          ?? (stats.mobKills ?? 0) + (stats.invasionKills ?? 0),
+						deaths:         stats.deaths         ?? 0,
+						assists:        stats.assists        ?? 0,
+						invasionKills:  stats.invasionKills  ?? 0,
+						motesDeposited: stats.motesDeposited ?? 0,
+						motesDenied:    stats.motesDenied    ?? 0,
+						motesPickedUp:  stats.motesPickedUp  ?? 0,
+						motesLost:      stats.motesLost      ?? 0,
+						primevalDamage: stats.primevalDamage ?? 0,
+						fireteamSize:   m.fireteam_size      ?? 1,
+						isHardCarry:    m.is_hard_carry      ?? false,
+						isCarried:      m.is_carried         ?? false,
+						isEnriched:     true,
+						stats_json:     stats,
+						medals:         stats.medals         ?? {},
+						ego: {
+							finalScore: m.ego_score ?? 0,
+							basePps:    m.ego_base  ?? 0,
+							pem:        m.ego_pem   ?? 1,
+							moteEff:    m.mote_eff  ?? 0,
+						},
+					};
+				});
+				const result = { matches, totalAvailable: matches.length, unenrichedIds: [], source: 'db' };
+				cacheSet(cacheKey, result, HISTORY_TTL);
+				return json(result);
+			}
+		} catch {}
+		// Fall through to Bungie if DB query fails or insufficient data
+	}
+
+	// ── Bungie fallback: player not yet in scanner DB ─────────────────────────
 	const perCharData = await Promise.all(
 		charIds.map(async (charId) => {
 			// Fast Recent-Only: Fetch only page 0 (last 250) for rapid indexing
@@ -227,7 +283,7 @@ export async function GET({ url, setHeaders }) {
 				const { data } = await supabaseAdmin
 					.from('matches')
 					.select('id, ego_score, ego_base, ego_pem, mote_eff, fireteam_size, is_hard_carry, is_carried, stats_json')
-					.or(`player_id.eq.${idStr},and(player_id.gte.${prefix}0000,player_id.lte.${prefix}9999)`)
+					.eq('player_id', idStr)
 					.in('id', chunk);
 				if (data) enriched.push(...data);
 			}

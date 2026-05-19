@@ -2,7 +2,69 @@ import { BUNGIE_API_KEY } from '$env/static/private';
 import { supabaseAdmin } from '$lib/supabase-server.js';
 import { error } from '@sveltejs/kit';
 import { cacheWrap, cacheGet, cacheSet, SEARCH_TTL, PROFILE_TTL } from '$lib/server/cache.js';
-import { computeSeasonal } from '$lib/server/seasonal.js';
+
+// Season date ranges — compute seasonal stats from DB matches instead of paginating Bungie
+const SEASONS = [
+	{ name: 'Season of the Haunted',    number: 17, start: '2022-05-24', end: '2022-08-23' },
+	{ name: 'Season of Plunder',        number: 18, start: '2022-08-23', end: '2022-12-06' },
+	{ name: 'Season of the Seraph',     number: 19, start: '2022-12-06', end: '2023-02-28' },
+	{ name: 'Season of Defiance',       number: 20, start: '2023-02-28', end: '2023-05-23' },
+	{ name: 'Season of the Deep',       number: 21, start: '2023-05-23', end: '2023-09-05' },
+	{ name: 'Season of the Witch',      number: 22, start: '2023-09-05', end: '2023-11-28' },
+	{ name: 'Season of the Wish',       number: 23, start: '2023-11-28', end: '2024-02-27' },
+	{ name: 'The Final Shape / Echoes', number: 24, start: '2024-02-27', end: '2024-10-08' },
+	{ name: 'Revenant',                 number: 25, start: '2024-10-08', end: '2025-02-04' },
+	{ name: 'Heresy',                   number: 26, start: '2025-02-04', end: '2025-05-20' },
+	{ name: 'Edge of Fate',             number: 27, start: '2025-05-20', end: '2099-01-01' },
+];
+
+function computeSeasonalFromMatches(matches) {
+	if (!matches?.length) return null;
+	const bySeason = {};
+	for (const m of matches) {
+		if (!m.period) continue;
+		const d = m.period.substring(0, 10);
+		const season = SEASONS.find(s => d >= s.start && d < s.end);
+		if (!season) continue;
+		const stats = m.stats_json ?? {};
+		if (!bySeason[season.number]) {
+			bySeason[season.number] = {
+				season: season.number, name: season.name,
+				activitiesEntered: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+				invasionKills: 0, motesDeposited: 0, motesDenied: 0,
+				motesPickedUp: 0, motesLost: 0, primevalDamage: 0, primevalHealing: 0,
+				superKills: 0, grenadeKills: 0, meleeKills: 0, precisionKills: 0,
+				invasionDeaths: 0, invasions: 0, invasionsDefeated: 0,
+				smallBlockersSent: 0, mediumBlockersSent: 0, largeBlockersSent: 0,
+			};
+		}
+		const b = bySeason[season.number];
+		b.activitiesEntered++;
+		if (m.outcome === 'Win') b.wins++;
+		b.kills          += stats.kills          ?? (stats.mobKills ?? 0) + (stats.invasionKills ?? 0);
+		b.deaths         += stats.deaths         ?? 0;
+		b.assists        += stats.assists        ?? 0;
+		b.invasionKills  += stats.invasionKills  ?? 0;
+		b.motesDeposited += stats.motesDeposited ?? 0;
+		b.motesDenied    += stats.motesDenied    ?? 0;
+		b.motesPickedUp  += stats.motesPickedUp  ?? 0;
+		b.motesLost      += stats.motesLost      ?? 0;
+		b.primevalDamage += stats.primevalDamage ?? 0;
+		b.primevalHealing+= stats.primevalHealing?? 0;
+		b.superKills     += stats.superKills ?? stats.weaponKillsSuper   ?? 0;
+		b.grenadeKills   += stats.grenadeKills ?? stats.weaponKillsGrenade ?? 0;
+		b.meleeKills     += stats.meleeKills ?? stats.weaponKillsMelee   ?? 0;
+		b.precisionKills += stats.precisionKills ?? 0;
+		b.invasionDeaths += stats.invasionDeaths ?? stats.invaderDeaths  ?? 0;
+		b.invasions      += stats.invasions      ?? 0;
+		b.invasionsDefeated += stats.invasionsDefeated ?? 0;
+		b.smallBlockersSent  += stats.smallBlockersSent  ?? 0;
+		b.mediumBlockersSent += stats.mediumBlockersSent ?? 0;
+		b.largeBlockersSent  += stats.largeBlockersSent  ?? 0;
+	}
+	const seasons = Object.values(bySeason).sort((a, b) => b.season - a.season);
+	return seasons.length ? { seasons } : null;
+}
 
 // 5-minute cache for Supabase claim status (rarely changes)
 const CLAIM_TTL = 300_000;
@@ -360,11 +422,8 @@ export async function load({ params, parent, url, setHeaders }) {
 
 	setHeaders({ 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' });
 
-	const seasonalStream =
-		cacheGet(`seasonal:${membershipId}:${[...sortedCharIds].sort().join(',')}`) ??
-		(sortedCharIds.length > 0
-			? computeSeasonal(membershipType, membershipId, sortedCharIds, 25).catch(() => null)
-			: null);
+	// Seasonal stats computed from DB matches — instant, no Bungie pagination
+	const seasonal = computeSeasonalFromMatches(dbMatches);
 
 	// ── JPR Leaderboard Ranks ────────────────────────────────────────────────
 	// dbJprRows already loaded in parallel — just need rank counts now
@@ -407,7 +466,7 @@ export async function load({ params, parent, url, setHeaders }) {
 		isClaimed: !!dbPlayer?.claimed_by,
 		isOwner: user?.membershipId === membershipId,
 		canClaim: user?.membershipId === membershipId && !dbPlayer?.claimed_by,
-		seasonal: seasonalStream,
+		seasonal,
 		dbTotals,
 		verifiedMedals,
 		jprRanks
