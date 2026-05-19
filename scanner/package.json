@@ -1,0 +1,16 @@
+{
+  "name": "jadestone-scanner",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Real-time Gambit PGCR scanner for Jadestone leaderboard",
+  "main": "scanner.js",
+  "scripts": {
+    "start": "node scanner.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
