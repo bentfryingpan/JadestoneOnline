@@ -5,6 +5,7 @@
 	import { egoColor } from '$lib/ego.js';
 	import SubclassScreen from '$lib/SubclassScreen.svelte';
 	import CharacterScreen from '$lib/CharacterScreen.svelte';
+	import WeaponInspect from '$lib/WeaponInspect.svelte';
 
 	let { data } = $props();
 
@@ -92,6 +93,7 @@
 	let loadout = $state(null);
 	let loadoutLoading = $state(false);
 	let loadoutCharId = $state(null);
+	let inspectedWeapon = $state(null);
 
 	async function fetchLoadout() {
 		if (loadoutLoading || loadoutCharId === activeChar || !activeChar) return;
@@ -1260,10 +1262,14 @@
 {#snippet jadestoneSlot({ slot, name, quality, icon, hash = null })}
 	{@const rarityColor = quality === 'Exotic' ? 'bg-amber-500' : 'bg-zinc-100'}
 	{@const borderColor = quality === 'Exotic' ? 'border-amber-500/20' : 'border-zinc-800'}
-	<div class="group relative flex w-full cursor-pointer flex-col items-center gap-2 font-sans">
-		<a
-			href={hash ? `https://destinyitemmanager.com/en/inspect/${hash}` : '#'}
-			target="_blank"
+	<div
+		class="group relative flex w-full cursor-pointer flex-col items-center gap-2 font-sans"
+		onclick={() => hash && (inspectedWeapon = { hash, membershipId: data.membershipId, membershipType: data.membershipType })}
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => e.key === 'Enter' && hash && (inspectedWeapon = { hash, membershipId: data.membershipId, membershipType: data.membershipType })}
+	>
+		<div
 			class="h-16 w-16 border bg-[#0c0c0c] {borderColor} relative mx-auto block overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover:border-emerald-500/50"
 		>
 			<div class="absolute top-0 left-0 h-[1px] w-full opacity-70 {rarityColor}"></div>
@@ -1290,7 +1296,7 @@
 			>
 				<span class="text-[8px] font-black tracking-widest text-emerald-400">INSPECT</span>
 			</div>
-		</a>
+		</div>
 		<div class="w-full text-center">
 			<p class="font-sans text-[8px] font-bold tracking-widest text-zinc-600 uppercase">{slot}</p>
 			<p
@@ -2440,6 +2446,10 @@
 		</main>
 	</div>
 </div>
+
+{#if inspectedWeapon}
+	<WeaponInspect weapon={inspectedWeapon} onClose={() => (inspectedWeapon = null)} />
+{/if}
 
 <style>
 	.stone-card {
