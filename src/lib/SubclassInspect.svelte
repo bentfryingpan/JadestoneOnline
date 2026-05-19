@@ -110,6 +110,19 @@
 		};
 		return map[type] ?? (type?.toUpperCase() ?? '');
 	}
+
+	// Tooltip
+	let hoveredItem = $state(null); // { name, description, bonuses[] }
+	let tooltipPos = $state({ x: 0, y: 0 });
+
+	function onItemEnter(e, item) {
+		const rect = e.currentTarget.getBoundingClientRect();
+		hoveredItem = item;
+		tooltipPos = { x: rect.left + rect.width / 2, y: rect.top - 12 };
+	}
+	function onItemLeave() {
+		hoveredItem = null;
+	}
 </script>
 
 <div
@@ -176,7 +189,9 @@
 						{@const superAbility = sockets.super}
 						{@const superDesc = superAbility.description || superAbility.perkDescription || superAbility.flavorText || ''}
 						<div
-							class="group/slot flex flex-col items-center gap-4 border {el.border} {el.bg} p-6 text-center transition-all duration-300"
+							class="group/slot flex cursor-help flex-col items-center gap-4 border {el.border} {el.bg} p-6 text-center transition-all duration-300"
+							onmouseenter={(e) => onItemEnter(e, { name: superAbility.name, description: superDesc, bonuses: [] })}
+							onmouseleave={onItemLeave}
 						>
 							<div
 								class="relative h-20 w-20 overflow-hidden rounded-full border-2 {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
@@ -204,14 +219,6 @@
 								>
 									SUPER ABILITY
 								</p>
-								{#if superDesc}
-									<p
-										class="mt-3 font-sans font-normal text-xs leading-relaxed text-zinc-300"
-										style="-webkit-line-clamp: 4; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
-									>
-										{superDesc}
-									</p>
-								{/if}
 							</div>
 						</div>
 					{:else}
@@ -235,9 +242,11 @@
 					{#if sortedAbilities().length}
 						<div class="grid grid-cols-2 gap-4">
 							{#each sortedAbilities() as ability}
-							{@const abilityDesc = ability.description || ability.perkDescription || ability.flavorText || ''}
+								{@const abilityDesc = ability.description || ability.perkDescription || ability.flavorText || ''}
 								<div
-									class="group/slot flex flex-col items-center gap-3 border {el.border} bg-zinc-900/20 p-4 text-center transition-all duration-300 hover:{el.bg}"
+									class="group/slot flex cursor-help flex-col items-center gap-3 border {el.border} bg-zinc-900/20 p-4 text-center transition-all duration-300 hover:{el.bg}"
+									onmouseenter={(e) => onItemEnter(e, { name: ability.name, typeLabel: abilityTypeLabel(ability.itemTypeDisplayName), description: abilityDesc, bonuses: [] })}
+									onmouseleave={onItemLeave}
 								>
 									<div
 										class="relative h-[60px] w-[60px] overflow-hidden rounded-full border {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
@@ -265,14 +274,6 @@
 										<p class="mt-0.5 text-xs font-black text-white uppercase italic leading-tight">
 											{ability.name ?? 'Unknown'}
 										</p>
-											{#if abilityDesc}
-											<p
-												class="mt-2 font-sans font-normal text-[11px] leading-relaxed text-zinc-300"
-												style="-webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
-											>
-												{abilityDesc}
-											</p>
-										{/if}
 									</div>
 								</div>
 							{/each}
@@ -301,7 +302,9 @@
 								{@const aspectBonuses = resolveStatBonuses([...(aspect.statBonuses ?? []), ...(aspect.conditionalBonuses ?? [])])}
 								{@const aspectDesc = aspect.description || aspect.perkDescription || aspect.flavorText || ''}
 								<div
-									class="group/slot flex flex-col gap-3 border {el.border} {el.bg} p-3 transition-all duration-300"
+									class="group/slot flex cursor-help flex-col gap-3 border {el.border} {el.bg} p-3 transition-all duration-300"
+									onmouseenter={(e) => onItemEnter(e, { name: aspect.name, description: aspectDesc, bonuses: aspectBonuses })}
+									onmouseleave={onItemLeave}
 								>
 									<!-- Icon + name row -->
 									<div class="flex items-center gap-3">
@@ -320,13 +323,7 @@
 											{aspect.name ?? 'Empty Slot'}
 										</p>
 									</div>
-									<!-- Full description -->
-									{#if aspectDesc}
-										<p class="font-sans font-normal text-[11px] leading-relaxed text-zinc-300">
-											{aspectDesc}
-										</p>
-									{/if}
-									<!-- Stat bonuses -->
+									<!-- Stat bonuses (always visible) -->
 									{#if aspectBonuses.length}
 										<div class="flex flex-wrap gap-1">
 											{#each aspectBonuses as bonus}
@@ -373,7 +370,9 @@
 									])}
 									{@const fragDesc = frag.description || frag.perkDescription || frag.flavorText || ''}
 									<div
-										class="group/frag flex flex-col gap-2 border {el.border} bg-zinc-900/20 p-2.5 transition-all duration-300 hover:{el.bg}"
+										class="group/frag flex cursor-help flex-col gap-2 border {el.border} bg-zinc-900/20 p-2.5 transition-all duration-300 hover:{el.bg}"
+										onmouseenter={(e) => onItemEnter(e, { name: frag.name, description: fragDesc, bonuses: allBonuses })}
+										onmouseleave={onItemLeave}
 									>
 										<!-- Icon + name row -->
 										<div class="flex items-center gap-2">
@@ -392,13 +391,7 @@
 												{frag.name ?? 'Fragment'}
 											</p>
 										</div>
-										<!-- Description -->
-										{#if fragDesc}
-											<p class="font-sans font-normal text-[10px] leading-relaxed text-zinc-400 group-hover/frag:text-zinc-300 transition-colors">
-												{fragDesc}
-											</p>
-										{/if}
-										<!-- Stat bonuses -->
+										<!-- Stat bonuses (always visible) -->
 										{#if allBonuses.length}
 											<div class="flex flex-wrap gap-0.5">
 												{#each allBonuses as bonus}
@@ -448,6 +441,43 @@
 			</div>
 		</div>
 
+		<!-- Global Smart Tooltip -->
+		{#if hoveredItem}
+			<div
+				class="pointer-events-none fixed z-[2000] mb-6 -translate-x-1/2 -translate-y-full"
+				style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
+				transition:fade={{ duration: 100 }}
+			>
+				<div
+					class="w-72 border {el.border} bg-[#0a0a0a] p-4 shadow-[0_0_40px_rgba(0,0,0,0.9)]"
+				>
+					<p class="mb-1.5 text-[11px] font-black uppercase italic tracking-wider {el.accent}">
+						{hoveredItem.name ?? ''}
+					</p>
+					{#if hoveredItem.description}
+						<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
+							{hoveredItem.description}
+						</p>
+					{:else}
+						<p class="font-sans text-[10px] text-zinc-600 italic">No description available.</p>
+					{/if}
+					{#if hoveredItem.bonuses?.length}
+						<div class="mt-2.5 flex flex-wrap gap-1 border-t border-zinc-800 pt-2.5">
+							{#each hoveredItem.bonuses as bonus}
+								<span
+									class="rounded-sm px-1.5 py-0.5 text-[8px] font-black {bonus.value > 0
+										? 'bg-emerald-500/15 text-emerald-400'
+										: 'bg-red-500/15 text-red-400'}"
+								>
+									{bonus.value > 0 ? '+' : ''}{bonus.value} {bonus.short}
+								</span>
+							{/each}
+						</div>
+					{/if}
+					<div class="absolute top-full left-1/2 h-5 w-[1px] -translate-x-1/2 {el.accentLine} opacity-50"></div>
+				</div>
+			</div>
+		{/if}
 	{/if}
 </div>
 
