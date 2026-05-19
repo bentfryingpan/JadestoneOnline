@@ -68,18 +68,6 @@
 
 	const el = $derived(ELEMENT[subclass?.damageType] ?? ELEMENT[7]);
 
-	// Tooltip tracking for fragments
-	let hoveredFragment = $state(null);
-	let tooltipPos = $state({ x: 0, y: 0 });
-
-	function onFragmentEnter(e, frag) {
-		const rect = e.currentTarget.getBoundingClientRect();
-		hoveredFragment = frag;
-		tooltipPos = {
-			x: rect.left + rect.width / 2,
-			y: rect.top - 20
-		};
-	}
 
 	function resolveStatBonuses(bonuses) {
 		if (!bonuses?.length) return [];
@@ -308,54 +296,47 @@
 						>
 						<div class="grid grid-cols-2 gap-3">
 							{#each (sockets?.aspects ?? []).slice(0, 2) as aspect}
+								{@const aspectBonuses = resolveStatBonuses([...(aspect.statBonuses ?? []), ...(aspect.conditionalBonuses ?? [])])}
 								<div
-									class="group/slot flex flex-col items-start gap-2 border {el.border} {el.bg} p-3 transition-all duration-300"
+									class="group/slot flex flex-col gap-3 border {el.border} {el.bg} p-3 transition-all duration-300"
 								>
-									<div
-										class="relative h-[50px] w-[50px] overflow-hidden border {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
-									>
-										{#if aspect.icon}
-											<img
-												src={aspect.icon}
-												alt={aspect.name}
-												class="h-full w-full object-cover"
-											/>
-										{:else}
-											<div class="flex h-full w-full items-center justify-center opacity-20">
-												<div class="h-5 w-5 border border-zinc-500"></div>
-											</div>
-										{/if}
-									</div>
-									<div class="w-full">
-										<p
-											class="text-[10px] font-black text-zinc-200 uppercase italic leading-tight"
+									<!-- Icon + name row -->
+									<div class="flex items-center gap-3">
+										<div
+											class="relative h-12 w-12 shrink-0 overflow-hidden border {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
 										>
+											{#if aspect.icon}
+												<img src={aspect.icon} alt={aspect.name} class="h-full w-full object-cover" />
+											{:else}
+												<div class="flex h-full w-full items-center justify-center opacity-20">
+													<div class="h-5 w-5 border border-zinc-500"></div>
+												</div>
+											{/if}
+										</div>
+										<p class="text-[10px] font-black text-zinc-100 uppercase italic leading-tight">
 											{aspect.name ?? 'Empty Slot'}
 										</p>
-										{#if aspect.description || aspect.perkDescription}
-											<p
-												class="mt-1.5 font-sans font-normal text-[11px] leading-relaxed text-zinc-300"
-												style="-webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
-											>
-												{aspect.description || aspect.perkDescription}
-											</p>
-										{/if}
-										<!-- Aspect stat bonuses -->
-										{#if resolveStatBonuses(aspect.statBonuses).length || resolveStatBonuses(aspect.conditionalBonuses).length}
-											<div class="mt-2 flex flex-wrap gap-1">
-												{#each resolveStatBonuses([...(aspect.statBonuses ?? []), ...(aspect.conditionalBonuses ?? [])]) as bonus}
-													<span
-														class="rounded-sm {bonus.value > 0
-															? 'bg-emerald-500/15 text-emerald-400'
-															: 'bg-red-500/15 text-red-400'} px-1.5 py-0.5 text-[8px] font-black"
-													>
-														{bonus.value > 0 ? '+' : ''}{bonus.value}
-														{bonus.short}
-													</span>
-												{/each}
-											</div>
-										{/if}
 									</div>
+									<!-- Full description -->
+									{#if aspect.description || aspect.perkDescription}
+										<p class="font-sans font-normal text-[11px] leading-relaxed text-zinc-300">
+											{aspect.description || aspect.perkDescription}
+										</p>
+									{/if}
+									<!-- Stat bonuses -->
+									{#if aspectBonuses.length}
+										<div class="flex flex-wrap gap-1">
+											{#each aspectBonuses as bonus}
+												<span
+													class="rounded-sm {bonus.value > 0
+														? 'bg-emerald-500/15 text-emerald-400'
+														: 'bg-red-500/15 text-red-400'} px-1.5 py-0.5 text-[8px] font-black"
+												>
+													{bonus.value > 0 ? '+' : ''}{bonus.value} {bonus.short}
+												</span>
+											{/each}
+										</div>
+									{/if}
 								</div>
 							{/each}
 
@@ -381,47 +362,48 @@
 						>
 
 						{#if sockets?.fragments?.length}
-							<div class="grid grid-cols-3 gap-2">
+							<div class="grid grid-cols-2 gap-2">
 								{#each sockets.fragments as frag}
 									{@const allBonuses = resolveStatBonuses([
 										...(frag.statBonuses ?? []),
 										...(frag.conditionalBonuses ?? [])
 									])}
 									<div
-										class="group/frag relative flex cursor-help flex-col items-center gap-1.5 border {el.border} bg-zinc-900/20 p-2 text-center transition-all duration-300 hover:{el.bg}"
-										onmouseenter={(e) => onFragmentEnter(e, frag)}
-										onmouseleave={() => (hoveredFragment = null)}
+										class="flex flex-col gap-2 border {el.border} bg-zinc-900/20 p-2.5 transition-all duration-300"
 									>
-										<div
-											class="relative h-10 w-10 overflow-hidden rounded-full border {el.iconBorder} bg-zinc-950 transition-all duration-300 group-hover/frag:border-opacity-80"
-										>
-											{#if frag.icon}
-												<img
-													src={frag.icon}
-													alt={frag.name}
-													class="h-full w-full object-cover"
-												/>
-											{:else}
-												<div class="flex h-full w-full items-center justify-center opacity-20">
-													<div class="h-4 w-4 rounded-full border border-zinc-500"></div>
-												</div>
-											{/if}
+										<!-- Icon + name row -->
+										<div class="flex items-center gap-2">
+											<div
+												class="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border {el.iconBorder} bg-zinc-950"
+											>
+												{#if frag.icon}
+													<img src={frag.icon} alt={frag.name} class="h-full w-full object-cover" />
+												{:else}
+													<div class="flex h-full w-full items-center justify-center opacity-20">
+														<div class="h-3 w-3 rounded-full border border-zinc-500"></div>
+													</div>
+												{/if}
+											</div>
+											<p class="text-[9px] font-black text-zinc-200 uppercase italic leading-tight">
+												{frag.name ?? 'Fragment'}
+											</p>
 										</div>
-										<p
-											class="w-full truncate text-[9px] font-black text-zinc-300 uppercase italic leading-tight"
-										>
-											{frag.name ?? 'Fragment'}
-										</p>
+										<!-- Description -->
+										{#if frag.description || frag.perkDescription}
+											<p class="font-sans font-normal text-[10px] leading-relaxed text-zinc-400">
+												{frag.description || frag.perkDescription}
+											</p>
+										{/if}
+										<!-- Stat bonuses -->
 										{#if allBonuses.length}
-											<div class="flex flex-wrap justify-center gap-0.5">
+											<div class="flex flex-wrap gap-0.5">
 												{#each allBonuses as bonus}
 													<span
 														class="rounded-sm px-1 py-0.5 text-[7px] font-black {bonus.value > 0
 															? 'text-emerald-400'
 															: 'text-red-400'}"
 													>
-														{bonus.value > 0 ? '+' : ''}{bonus.value}
-														{bonus.short}
+														{bonus.value > 0 ? '+' : ''}{bonus.value} {bonus.short}
 													</span>
 												{/each}
 											</div>
@@ -462,46 +444,6 @@
 			</div>
 		</div>
 
-		<!-- Fragment Tooltip -->
-		{#if hoveredFragment}
-			{@const tipBonuses = resolveStatBonuses([
-				...(hoveredFragment.statBonuses ?? []),
-				...(hoveredFragment.conditionalBonuses ?? [])
-			])}
-			<div
-				class="pointer-events-none fixed z-[2000] mb-6 -translate-x-1/2 -translate-y-full"
-				style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
-				transition:fade={{ duration: 100 }}
-			>
-				<div
-					class="w-72 border {el.border} bg-[#0a0a0a] p-4 shadow-[0_0_40px_rgba(0,0,0,0.9)]"
-				>
-					<p class="mb-1.5 text-[11px] font-black uppercase italic tracking-wider {el.accent}">
-						{hoveredFragment.name ?? 'Unknown Fragment'}
-					</p>
-					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
-						{hoveredFragment.description ||
-							hoveredFragment.perkDescription ||
-							'No fragment data available.'}
-					</p>
-					{#if tipBonuses.length}
-						<div class="mt-2 flex flex-wrap gap-1">
-							{#each tipBonuses as bonus}
-								<span
-									class="rounded-sm px-1.5 py-0.5 text-[8px] font-black {bonus.value > 0
-										? 'bg-emerald-500/20 text-emerald-400'
-										: 'bg-red-500/20 text-red-400'}"
-								>
-									{bonus.value > 0 ? '+' : ''}{bonus.value}
-									{bonus.short}
-								</span>
-							{/each}
-						</div>
-					{/if}
-					<div class="absolute top-full left-1/2 h-5 w-[1px] -translate-x-1/2 {el.accentLine} opacity-50"></div>
-				</div>
-			</div>
-		{/if}
 	{/if}
 </div>
 
