@@ -324,8 +324,13 @@
 						{hoveredPerk.name}
 					</p>
 					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
-						{hoveredPerk.description || 'Active Tactical Component.'}
+						{hoveredPerk.clarityDescription || hoveredPerk.description || 'Active Tactical Component.'}
 					</p>
+					{#if hoveredPerk.clarityDescription && hoveredPerk.description && hoveredPerk.clarityDescription !== hoveredPerk.description}
+						<p class="mt-2 border-t border-zinc-800 pt-2 font-sans text-[9px] italic text-zinc-600">
+							{hoveredPerk.description}
+						</p>
+					{/if}
 					<div
 						class="absolute top-full left-1/2 h-5 w-[1px] -translate-x-1/2 {hoveredPerk.isEnhanced
 							? 'bg-amber-500/50'

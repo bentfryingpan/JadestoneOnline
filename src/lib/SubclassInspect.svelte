@@ -187,7 +187,7 @@
 
 					{#if sockets?.super}
 						{@const superAbility = sockets.super}
-						{@const superDesc = superAbility.description || superAbility.perkDescription || superAbility.flavorText || ''}
+						{@const superDesc = superAbility.clarityDescription || superAbility.description || superAbility.perkDescription || superAbility.flavorText || ''}
 						<div
 							class="group/slot flex cursor-help flex-col items-center gap-4 border {el.border} {el.bg} p-6 text-center transition-all duration-300"
 							onmouseenter={(e) => onItemEnter(e, { name: superAbility.name, description: superDesc, bonuses: [] })}
@@ -242,7 +242,7 @@
 					{#if sortedAbilities().length}
 						<div class="grid grid-cols-2 gap-4">
 							{#each sortedAbilities() as ability}
-								{@const abilityDesc = ability.description || ability.perkDescription || ability.flavorText || ''}
+								{@const abilityDesc = ability.clarityDescription || ability.description || ability.perkDescription || ability.flavorText || ''}
 								<div
 									class="group/slot flex cursor-help flex-col items-center gap-3 border {el.border} bg-zinc-900/20 p-4 text-center transition-all duration-300 hover:{el.bg}"
 									onmouseenter={(e) => onItemEnter(e, { name: ability.name, typeLabel: abilityTypeLabel(ability.itemTypeDisplayName), description: abilityDesc, bonuses: [] })}
@@ -300,7 +300,7 @@
 						<div class="grid grid-cols-2 gap-3">
 							{#each (sockets?.aspects ?? []).slice(0, 2) as aspect}
 								{@const aspectBonuses = resolveStatBonuses([...(aspect.statBonuses ?? []), ...(aspect.conditionalBonuses ?? [])])}
-								{@const aspectDesc = aspect.description || aspect.perkDescription || aspect.flavorText || ''}
+								{@const aspectDesc = aspect.clarityDescription || aspect.description || aspect.perkDescription || aspect.flavorText || ''}
 								<div
 									class="group/slot flex cursor-help flex-col gap-3 border {el.border} {el.bg} p-3 transition-all duration-300"
 									onmouseenter={(e) => onItemEnter(e, { name: aspect.name, description: aspectDesc, bonuses: aspectBonuses })}
@@ -368,7 +368,7 @@
 										...(frag.statBonuses ?? []),
 										...(frag.conditionalBonuses ?? [])
 									])}
-									{@const fragDesc = frag.description || frag.perkDescription || frag.flavorText || ''}
+									{@const fragDesc = frag.clarityDescription || frag.description || frag.perkDescription || frag.flavorText || ''}
 									<div
 										class="group/frag flex cursor-help flex-col gap-2 border {el.border} bg-zinc-900/20 p-2.5 transition-all duration-300 hover:{el.bg}"
 										onmouseenter={(e) => onItemEnter(e, { name: frag.name, description: fragDesc, bonuses: allBonuses })}

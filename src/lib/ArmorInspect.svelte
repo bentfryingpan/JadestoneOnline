@@ -315,7 +315,7 @@
 						{hoveredMod.name ?? 'Unknown Mod'}
 					</p>
 					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
-						{hoveredMod.description || 'No modification data available.'}
+						{hoveredMod.clarityDescription || hoveredMod.description || 'No modification data available.'}
 					</p>
 					{#if hoveredMod.statBonuses?.length}
 						<div class="mt-2 flex flex-wrap gap-1">

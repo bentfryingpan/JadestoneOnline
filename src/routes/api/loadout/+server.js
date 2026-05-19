@@ -7,6 +7,7 @@ import {
 	getDamageTypeDef,
 	getStatNames
 } from '$lib/server/manifest.js';
+import { getClarityMap, getClarityDescription } from '$lib/server/clarity.js';
 // getItemDef and getSandboxPerkDef use makeHashLookup with a shared in-process
 // cache — the same keys used by the match page, so a weapon looked up on a
 // match page is already warm when the loadout tab opens (and vice-versa).
@@ -145,13 +146,14 @@ export async function GET({ url, setHeaders }) {
 		...new Set(items.map((i) => defMap_pre.get(i.itemHash)?.defaultDamageTypeHash).filter(Boolean))
 	];
 
-	// ── 4. Fetch armor stat defs + damage type defs + weapon stat names in parallel
+	// ── 4. Fetch armor stat defs + damage type defs + weapon stat names + clarity in parallel
 	// Uses manifest service (which maintains its own bulk-table cache).
 	const weaponStatHashes = Object.keys(WEAPON_STAT_MAP).map(Number);
-	const [armorStatDefs, dmgTypeDefs, weaponStatNames] = await Promise.all([
+	const [armorStatDefs, dmgTypeDefs, weaponStatNames, clarityMap] = await Promise.all([
 		Promise.all(ARMOR_STAT_CONFIG.map((s) => getStatDef(s.hash))),
 		Promise.all(dmgTypeHashes.map((h) => getDamageTypeDef(h).then((d) => [h, d]))),
-		getStatNames(weaponStatHashes)
+		getStatNames(weaponStatHashes),
+		getClarityMap()
 	]);
 	const defMap = defMap_pre; // alias — item defs already fetched above
 	const dmgTypeMap = new Map(dmgTypeDefs);
@@ -204,6 +206,9 @@ export async function GET({ url, setHeaders }) {
 			.filter((p) => p.perkHash)
 			.map((p) => p.perkHash);
 
+		// D2 Clarity description — keyed by the item hash itself
+		const clarityDescription = getClarityDescription(clarityMap, s.plugHash);
+
 		return {
 			hash: s.plugHash,
 			name,
@@ -217,6 +222,7 @@ export async function GET({ url, setHeaders }) {
 			itemTypeDisplayName: def.itemTypeDisplayName ?? '',
 			description: def.displayProperties?.description ?? '',
 			flavorText: def.flavorText ?? '',
+			clarityDescription,
 			perkHashes,
 			statBonuses,
 			conditionalBonuses

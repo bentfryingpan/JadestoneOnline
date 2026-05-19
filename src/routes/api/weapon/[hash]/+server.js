@@ -1,5 +1,6 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { getItemDef, getStatDef, getDamageTypeDef, getDefs } from '$lib/server/manifest.js';
+import { getClarityMap, getClarityDescription } from '$lib/server/clarity.js';
 import { json } from '@sveltejs/kit';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
@@ -19,7 +20,7 @@ export async function GET({ params, url }) {
 
 	if (!hash) return json({ error: 'Missing hash' }, { status: 400 });
 
-	const item = await getItemDef(hash);
+	const [item, clarityMap] = await Promise.all([getItemDef(hash), getClarityMap()]);
 	if (!item) return json({ error: 'Item not found' }, { status: 404 });
 
 	let liveStats = null;
@@ -63,6 +64,7 @@ export async function GET({ params, url }) {
 								name: pDef.displayProperties.name,
 								icon: BUNGIE_ROOT + pDef.displayProperties.icon,
 								description: pDef.displayProperties.description,
+								clarityDescription: getClarityDescription(clarityMap, pHash),
 								hash: pHash,
 								isEnhanced:
 									pDef.displayProperties?.name?.includes('(Enhanced)') ||
@@ -137,6 +139,7 @@ export async function GET({ params, url }) {
 							name,
 							icon: BUNGIE_ROOT + pDef.displayProperties.icon,
 							description: pDef.displayProperties.description,
+							clarityDescription: getClarityDescription(clarityMap, pHash),
 							hash: pHash,
 							isEnhanced: name.includes('(Enhanced)') || pDef.inventory?.tierType === 3
 						};
