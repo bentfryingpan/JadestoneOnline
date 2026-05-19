@@ -1,6 +1,5 @@
 <script>
-	import { goto } from '$app/navigation';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { supabase } from '$lib/supabase.js';
 
 	let { data } = $props();
@@ -10,63 +9,55 @@
 		duo:     { label: 'Duo Stack',   desc: 'Fireteam of 2' },
 		trio:    { label: 'Trio Stack',  desc: 'Fireteam of 3' },
 		stack:   { label: 'Full Stack',  desc: 'Fireteam of 4' },
-		overall: { label: 'Overall',     desc: 'Net JPR across all' },
+		overall: { label: 'Overall',     desc: 'Best segment JPR' },
 	};
 
-	// ── Reactive state ──────────────────────────────────────────────────────────
-	let rows       = $state(data.rows ?? []);
-	let segment    = $state(data.segment ?? 'solo');
-	let deltas     = $state({});   // player_id → { delta, dir, ts }
-	let liveCount  = $state(0);    // how many updates received this session
-	let isLive     = $state(false);
-	let flashIds   = $state(new Set());
+	// ── State ────────────────────────────────────────────────────────────────────
+	let segments  = $state({ ...data.segments });
+	let segment   = $state(data.initialSegment ?? 'solo');
+	let deltas    = $state({});
+	let flashIds  = $state(new Set());
+	let liveCount = $state(0);
+	let isLive    = $state(false);
 
-	// ── Sync with server data when navigation occurs ────────────────────────────
+	// Sync if server data ever refreshes
 	$effect(() => {
-		rows    = data.rows ?? [];
-		segment = data.segment ?? 'solo';
+		segments = { ...data.segments };
+		segment  = data.initialSegment ?? 'solo';
 	});
 
-	// ── Derived sorted list ─────────────────────────────────────────────────────
+	// ── Current rows — instant, no network ──────────────────────────────────────
+	let rows   = $derived(segments[segment] ?? []);
 	let sorted = $derived([...rows].sort((a, b) => (b.jpr ?? 0) - (a.jpr ?? 0)));
 
-	// ── Navigation ──────────────────────────────────────────────────────────────
+	// ── Tab switch — no goto(), no server round trip ─────────────────────────────
 	function go(seg) {
-		goto(`/leaderboards?seg=${seg}`, { replaceState: true });
 		segment = seg;
+		deltas  = {};   // clear stale deltas from previous tab
+		history.replaceState({}, '', `/leaderboards?seg=${seg}`);
 	}
 
-	// ── Realtime subscription ───────────────────────────────────────────────────
-	let channel;
-
-	function subscribe(seg) {
-		if (channel) supabase.removeChannel(channel);
-
-		// Overall tab listens to all segments — use a broad channel
-		const filter = seg === 'overall'
-			? undefined
-			: `segment=eq.${seg}`;
-
-		const channelConfig = {
+	// ── Single realtime subscription for all segments ────────────────────────────
+	const channel = supabase
+		.channel('leaderboard-all')
+		.on('postgres_changes', {
 			event:  '*',
 			schema: 'public',
 			table:  'player_jpr',
-			...(filter ? { filter } : {}),
-		};
+		}, (payload) => {
+			const updated = payload.new;
+			if (!updated?.player_id || !updated?.segment) return;
+			if ((updated.games_played ?? 0) < 20) return;
 
-		channel = supabase
-			.channel(`leaderboard-${seg}`)
-			.on('postgres_changes', channelConfig, (payload) => {
-				const updated = payload.new;
-				if (!updated?.player_id) return;
+			const seg = updated.segment;
+			liveCount++;
 
-				liveCount++;
+			const existing = segments[seg]?.find(r => r.player_id === updated.player_id);
+			const oldJpr   = existing?.jpr ?? null;
+			const newJpr   = updated.jpr;
 
-				const existing = rows.find(r => r.player_id === updated.player_id);
-				const oldJpr   = existing?.jpr ?? null;
-				const newJpr   = updated.jpr;
-
-				// Compute delta
+			// Delta + flash only for the tab currently on screen
+			if (seg === segment) {
 				if (oldJpr !== null && newJpr !== null) {
 					const delta = Math.round((newJpr - oldJpr) * 10) / 10;
 					if (Math.abs(delta) >= 0.1) {
@@ -75,45 +66,32 @@
 							dir: delta > 0 ? 'up' : 'down',
 							ts:  Date.now(),
 						};
-						// Expire delta after 8 seconds
 						setTimeout(() => {
 							deltas = { ...deltas };
 							delete deltas[updated.player_id];
 						}, 8000);
 					}
 				}
-
-				// Flash the row
 				flashIds = new Set([...flashIds, updated.player_id]);
 				setTimeout(() => {
 					flashIds = new Set([...flashIds].filter(id => id !== updated.player_id));
 				}, 1200);
+			}
 
-				// Update or insert the row
-				if (existing) {
-					rows = rows.map(r =>
-						r.player_id === updated.player_id
-							? { ...r, ...updated }
-							: r
-					);
-				} else if (updated.jpr != null) {
-					rows = [...rows, updated];
-				}
-			})
-			.subscribe((status) => {
-				isLive = status === 'SUBSCRIBED';
-			});
-	}
+			// Update the segment data silently regardless of active tab
+			if (existing) {
+				segments[seg] = segments[seg].map(r =>
+					r.player_id === updated.player_id ? { ...r, ...updated } : r
+				);
+			} else if (newJpr != null) {
+				segments[seg] = [...(segments[seg] ?? []), updated];
+			}
+		})
+		.subscribe(status => { isLive = status === 'SUBSCRIBED'; });
 
-	$effect(() => {
-		subscribe(segment);
-	});
+	onDestroy(() => supabase.removeChannel(channel));
 
-	onDestroy(() => {
-		if (channel) supabase.removeChannel(channel);
-	});
-
-	// ── Helpers ─────────────────────────────────────────────────────────────────
+	// ── Helpers ──────────────────────────────────────────────────────────────────
 	function playerUrl(row) {
 		const name = row.players?.bungie_name ?? row.bungie_name ?? '';
 		const code = row.players?.bungie_code ?? row.bungie_code ?? '0000';
@@ -128,7 +106,6 @@
 
 	function winRate(row) {
 		if (segment === 'overall') return null;
-		// impact = actual WR / expected WR; reverse to get actual WR %
 		const expectedWR = { solo: 0.50, duo: 0.55, trio: 0.62, stack: 0.66 }[segment] ?? 0.50;
 		const wr = (row.impact ?? 1) * expectedWR * 100;
 		return Math.min(100, Math.max(0, wr)).toFixed(1);
@@ -194,7 +171,7 @@
 		</div>
 	</div>
 
-	<!-- ── Segment tabs ─────────────────────────────────────────────────────────── -->
+	<!-- ── Segment tabs ──────────────────────────────────────────────────────────── -->
 	<div class="mb-6 flex gap-1 border-b border-white/5 pb-0">
 		{#each Object.entries(SEGMENTS) as [seg, cfg]}
 			<button
@@ -225,136 +202,106 @@
 	{:else}
 		<div class="overflow-hidden rounded-lg border border-white/5">
 			{#if segment === 'overall'}
-			<!-- Overall column headers -->
-			<div class="grid grid-cols-[3rem_1fr_7rem_6rem_5rem_5rem_5rem_5rem] border-b border-white/5 bg-white/[0.02] px-4 py-2.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
-				<span>#</span>
-				<span>Guardian</span>
-				<span class="text-right">Net JPR</span>
-				<span class="text-right">Games</span>
-				<span class="text-right">Solo</span>
-				<span class="text-right">Duo</span>
-				<span class="text-right">Trio</span>
-				<span class="text-right">Stack</span>
-			</div>
-			{#each sorted as row, i (row.player_id)}
-				{@const flash = flashIds.has(row.player_id)}
-				<a
-					href={playerUrl(row)}
-					class="grid grid-cols-[3rem_1fr_7rem_6rem_5rem_5rem_5rem_5rem] items-center px-4 py-3
-						border-b border-white/[0.04] last:border-0
-						transition-colors duration-200
-						hover:bg-white/[0.04]
-						{flash ? 'bg-emerald-500/5' : 'bg-transparent'}"
-				>
-					<span class="text-sm tabular-nums {rankStyle(i)}">
-						{String(i + 1).padStart(2, '0')}
-					</span>
-					<span class="flex items-center gap-2 min-w-0">
-						{#if i < 3}
-							<span class="text-base leading-none">
-								{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
-							</span>
-						{/if}
-						<span class="min-w-0">
-							<span class="truncate text-sm text-zinc-200 font-medium block">
-								{displayName(row)}
-							</span>
-							<span class="text-[10px] text-zinc-600">
-								{row.segments_qualified ?? 0} segment{(row.segments_qualified ?? 0) !== 1 ? 's' : ''}
+				<!-- Overall headers -->
+				<div class="grid grid-cols-[3rem_1fr_7rem_6rem_5rem_5rem_5rem_5rem] border-b border-white/5 bg-white/[0.02] px-4 py-2.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
+					<span>#</span>
+					<span>Guardian</span>
+					<span class="text-right">Best JPR</span>
+					<span class="text-right">Games</span>
+					<span class="text-right">Solo</span>
+					<span class="text-right">Duo</span>
+					<span class="text-right">Trio</span>
+					<span class="text-right">Stack</span>
+				</div>
+				{#each sorted as row, i (row.player_id)}
+					{@const flash = flashIds.has(row.player_id)}
+					<a
+						href={playerUrl(row)}
+						class="grid grid-cols-[3rem_1fr_7rem_6rem_5rem_5rem_5rem_5rem] items-center px-4 py-3
+							border-b border-white/[0.04] last:border-0 transition-colors duration-200
+							hover:bg-white/[0.04] {flash ? 'bg-emerald-500/5' : 'bg-transparent'}"
+					>
+						<span class="text-sm tabular-nums {rankStyle(i)}">{String(i + 1).padStart(2, '0')}</span>
+						<span class="flex items-center gap-2 min-w-0">
+							{#if i < 3}
+								<span class="text-base leading-none">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+							{/if}
+							<span class="min-w-0">
+								<span class="truncate text-sm text-zinc-200 font-medium block">{displayName(row)}</span>
+								<span class="text-[10px] text-zinc-600">
+									{row.segments_qualified ?? 0} segment{(row.segments_qualified ?? 0) !== 1 ? 's' : ''}
+								</span>
 							</span>
 						</span>
-					</span>
-					<span class="text-right text-sm font-bold tabular-nums {jprColor(row.jpr)}">
-						{row.jpr?.toFixed(1) ?? '—'}
-					</span>
-					<span class="text-right text-sm tabular-nums text-zinc-400">
-						{(row.games_played ?? 0).toLocaleString()}
-					</span>
-					{#each ['solo','duo','trio','stack'] as seg}
-						<span class="text-right text-xs tabular-nums {row.segment_scores?.[seg] != null ? jprColor(row.segment_scores[seg]) : 'text-zinc-700'}">
-							{row.segment_scores?.[seg]?.toFixed(1) ?? '—'}
+						<span class="text-right text-sm font-bold tabular-nums {jprColor(row.jpr)}">
+							{row.jpr?.toFixed(1) ?? '—'}
 						</span>
-					{/each}
-				</a>
-			{/each}
-		{:else}
-			<!-- Segment column headers -->
-			<div class="grid grid-cols-[3rem_1fr_7rem_6rem_6rem_6rem_7rem] border-b border-white/5 bg-white/[0.02] px-4 py-2.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
-				<span>#</span>
-				<span>Guardian</span>
-				<span class="text-right">JPR</span>
-				<span class="text-right">Games</span>
-				<span class="text-right">Win %</span>
-				<span class="text-right">Form</span>
-				<span class="text-right">Δ Rating</span>
-			</div>
-
-			{#each sorted as row, i (row.player_id)}
-				{@const delta  = deltas[row.player_id]}
-				{@const flash  = flashIds.has(row.player_id)}
-				{@const form   = formLabel(row.form)}
-				<a
-					href={playerUrl(row)}
-					class="grid grid-cols-[3rem_1fr_7rem_6rem_6rem_6rem_7rem] items-center px-4 py-3
-						border-b border-white/[0.04] last:border-0
-						transition-colors duration-200
-						hover:bg-white/[0.04]
-						{flash ? 'bg-emerald-500/5' : 'bg-transparent'}"
-				>
-					<!-- Rank -->
-					<span class="text-sm tabular-nums {rankStyle(i)}">
-						{String(i + 1).padStart(2, '0')}
-					</span>
-
-					<!-- Guardian -->
-					<span class="flex items-center gap-2 min-w-0">
-						{#if i < 3}
-							<span class="text-base leading-none">
-								{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+						<span class="text-right text-sm tabular-nums text-zinc-400">
+							{(row.games_played ?? 0).toLocaleString()}
+						</span>
+						{#each ['solo', 'duo', 'trio', 'stack'] as s}
+							<span class="text-right text-xs tabular-nums {row.segment_scores?.[s] != null ? jprColor(row.segment_scores[s]) : 'text-zinc-700'}">
+								{row.segment_scores?.[s]?.toFixed(1) ?? '—'}
 							</span>
-						{/if}
-						<span class="truncate text-sm text-zinc-200 font-medium">
-							{displayName(row)}
+						{/each}
+					</a>
+				{/each}
+			{:else}
+				<!-- Segment headers -->
+				<div class="grid grid-cols-[3rem_1fr_7rem_6rem_6rem_6rem_7rem] border-b border-white/5 bg-white/[0.02] px-4 py-2.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
+					<span>#</span>
+					<span>Guardian</span>
+					<span class="text-right">JPR</span>
+					<span class="text-right">Games</span>
+					<span class="text-right">Win %</span>
+					<span class="text-right">Form</span>
+					<span class="text-right">Δ Rating</span>
+				</div>
+				{#each sorted as row, i (row.player_id)}
+					{@const delta = deltas[row.player_id]}
+					{@const flash = flashIds.has(row.player_id)}
+					{@const form  = formLabel(row.form)}
+					<a
+						href={playerUrl(row)}
+						class="grid grid-cols-[3rem_1fr_7rem_6rem_6rem_6rem_7rem] items-center px-4 py-3
+							border-b border-white/[0.04] last:border-0 transition-colors duration-200
+							hover:bg-white/[0.04] {flash ? 'bg-emerald-500/5' : 'bg-transparent'}"
+					>
+						<span class="text-sm tabular-nums {rankStyle(i)}">{String(i + 1).padStart(2, '0')}</span>
+						<span class="flex items-center gap-2 min-w-0">
+							{#if i < 3}
+								<span class="text-base leading-none">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+							{/if}
+							<span class="truncate text-sm text-zinc-200 font-medium">{displayName(row)}</span>
 						</span>
-					</span>
-
-					<!-- JPR -->
-					<span class="text-right text-sm font-bold tabular-nums {jprColor(row.jpr)}">
-						{row.jpr?.toFixed(1) ?? '—'}
-					</span>
-
-					<!-- Games -->
-					<span class="text-right text-sm tabular-nums text-zinc-400">
-						{(row.games_played ?? 0).toLocaleString()}
-					</span>
-
-					<!-- Win % -->
-					<span class="text-right text-sm tabular-nums text-zinc-400">
-						{winRate(row)}%
-					</span>
-
-					<!-- Form -->
-					<span class="text-right text-xs font-medium {form.color}">
-						{form.label}
-					</span>
-
-					<!-- Delta -->
-					<span class="text-right text-xs font-bold tabular-nums
-						{delta ? (delta.dir === 'up' ? 'text-emerald-400' : 'text-red-400') : 'text-zinc-700'}">
-						{#if delta}
-							{delta.dir === 'up' ? '+' : ''}{delta.delta.toFixed(1)}
-						{:else}
-							—
-						{/if}
-					</span>
-				</a>
-			{/each}
-		{/if}
+						<span class="text-right text-sm font-bold tabular-nums {jprColor(row.jpr)}">
+							{row.jpr?.toFixed(1) ?? '—'}
+						</span>
+						<span class="text-right text-sm tabular-nums text-zinc-400">
+							{(row.games_played ?? 0).toLocaleString()}
+						</span>
+						<span class="text-right text-sm tabular-nums text-zinc-400">
+							{winRate(row)}%
+						</span>
+						<span class="text-right text-xs font-medium {form.color}">
+							{form.label}
+						</span>
+						<span class="text-right text-xs font-bold tabular-nums
+							{delta ? (delta.dir === 'up' ? 'text-emerald-400' : 'text-red-400') : 'text-zinc-700'}">
+							{#if delta}
+								{delta.dir === 'up' ? '+' : ''}{delta.delta.toFixed(1)}
+							{:else}
+								—
+							{/if}
+						</span>
+					</a>
+				{/each}
+			{/if}
 		</div>
 
 		<p class="mt-3 text-center text-xs text-zinc-700">
 			Top 100 · Minimum 20 matches per segment · Updates live as matches complete
-			{#if segment === 'overall'} · Overall JPR = average across all qualified segments{/if}
+			{#if segment === 'overall'} · Ranked by best single-segment JPR{/if}
 		</p>
 	{/if}
 </div>
