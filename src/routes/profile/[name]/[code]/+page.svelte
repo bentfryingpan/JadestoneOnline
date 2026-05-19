@@ -6,6 +6,8 @@
 	import SubclassScreen from '$lib/SubclassScreen.svelte';
 	import CharacterScreen from '$lib/CharacterScreen.svelte';
 	import WeaponInspect from '$lib/WeaponInspect.svelte';
+	import ArmorInspect from '$lib/ArmorInspect.svelte';
+	import SubclassInspect from '$lib/SubclassInspect.svelte';
 
 	let { data } = $props();
 
@@ -94,6 +96,8 @@
 	let loadoutLoading = $state(false);
 	let loadoutCharId = $state(null);
 	let inspectedWeapon = $state(null);
+	let inspectedArmor = $state(null);
+	let inspectedSubclass = $state(null);
 
 	async function fetchLoadout() {
 		if (loadoutLoading || loadoutCharId === activeChar || !activeChar) return;
@@ -1031,21 +1035,21 @@
 					name: eq.kinetic?.name ?? '—',
 					quality: eq.kinetic?.tierTypeName ?? '',
 					icon: eq.kinetic?.icon ?? null,
-					hash: eq.kinetic?.itemHash ?? null
+					hash: eq.kinetic?.hash ?? null
 				},
 				{
 					slot: 'ENERGY',
 					name: eq.energy?.name ?? '—',
 					quality: eq.energy?.tierTypeName ?? '',
 					icon: eq.energy?.icon ?? null,
-					hash: eq.energy?.itemHash ?? null
+					hash: eq.energy?.hash ?? null
 				},
 				{
 					slot: 'POWER',
 					name: eq.power?.name ?? '—',
 					quality: eq.power?.tierTypeName ?? '',
 					icon: eq.power?.icon ?? null,
-					hash: eq.power?.itemHash ?? null
+					hash: eq.power?.hash ?? null
 				}
 			],
 			armor: [
@@ -1054,28 +1058,32 @@
 					name: eq.helmet?.name ?? '—',
 					quality: eq.helmet?.tierTypeName ?? '',
 					icon: eq.helmet?.icon ?? null,
-					hash: eq.helmet?.itemHash ?? null
+					hash: eq.helmet?.hash ?? null,
+					equipKey: 'helmet'
 				},
 				{
 					slot: 'ARMS',
 					name: eq.gauntlets?.name ?? '—',
 					quality: eq.gauntlets?.tierTypeName ?? '',
 					icon: eq.gauntlets?.icon ?? null,
-					hash: eq.gauntlets?.itemHash ?? null
+					hash: eq.gauntlets?.hash ?? null,
+					equipKey: 'gauntlets'
 				},
 				{
 					slot: 'CHEST',
 					name: eq.chest?.name ?? '—',
 					quality: eq.chest?.tierTypeName ?? '',
 					icon: eq.chest?.icon ?? null,
-					hash: eq.chest?.itemHash ?? null
+					hash: eq.chest?.hash ?? null,
+					equipKey: 'chest'
 				},
 				{
 					slot: 'LEGS',
 					name: eq.legs?.name ?? '—',
 					quality: eq.legs?.tierTypeName ?? '',
 					icon: eq.legs?.icon ?? null,
-					hash: eq.legs?.itemHash ?? null
+					hash: eq.legs?.hash ?? null,
+					equipKey: 'legs'
 				}
 			]
 		}
@@ -1259,15 +1267,15 @@
 	</div>
 {/snippet}
 
-{#snippet jadestoneSlot({ slot, name, quality, icon, hash = null })}
+{#snippet jadestoneSlot({ slot, name, quality, icon, hash = null, onInspect = null })}
 	{@const rarityColor = quality === 'Exotic' ? 'bg-amber-500' : 'bg-zinc-100'}
 	{@const borderColor = quality === 'Exotic' ? 'border-amber-500/20' : 'border-zinc-800'}
 	<div
-		class="group relative flex w-full cursor-pointer flex-col items-center gap-2 font-sans"
-		onclick={() => hash && (inspectedWeapon = { hash, membershipId: data.membershipId, membershipType: data.membershipType })}
+		class="group relative flex w-full {onInspect || hash ? 'cursor-pointer' : 'cursor-default'} flex-col items-center gap-2 font-sans"
+		onclick={() => onInspect?.()}
 		role="button"
 		tabindex="0"
-		onkeydown={(e) => e.key === 'Enter' && hash && (inspectedWeapon = { hash, membershipId: data.membershipId, membershipType: data.membershipType })}
+		onkeydown={(e) => e.key === 'Enter' && onInspect?.()}
 	>
 		<div
 			class="h-16 w-16 border bg-[#0c0c0c] {borderColor} relative mx-auto block overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover:border-emerald-500/50"
@@ -2289,31 +2297,52 @@
 							<div class="animate-in fade-in zoom-in-95 mx-auto max-w-6xl px-4 py-10 duration-700">
 								<div class="grid grid-cols-12 items-start gap-12 font-sans">
 									<div class="col-span-3 flex flex-col items-center space-y-12">
-										<div class="group flex w-full cursor-pointer flex-col items-center">
+										<!-- Subclass slot -->
+										<button
+											class="group flex w-full flex-col items-center"
+											onclick={() => eq.subclassSockets && (inspectedSubclass = { subclass: eq.subclass, sockets: eq.subclassSockets, statMeta: loadout?.armorStatMeta ?? [] })}
+										>
 											<div class="relative mx-auto flex h-24 w-24 items-center justify-center">
 												<div
 													class="absolute inset-0 animate-pulse rounded-full bg-emerald-500/5 blur-3xl"
 												></div>
-												<div
-													class="flex h-20 w-20 rotate-45 items-center justify-center border-2 border-zinc-800 bg-[#0a0a0a] shadow-2xl transition-all duration-700 group-hover:rotate-90 group-hover:border-emerald-500/50"
-												>
+												{#if eq.subclass?.icon}
 													<div
-														class="flex h-10 w-10 -rotate-45 rotate-45 items-center justify-center border border-emerald-400"
+														class="relative h-20 w-20 overflow-hidden rounded-full border-2 border-zinc-800 bg-[#0a0a0a] shadow-2xl transition-all duration-700 group-hover:border-emerald-500/50"
 													>
-														<div class="h-2 w-2 bg-emerald-500"></div>
+														<img
+															src={eq.subclass.icon}
+															alt={eq.subclass.name}
+															class="h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+														/>
 													</div>
-												</div>
+												{:else}
+													<div
+														class="flex h-20 w-20 rotate-45 items-center justify-center border-2 border-zinc-800 bg-[#0a0a0a] shadow-2xl transition-all duration-700 group-hover:rotate-90 group-hover:border-emerald-500/50"
+													>
+														<div
+															class="flex h-10 w-10 -rotate-45 rotate-45 items-center justify-center border border-emerald-400"
+														>
+															<div class="h-2 w-2 bg-emerald-500"></div>
+														</div>
+													</div>
+												{/if}
+												{#if eq.subclassSockets}
+													<div class="absolute -right-1 -bottom-1 rounded-full bg-emerald-500/20 px-1.5 py-0.5 border border-emerald-500/40">
+														<span class="text-[7px] font-black tracking-widest text-emerald-400 uppercase">INSPECT</span>
+													</div>
+												{/if}
 											</div>
 											<div class="mt-6 w-full text-center">
 												<span
 													class="mb-1 block font-sans text-[9px] font-bold tracking-[0.2em] text-zinc-600 uppercase"
 													>SUBCLASS</span
 												>
-												<p class="text-[11px] font-bold tracking-widest text-zinc-100 uppercase">
-													{playerData.loadout.subclass}
+												<p class="text-[11px] font-bold tracking-widest text-zinc-100 uppercase group-hover:text-emerald-400 transition-colors">
+													{eq.subclass?.name ?? playerData.loadout.subclass}
 												</p>
 											</div>
-										</div>
+										</button>
 										<div
 											class="flex w-full flex-col items-center space-y-10 border-t border-zinc-800/40 pt-8"
 										>
@@ -2323,7 +2352,8 @@
 													name: w.name,
 													quality: w.quality,
 													icon: w.icon,
-													hash: w.hash
+													hash: w.hash,
+													onInspect: w.hash ? () => (inspectedWeapon = { hash: w.hash, membershipId: data.membershipId, membershipType: data.membershipType }) : null
 												})}
 											{/each}
 										</div>
@@ -2366,7 +2396,10 @@
 													name: a.name,
 													quality: a.quality,
 													icon: a.icon,
-													hash: a.hash
+													hash: a.hash,
+													onInspect: a.equipKey && eq[a.equipKey]
+														? () => (inspectedArmor = eq[a.equipKey])
+														: null
 												})}
 											{/each}
 										</div>
@@ -2449,6 +2482,19 @@
 
 {#if inspectedWeapon}
 	<WeaponInspect weapon={inspectedWeapon} onClose={() => (inspectedWeapon = null)} />
+{/if}
+
+{#if inspectedArmor}
+	<ArmorInspect armor={inspectedArmor} onClose={() => (inspectedArmor = null)} />
+{/if}
+
+{#if inspectedSubclass}
+	<SubclassInspect
+		subclass={inspectedSubclass.subclass}
+		sockets={inspectedSubclass.sockets}
+		statMeta={inspectedSubclass.statMeta}
+		onClose={() => (inspectedSubclass = null)}
+	/>
 {/if}
 
 <style>
