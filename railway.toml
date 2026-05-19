@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd scanner && npm install"
+
+[deploy]
+startCommand = "cd scanner && node scanner.js"
+restartPolicyType = "always"
