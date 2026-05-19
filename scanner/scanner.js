@@ -10,6 +10,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 // ── Environment ───────────────────────────────────────────────────────────────
 
@@ -25,13 +26,15 @@ if (!BUNGIE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const PGCR_ROOT          = 'https://stats.bungie.net';
 const BUNGIE_ROOT        = 'https://www.bungie.net';
 const GAMBIT_MODE        = 63;
-const SCAN_DELAY_MS      = 80;       // ~12 req/sec — conservative for Bungie rate limits
+const PARALLEL           = 6;        // IDs scanned simultaneously
 const CATCHUP_SLEEP_MS   = 15_000;   // sleep 15s when we've caught up to live
 const MISS_THRESHOLD     = 500;      // consecutive misses before sleeping
 const JPR_RECOMPUTE_MS   = 10 * 60 * 1000; // recompute JPR every 10 minutes
 const SLOT_BUCKETS       = { 1491708835: 'Kinetic', 2465295065: 'Energy', 95395402: 'Power' };
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  realtime: { transport: ws },
+});
 
 // ── EGO Algorithm (inlined from src/lib/ego.js) ───────────────────────────────
 
@@ -537,54 +540,54 @@ async function main() {
   }, JPR_RECOMPUTE_MS);
 
   while (true) {
-    currentId++;
-    scanned++;
+    // Fetch PARALLEL IDs simultaneously
+    const ids = [];
+    for (let j = 0; j < PARALLEL; j++) ids.push(currentId + BigInt(j + 1));
+    currentId += BigInt(PARALLEL);
+    scanned   += PARALLEL;
 
-    const pgcrData = await fetchPgcr(String(currentId));
+    const results = await Promise.all(ids.map(id => fetchPgcr(String(id))));
 
-    if (!pgcrData || pgcrData.ErrorCode !== 1) {
-      consecutiveMisses++;
+    for (let j = 0; j < results.length; j++) {
+      const pgcrData = results[j];
+      const scanId   = ids[j];
 
-      if (consecutiveMisses >= MISS_THRESHOLD) {
-        // Caught up to live — save state and wait
-        await saveState(currentId - 1);
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
-        console.log(`[${elapsed}s] Caught up. Scanned ${scanned}, found ${gambits} Gambit matches. Sleeping ${CATCHUP_SLEEP_MS / 1000}s...`);
-        await sleep(CATCHUP_SLEEP_MS);
-        consecutiveMisses = 0;
+      if (!pgcrData || pgcrData.ErrorCode !== 1) {
+        consecutiveMisses++;
+        continue;
       }
 
-      await sleep(SCAN_DELAY_MS);
-      continue;
-    }
+      consecutiveMisses = 0;
+      const mode = pgcrData.Response?.activityDetails?.mode;
+      if (mode !== GAMBIT_MODE) continue;
 
-    const mode = pgcrData.Response?.activityDetails?.mode;
-    consecutiveMisses = 0;
+      // Found a Gambit match
+      gambits++;
+      const period  = pgcrData.Response?.period;
+      const matchId = String(scanId);
 
-    if (mode !== GAMBIT_MODE) {
-      // Not Gambit — skip but still pace ourselves
-      await sleep(SCAN_DELAY_MS);
-      continue;
-    }
-
-    // Found a Gambit match
-    gambits++;
-    const period = pgcrData.Response?.period;
-    const matchId = String(currentId);
-
-    try {
-      const written = await processPgcr(pgcrData.Response, matchId, period);
-      if (written) {
-        // Queue all players for JPR recompute
-        for (const e of pgcrData.Response.entries ?? []) {
-          const pId = String(e.player?.destinyUserInfo?.membershipId ?? '');
-          if (pId && pId !== '0') jprQueue.add(pId);
+      try {
+        const written = await processPgcr(pgcrData.Response, matchId, period);
+        if (written) {
+          for (const e of pgcrData.Response.entries ?? []) {
+            const pId = String(e.player?.destinyUserInfo?.membershipId ?? '');
+            if (pId && pId !== '0') jprQueue.add(pId);
+          }
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          console.log(`[${elapsed}s] Gambit #${gambits} ID=${matchId} period=${period?.slice(0, 10)} wrote ${written} player rows`);
         }
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
-        console.log(`[${elapsed}s] Gambit #${gambits} ID=${matchId} period=${period?.slice(0, 10)} wrote ${written} player rows`);
+      } catch (err) {
+        console.error(`Error processing ${matchId}:`, err.message);
       }
-    } catch (err) {
-      console.error(`Error processing ${matchId}:`, err.message);
+    }
+
+    // Caught up to live — save and sleep
+    if (consecutiveMisses >= MISS_THRESHOLD) {
+      await saveState(currentId).catch(() => {});
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      console.log(`[${elapsed}s] Live. Scanned ${scanned} IDs, found ${gambits} Gambit matches. Sleeping ${CATCHUP_SLEEP_MS / 1000}s...`);
+      await sleep(CATCHUP_SLEEP_MS);
+      consecutiveMisses = 0;
     }
 
     // Save state every 30 seconds
@@ -592,8 +595,6 @@ async function main() {
       await saveState(currentId).catch(() => {});
       lastSave = Date.now();
     }
-
-    await sleep(SCAN_DELAY_MS);
   }
 }
 
