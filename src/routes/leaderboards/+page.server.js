@@ -7,15 +7,30 @@ export async function load({ url }) {
 		? url.searchParams.get('seg')
 		: 'solo';
 
-	const { data: rows } = await supabaseAdmin
+	// Fetch JPR rows for segment
+	const { data: jprRows } = await supabaseAdmin
 		.from('player_jpr')
-		.select(
-			'player_id, segment, jpr, output, impact, form, games_played, updated_at, players(bungie_name, bungie_code, membership_type)'
-		)
+		.select('player_id, segment, jpr, output, impact, form, games_played, updated_at')
 		.eq('segment', segment)
 		.not('jpr', 'is', null)
 		.order('jpr', { ascending: false })
 		.limit(100);
 
-	return { rows: rows ?? [], segment };
+	if (!jprRows?.length) return { rows: [], segment };
+
+	// Fetch player names for those IDs
+	const playerIds = jprRows.map(r => r.player_id);
+	const { data: playerRows } = await supabaseAdmin
+		.from('players')
+		.select('id, bungie_name, bungie_code, membership_type')
+		.in('id', playerIds);
+
+	const playerMap = Object.fromEntries((playerRows ?? []).map(p => [p.id, p]));
+
+	const rows = jprRows.map(r => ({
+		...r,
+		players: playerMap[r.player_id] ?? null,
+	}));
+
+	return { rows, segment };
 }
