@@ -9,11 +9,23 @@ const CLAIM_TTL = 300_000;
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 
-async function bungieGet(url) {
-	const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
-	if (!res.ok) throw new Error(`Bungie ${res.status}: ${url}`);
-	const text = await res.text();
-	return JSON.parse(text.replace(/:\s*(\d{15,})/g, ': "$1"'));
+async function bungieGet(url, retries = 3) {
+	let lastErr;
+	for (let attempt = 0; attempt < retries; attempt++) {
+		if (attempt > 0) await new Promise(r => setTimeout(r, 600 * attempt));
+		try {
+			const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
+			// Don't retry 4xx — those are definitive (not found, bad request, etc.)
+			if (res.status >= 400 && res.status < 500) throw new Error(`Bungie ${res.status}: ${url}`);
+			if (!res.ok) { lastErr = new Error(`Bungie ${res.status}: ${url}`); continue; }
+			const text = await res.text();
+			return JSON.parse(text.replace(/:\s*(\d{15,})/g, ': "$1"'));
+		} catch (e) {
+			if (e.message.startsWith('Bungie 4')) throw e; // re-throw 4xx immediately
+			lastErr = e;
+		}
+	}
+	throw lastErr;
 }
 
 export async function load({ params, parent, url, setHeaders }) {
