@@ -86,14 +86,15 @@
 		return bonuses
 			.map((b) => {
 				const meta = statMeta?.find((m) => m.hash === b.statHash);
+				if (!meta) return null; // skip unknown stats (e.g. fragment slot count)
 				return {
-					short: meta?.short ?? '???',
-					name: meta?.name ?? '?',
+					short: meta.short,
+					name: meta.name,
 					value: b.value,
-					text: meta?.text ?? 'text-zinc-400'
+					text: meta.text
 				};
 			})
-			.filter((b) => b.value !== 0);
+			.filter((b) => b !== null && b.value !== 0);
 	}
 
 	const ABILITY_ORDER = ['Movement Ability', 'Class Ability', 'Melee', 'Grenade'];
@@ -210,13 +211,13 @@
 									{superAbility.name ?? 'Unknown'}
 								</p>
 								<p
-									class="mt-0.5 text-[8px] font-bold tracking-widest text-zinc-600 uppercase"
+									class="mt-0.5 text-[9px] font-bold tracking-widest text-zinc-500 uppercase"
 								>
 									SUPER ABILITY
 								</p>
 								{#if superAbility.description || superAbility.perkDescription}
 									<p
-										class="mt-3 font-serif text-[10px] leading-relaxed text-zinc-400 italic"
+										class="mt-3 font-serif text-xs leading-relaxed text-zinc-300"
 										style="-webkit-line-clamp: 4; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 									>
 										{superAbility.description || superAbility.perkDescription}
@@ -267,17 +268,17 @@
 									</div>
 									<div>
 										<p
-											class="text-[8px] font-black tracking-[0.3em] text-zinc-600 uppercase"
+											class="text-[9px] font-bold tracking-[0.25em] text-zinc-500 uppercase"
 										>
 											{abilityTypeLabel(ability.itemTypeDisplayName)}
 										</p>
-										<p class="mt-0.5 text-[11px] font-black text-white uppercase italic leading-tight">
+										<p class="mt-0.5 text-xs font-black text-white uppercase italic leading-tight">
 											{ability.name ?? 'Unknown'}
 										</p>
 										{#if ability.description || ability.perkDescription}
 											<p
-												class="mt-1.5 font-serif text-[9px] leading-relaxed text-zinc-400 italic"
-												style="-webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
+												class="mt-2 font-serif text-[11px] leading-relaxed text-zinc-300"
+												style="-webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 											>
 												{ability.description || ability.perkDescription}
 											</p>
@@ -333,8 +334,8 @@
 										</p>
 										{#if aspect.description || aspect.perkDescription}
 											<p
-												class="mt-1 font-serif text-[9px] leading-relaxed text-zinc-500 italic"
-												style="-webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
+												class="mt-1.5 font-serif text-[11px] leading-relaxed text-zinc-300"
+												style="-webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;"
 											>
 												{aspect.description || aspect.perkDescription}
 											</p>
@@ -478,7 +479,7 @@
 					<p class="mb-1.5 text-[11px] font-black uppercase italic tracking-wider {el.accent}">
 						{hoveredFragment.name ?? 'Unknown Fragment'}
 					</p>
-					<p class="font-serif text-[10px] leading-relaxed text-zinc-300 italic opacity-95">
+					<p class="font-serif text-xs leading-relaxed text-zinc-200">
 						{hoveredFragment.description ||
 							hoveredFragment.perkDescription ||
 							'No fragment data available.'}
