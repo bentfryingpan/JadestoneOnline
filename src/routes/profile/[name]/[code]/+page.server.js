@@ -43,9 +43,17 @@ export async function load({ params, parent, url, setHeaders }) {
 		try {
 			const searchKey = `search:${name.toLowerCase()}#${code}`;
 			const player = await cacheWrap(searchKey, SEARCH_TTL, async () => {
-				const d = await bungieGet(
-					`/Platform/Destiny2/SearchDestinyPlayer/-1/${encodeURIComponent(name + '#' + code)}/`
+				// Use POST endpoint — handles special characters (colons, emojis, etc.) reliably
+				const res = await fetch(
+					`${BUNGIE_ROOT}/Platform/Destiny2/SearchDestinyPlayerByBungieName/-1/`,
+					{
+						method: 'POST',
+						headers: { 'X-API-Key': BUNGIE_API_KEY, 'Content-Type': 'application/json' },
+						body: JSON.stringify({ displayName: name, displayNameCode: parseInt(code, 10) }),
+					}
 				);
+				const text = await res.text();
+				const d = JSON.parse(text.replace(/:\s*(\d{15,})/g, ': "$1"'));
 				if (!d || d.ErrorCode !== 1 || !Array.isArray(d.Response) || !d.Response.length)
 					return null;
 				return (
