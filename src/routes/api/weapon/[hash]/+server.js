@@ -1,6 +1,6 @@
 import { BUNGIE_API_KEY } from '$env/static/private';
 import { getItemDef, getStatDef, getDamageTypeDef, getDefs } from '$lib/server/manifest.js';
-import { getClarityMap, getClarityDescription } from '$lib/server/clarity.js';
+import { getClarityMap, getClarityDescription, getClaritySections } from '$lib/server/clarity.js';
 import { json } from '@sveltejs/kit';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
@@ -65,6 +65,7 @@ export async function GET({ params, url }) {
 								icon: BUNGIE_ROOT + pDef.displayProperties.icon,
 								description: pDef.displayProperties.description,
 								clarityDescription: getClarityDescription(clarityMap, pHash),
+								claritySections: getClaritySections(clarityMap, pHash),
 								hash: pHash,
 								isEnhanced:
 									pDef.displayProperties?.name?.includes('(Enhanced)') ||
@@ -140,6 +141,7 @@ export async function GET({ params, url }) {
 							icon: BUNGIE_ROOT + pDef.displayProperties.icon,
 							description: pDef.displayProperties.description,
 							clarityDescription: getClarityDescription(clarityMap, pHash),
+							claritySections: getClaritySections(clarityMap, pHash),
 							hash: pHash,
 							isEnhanced: name.includes('(Enhanced)') || pDef.inventory?.tierType === 3
 						};

@@ -64,6 +64,32 @@ export function flattenClarity(entry) {
 }
 
 /**
+ * Returns structured sections for rich tooltip rendering.
+ * Each section is an array of { text, classNames[] } parts.
+ * Spacer rows become null entries so the UI can render a divider.
+ *
+ * @returns {{ parts: {text:string, classNames:string[]}[] }[] | null}
+ */
+export function parseClarityDescription(entry) {
+	if (!entry?.descriptions?.en) return null;
+	const sections = [];
+	for (const section of entry.descriptions.en) {
+		if (!section.linesContent) {
+			// spacer — emit a visual separator only if we already have content
+			if (sections.length > 0) sections.push(null);
+			continue;
+		}
+		const parts = section.linesContent
+			.map((line) => ({ text: line.text ?? '', classNames: line.classNames ?? [] }))
+			.filter((p) => p.text);
+		if (parts.length > 0) sections.push({ parts });
+	}
+	// Trim trailing spacers
+	while (sections.length > 0 && sections[sections.length - 1] === null) sections.pop();
+	return sections.length > 0 ? sections : null;
+}
+
+/**
  * Convenience: look up a hash in the map and return its plain-text description,
  * or '' if not found.
  */
@@ -71,4 +97,13 @@ export function getClarityDescription(map, hash) {
 	if (!hash || !map) return '';
 	const entry = map[String(hash)];
 	return flattenClarity(entry);
+}
+
+/**
+ * Convenience: look up a hash and return structured sections, or null.
+ */
+export function getClaritySections(map, hash) {
+	if (!hash || !map) return null;
+	const entry = map[String(hash)];
+	return parseClarityDescription(entry);
 }

@@ -1,5 +1,6 @@
 <script>
 	import { fly, fade } from 'svelte/transition';
+	import ClarityTooltip from './ClarityTooltip.svelte';
 
 	let { armor, onClose } = $props();
 
@@ -303,34 +304,20 @@
 
 		<!-- Mod Tooltip -->
 		{#if hoveredMod}
-			<div
-				class="pointer-events-none fixed z-[2000] mb-6 -translate-x-1/2 -translate-y-full"
-				style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
-				transition:fade={{ duration: 100 }}
-			>
-				<div
-					class="w-72 border border-zinc-800 bg-[#0a0a0a] p-4 shadow-[0_0_40px_rgba(0,0,0,0.9)]"
-				>
-					<p class="mb-1.5 text-[11px] font-black uppercase italic tracking-wider text-sky-400">
-						{hoveredMod.name ?? 'Unknown Mod'}
-					</p>
-					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
-						{hoveredMod.clarityDescription || hoveredMod.description || 'No modification data available.'}
-					</p>
-					{#if hoveredMod.statBonuses?.length}
-						<div class="mt-2 flex flex-wrap gap-1">
-							{#each hoveredMod.statBonuses as bonus}
-								{#if bonus.value}
-									<span class="rounded-sm bg-emerald-500/20 px-1.5 py-0.5 text-[8px] font-black text-emerald-400"
-										>+{bonus.value}</span
-									>
-								{/if}
-							{/each}
-						</div>
-					{/if}
-					<div class="absolute top-full left-1/2 h-5 w-[1px] -translate-x-1/2 bg-sky-400/50"></div>
-				</div>
-			</div>
+			<ClarityTooltip
+				item={{
+					name: hoveredMod.name ?? 'Unknown Mod',
+					typeLabel: hoveredMod.energyCost ? `COST: ${hoveredMod.energyCost}` : undefined,
+					sections: hoveredMod.claritySections ?? null,
+					description: hoveredMod.clarityDescription || hoveredMod.description || '',
+					bonuses: (hoveredMod.statBonuses ?? [])
+						.filter((b) => b.value)
+						.map((b) => ({ value: b.value, short: '' }))
+				}}
+				pos={tooltipPos}
+				accentClass="text-sky-400"
+				accentLineClass="bg-sky-500"
+			/>
 		{/if}
 	{/if}
 </div>

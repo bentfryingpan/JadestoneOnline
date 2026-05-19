@@ -1,5 +1,6 @@
 <script>
 	import { fly, fade } from 'svelte/transition';
+	import ClarityTooltip from './ClarityTooltip.svelte';
 
 	let { subclass, sockets, statMeta, onClose } = $props();
 
@@ -112,7 +113,7 @@
 	}
 
 	// Tooltip
-	let hoveredItem = $state(null); // { name, description, bonuses[] }
+	let hoveredItem = $state(null);
 	let tooltipPos = $state({ x: 0, y: 0 });
 
 	function onItemEnter(e, item) {
@@ -190,7 +191,7 @@
 						{@const superDesc = superAbility.clarityDescription || superAbility.description || superAbility.perkDescription || superAbility.flavorText || ''}
 						<div
 							class="group/slot flex cursor-help flex-col items-center gap-4 border {el.border} {el.bg} p-6 text-center transition-all duration-300"
-							onmouseenter={(e) => onItemEnter(e, { name: superAbility.name, description: superDesc, bonuses: [] })}
+							onmouseenter={(e) => onItemEnter(e, { name: superAbility.name, typeLabel: 'SUPER ABILITY', sections: superAbility.claritySections ?? null, description: superDesc, bonuses: [] })}
 							onmouseleave={onItemLeave}
 						>
 							<div
@@ -245,7 +246,7 @@
 								{@const abilityDesc = ability.clarityDescription || ability.description || ability.perkDescription || ability.flavorText || ''}
 								<div
 									class="group/slot flex cursor-help flex-col items-center gap-3 border {el.border} bg-zinc-900/20 p-4 text-center transition-all duration-300 hover:{el.bg}"
-									onmouseenter={(e) => onItemEnter(e, { name: ability.name, typeLabel: abilityTypeLabel(ability.itemTypeDisplayName), description: abilityDesc, bonuses: [] })}
+									onmouseenter={(e) => onItemEnter(e, { name: ability.name, typeLabel: abilityTypeLabel(ability.itemTypeDisplayName), sections: ability.claritySections ?? null, description: abilityDesc, bonuses: [] })}
 									onmouseleave={onItemLeave}
 								>
 									<div
@@ -303,7 +304,7 @@
 								{@const aspectDesc = aspect.clarityDescription || aspect.description || aspect.perkDescription || aspect.flavorText || ''}
 								<div
 									class="group/slot flex cursor-help flex-col gap-3 border {el.border} {el.bg} p-3 transition-all duration-300"
-									onmouseenter={(e) => onItemEnter(e, { name: aspect.name, description: aspectDesc, bonuses: aspectBonuses })}
+									onmouseenter={(e) => onItemEnter(e, { name: aspect.name, typeLabel: 'ASPECT', sections: aspect.claritySections ?? null, description: aspectDesc, bonuses: aspectBonuses })}
 									onmouseleave={onItemLeave}
 								>
 									<!-- Icon + name row -->
@@ -371,7 +372,7 @@
 									{@const fragDesc = frag.clarityDescription || frag.description || frag.perkDescription || frag.flavorText || ''}
 									<div
 										class="group/frag flex cursor-help flex-col gap-2 border {el.border} bg-zinc-900/20 p-2.5 transition-all duration-300 hover:{el.bg}"
-										onmouseenter={(e) => onItemEnter(e, { name: frag.name, description: fragDesc, bonuses: allBonuses })}
+										onmouseenter={(e) => onItemEnter(e, { name: frag.name, typeLabel: 'FRAGMENT', sections: frag.claritySections ?? null, description: fragDesc, bonuses: allBonuses })}
 										onmouseleave={onItemLeave}
 									>
 										<!-- Icon + name row -->
@@ -443,40 +444,12 @@
 
 		<!-- Global Smart Tooltip -->
 		{#if hoveredItem}
-			<div
-				class="pointer-events-none fixed z-[2000] mb-6 -translate-x-1/2 -translate-y-full"
-				style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
-				transition:fade={{ duration: 100 }}
-			>
-				<div
-					class="w-72 border {el.border} bg-[#0a0a0a] p-4 shadow-[0_0_40px_rgba(0,0,0,0.9)]"
-				>
-					<p class="mb-1.5 text-[11px] font-black uppercase italic tracking-wider {el.accent}">
-						{hoveredItem.name ?? ''}
-					</p>
-					{#if hoveredItem.description}
-						<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
-							{hoveredItem.description}
-						</p>
-					{:else}
-						<p class="font-sans text-[10px] text-zinc-600 italic">No description available.</p>
-					{/if}
-					{#if hoveredItem.bonuses?.length}
-						<div class="mt-2.5 flex flex-wrap gap-1 border-t border-zinc-800 pt-2.5">
-							{#each hoveredItem.bonuses as bonus}
-								<span
-									class="rounded-sm px-1.5 py-0.5 text-[8px] font-black {bonus.value > 0
-										? 'bg-emerald-500/15 text-emerald-400'
-										: 'bg-red-500/15 text-red-400'}"
-								>
-									{bonus.value > 0 ? '+' : ''}{bonus.value} {bonus.short}
-								</span>
-							{/each}
-						</div>
-					{/if}
-					<div class="absolute top-full left-1/2 h-5 w-[1px] -translate-x-1/2 {el.accentLine} opacity-50"></div>
-				</div>
-			</div>
+			<ClarityTooltip
+				item={hoveredItem}
+				pos={tooltipPos}
+				accentClass={el.accent}
+				accentLineClass={el.accentLine}
+			/>
 		{/if}
 	{/if}
 </div>

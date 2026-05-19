@@ -7,7 +7,7 @@ import {
 	getDamageTypeDef,
 	getStatNames
 } from '$lib/server/manifest.js';
-import { getClarityMap, getClarityDescription } from '$lib/server/clarity.js';
+import { getClarityMap, getClarityDescription, getClaritySections } from '$lib/server/clarity.js';
 // getItemDef and getSandboxPerkDef use makeHashLookup with a shared in-process
 // cache — the same keys used by the match page, so a weapon looked up on a
 // match page is already warm when the loadout tab opens (and vice-versa).
@@ -208,6 +208,7 @@ export async function GET({ url, setHeaders }) {
 
 		// D2 Clarity description — keyed by the item hash itself
 		const clarityDescription = getClarityDescription(clarityMap, s.plugHash);
+		const claritySections = getClaritySections(clarityMap, s.plugHash);
 
 		return {
 			hash: s.plugHash,
@@ -223,6 +224,7 @@ export async function GET({ url, setHeaders }) {
 			description: def.displayProperties?.description ?? '',
 			flavorText: def.flavorText ?? '',
 			clarityDescription,
+			claritySections,
 			perkHashes,
 			statBonuses,
 			conditionalBonuses

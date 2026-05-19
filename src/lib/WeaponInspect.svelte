@@ -1,5 +1,6 @@
 <script>
 	import { fly, fade } from 'svelte/transition';
+	import ClarityTooltip from './ClarityTooltip.svelte';
 	const BUNGIE_ROOT = 'https://www.bungie.net';
 
 	let { weapon, onClose } = $props();
@@ -308,36 +309,17 @@
 
 		<!-- Global Smart Tooltip -->
 		{#if hoveredPerk}
-			<div
-				class="pointer-events-none fixed z-[2000] mb-6 -translate-x-1/2 -translate-y-full"
-				style="left: {tooltipPos.x}px; top: {tooltipPos.y}px;"
-				transition:fade={{ duration: 100 }}
-			>
-				<div
-					class="animate-in fade-in zoom-in-95 w-72 border border-zinc-800 bg-[#0a0a0a] p-4 shadow-[0_0_40px_rgba(0,0,0,0.9)] duration-200"
-				>
-					<p
-						class="text-[11px] font-black uppercase italic {hoveredPerk.isEnhanced
-							? 'text-amber-500'
-							: 'text-sky-400'} mb-1.5 tracking-wider"
-					>
-						{hoveredPerk.name}
-					</p>
-					<p class="font-sans font-normal text-xs leading-relaxed text-zinc-200">
-						{hoveredPerk.clarityDescription || hoveredPerk.description || 'Active Tactical Component.'}
-					</p>
-					{#if hoveredPerk.clarityDescription && hoveredPerk.description && hoveredPerk.clarityDescription !== hoveredPerk.description}
-						<p class="mt-2 border-t border-zinc-800 pt-2 font-sans text-[9px] italic text-zinc-600">
-							{hoveredPerk.description}
-						</p>
-					{/if}
-					<div
-						class="absolute top-full left-1/2 h-5 w-[1px] -translate-x-1/2 {hoveredPerk.isEnhanced
-							? 'bg-amber-500/50'
-							: 'bg-sky-400/50'}"
-					></div>
-				</div>
-			</div>
+			<ClarityTooltip
+				item={{
+					name: hoveredPerk.name,
+					sections: hoveredPerk.claritySections ?? null,
+					description: hoveredPerk.clarityDescription || hoveredPerk.description || '',
+					bonuses: []
+				}}
+				pos={tooltipPos}
+				accentClass={hoveredPerk.isEnhanced ? 'text-amber-500' : 'text-sky-400'}
+				accentLineClass={hoveredPerk.isEnhanced ? 'bg-amber-500' : 'bg-sky-400'}
+			/>
 		{/if}
 	{/if}
 </div>
