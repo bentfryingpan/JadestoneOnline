@@ -1,15 +1,27 @@
 /**
- * Destiny 2 Manifest Service (Robust 1:1)
+ * Destiny 2 Manifest Service
  *
- * Provides high-performance lookups by querying the local Supabase mirror.
+ * Primary source: Bungie's official SQLite manifest (via manifestDb.js)
+ *   — synchronous in-process lookups after the first cold-start download
+ *   — zero Supabase dependency
+ *
+ * Fallback: Bungie live JSON API (per-hash endpoint)
+ *   — kicks in when SQLite hasn't downloaded yet (first cold start)
+ *   — results written to in-process cache so subsequent calls are instant
  */
 
 import { BUNGIE_API_KEY } from '$env/static/private';
-import { supabaseAdmin } from '$lib/supabase-server.js';
-import { redisGet, redisSet } from './redis.js';
+import { cacheGet, cacheSet } from '$lib/server/cache.js';
+import {
+	dbLookup,
+	dbGetDefs,
+	dbGetRawTable,
+	dbGetAllMedals,
+	dbGetMedalDef
+} from '$lib/server/manifestDb.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
-const TABLE_TTL = 86_400_000 * 7;
+const FALLBACK_TTL = 3_600_000; // 1 h — live-API fallback results
 
 async function bungieFetch(url) {
 	const res = await fetch(BUNGIE_ROOT + url, { headers: { 'X-API-Key': BUNGIE_API_KEY } });
@@ -19,48 +31,31 @@ async function bungieFetch(url) {
 	return JSON.parse(fixed);
 }
 
+/**
+ * Single-hash lookup: SQLite → live Bungie API fallback.
+ */
 async function getDef(tableName, hash) {
 	if (!hash) return null;
-	const hStr = String(hash >>> 0);
-	const redisKey = `manifest:${tableName}:${hStr}`;
 
-	const cached = await redisGet(redisKey);
-	if (cached) return cached;
+	// 1. SQLite (in-process, synchronous after warm-up)
+	const def = await dbLookup(tableName, hash);
+	if (def) return def;
 
+	// 2. Live Bungie API (only on SQLite cold start)
 	try {
-		const { data: row } = await supabaseAdmin
-			.from('manifest_definitions')
-			.select('data')
-			.eq('table_name', tableName)
-			.eq('hash', hStr)
-			.single();
-
-		if (row?.data) {
-			await redisSet(redisKey, row.data, TABLE_TTL);
-			return row.data;
-		}
-	} catch {}
-
-	// Fallback: Live API
-	try {
+		const hStr = String(hash >>> 0);
 		const data = await bungieFetch(`/Platform/Destiny2/Manifest/${tableName}/${hStr}/`);
-		const def = data?.Response;
-		if (def) {
-			await redisSet(redisKey, def, TABLE_TTL);
-			supabaseAdmin
-				.from('manifest_definitions')
-				.upsert({
-					table_name: tableName,
-					hash: hStr,
-					data: def,
-					updated_at: new Date().toISOString()
-				})
-				.then(() => {});
-			return def;
+		const live = data?.Response;
+		if (live) {
+			cacheSet(`mdb:${tableName}:${hash}`, live, FALLBACK_TTL);
+			return live;
 		}
 	} catch {}
+
 	return null;
 }
+
+// ── Named exports (same API surface as before — nothing else needs changing) ──
 
 export const getItemDef = (h) => getDef('DestinyInventoryItemDefinition', h);
 export const getActivityDef = (h) => getDef('DestinyActivityDefinition', h);
@@ -80,73 +75,56 @@ export const getTraitDef = (h) => getDef('DestinyTraitDefinition', h);
 export const getClassDef = (h) => getDef('DestinyClassDefinition', h);
 export const getRaceDef = (h) => getDef('DestinyRaceDefinition', h);
 
-/** Bulk resolve definitions for a table. */
+/**
+ * Bulk resolve multiple hashes for one table.
+ * Returns { [hash]: def } — same shape as before.
+ */
 export async function getDefs(tableName, hashes) {
 	if (!hashes?.length) return {};
-	const hStrings = hashes.map((h) => String(h >>> 0));
-	try {
-		const { data } = await supabaseAdmin
-			.from('manifest_definitions')
-			.select('hash, data')
-			.eq('table_name', tableName)
-			.in('hash', hStrings);
-		if (data) return Object.fromEntries(data.map((r) => [r.hash, r.data]));
-	} catch {}
-	return {};
+	return dbGetDefs(tableName, hashes);
 }
 
-/** Resolves historical stats/medals by string key (e.g. medalMassacre). */
-export async function getMedalDef(statId) {
-	if (!statId) return null;
-	const redisKey = `manifest:DestinyHistoricalStatsDefinition:${statId}`;
-	const cached = await redisGet(redisKey);
-	if (cached) return cached;
-
-	try {
-		const { data: row } = await supabaseAdmin
-			.from('manifest_definitions')
-			.select('data')
-			.eq('table_name', 'DestinyHistoricalStatsDefinition')
-			.eq('hash', statId)
-			.single();
-		if (row?.data) {
-			await redisSet(redisKey, row.data, TABLE_TTL);
-			return row.data;
-		}
-	} catch {}
-	return null;
+/**
+ * Scan an entire definition table (used by map-icons, medal-icons, etc.).
+ */
+export async function getRawTable(tableName) {
+	return dbGetRawTable(tableName);
 }
 
+/**
+ * All historical stats / medals as { [statId]: def }.
+ */
 export async function getAllMedals() {
-	try {
-		const { data } = await supabaseAdmin
-			.from('manifest_definitions')
-			.select('hash, data')
-			.eq('table_name', 'DestinyHistoricalStatsDefinition');
-		if (data?.length) return Object.fromEntries(data.map((r) => [r.hash, r.data]));
-	} catch {}
-	return {};
+	return dbGetAllMedals();
 }
 
+/**
+ * Single medal by string stat ID.
+ */
+export async function getMedalDef(statId) {
+	return dbGetMedalDef(statId);
+}
+
+/**
+ * Resolve stat display names for an array of hashes.
+ */
 export async function getStatNames(hashes) {
 	const defs = await Promise.all(hashes.map((h) => getStatDef(h)));
 	return Object.fromEntries(hashes.map((h, i) => [h, defs[i]?.displayProperties?.name ?? null]));
 }
 
+/**
+ * Map image lookup by activity name — fuzzy match across all activities.
+ * Kept for backwards compat; callers that use getRawTable directly are preferred.
+ */
 export async function getMapImage(mapName) {
 	if (!mapName) return null;
 	const cleanName = mapName.replace(/^(Gambit[:\-]\s*)/i, '').trim();
-	try {
-		const { data } = await supabaseAdmin
-			.from('manifest_definitions')
-			.select('data')
-			.eq('table_name', 'DestinyActivityDefinition')
-			.ilike('data->displayProperties->name', `%${cleanName}%`)
-			.limit(1)
-			.single();
-		if (data?.data?.pgcrImage) return BUNGIE_ROOT + data.data.pgcrImage;
-	} catch {}
-	return null;
+	const table = await getRawTable('DestinyActivityDefinition');
+	const match = Object.values(table).find((act) =>
+		(act.displayProperties?.name ?? '').toLowerCase().includes(cleanName.toLowerCase())
+	);
+	return match?.pgcrImage ? BUNGIE_ROOT + match.pgcrImage : null;
 }
 
 export async function getExoticIconBase64(itemHash) {
@@ -163,19 +141,13 @@ export async function getExoticIconBase64(itemHash) {
 	}
 }
 
-export async function getRawTable(tableName) {
-	try {
-		const { data } = await supabaseAdmin
-			.from('manifest_definitions')
-			.select('hash, data')
-			.eq('table_name', tableName);
-		if (data) return Object.fromEntries(data.map((r) => [r.hash, r.data]));
-	} catch {}
-	return {};
+/**
+ * Bulk item lookup (convenience wrapper over getDefs).
+ */
+export async function getItemDefs(hashes) {
+	const map = await getDefs('DestinyInventoryItemDefinition', hashes);
+	return hashes.map((h) => map[String(h >>> 0)] ?? null);
 }
 
 export const getManifestVersion = async () => 'latest';
 export const warmManifest = async () => {};
-export async function getItemDefs(hashes) {
-	return Promise.all(hashes.map((h) => getItemDef(h)));
-}

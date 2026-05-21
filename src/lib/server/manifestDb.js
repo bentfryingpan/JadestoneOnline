@@ -289,6 +289,94 @@ export async function dbGetMedalDef(statKey) {
 }
 
 /**
+ * Bulk lookup — resolve many hashes at once for a given table.
+ * Returns { [hash]: def } plain object (same shape as getDefs in manifest.js).
+ */
+export async function dbGetDefs(tableName, hashes) {
+	if (!hashes?.length) return {};
+	const db = await getDb();
+	if (!db) return {};
+
+	const ids = hashes.map(toSignedId);
+	const placeholders = ids.map(() => '?').join(',');
+
+	try {
+		const { version } = await getSqliteUrl();
+		const sql = `SELECT id, json FROM ${tableName} WHERE id IN (${placeholders})`;
+		const stmt = getStmt(db, version, sql);
+		const rows = stmt.all(...ids);
+		const out = {};
+		for (const row of rows) {
+			try {
+				// Convert signed id back to unsigned hash string (matches original keys)
+				const unsigned = (row.id >>> 0).toString();
+				out[unsigned] = JSON.parse(row.json);
+			} catch {}
+		}
+		return out;
+	} catch (err) {
+		console.warn(`[manifestDb] bulk lookup failed ${tableName}:`, err.message);
+		return {};
+	}
+}
+
+/**
+ * Scan an entire definition table. Returns { [unsignedHash]: def }.
+ * Used by map-icons and similar full-table scans.
+ */
+export async function dbGetRawTable(tableName) {
+	const cacheKey = `mdb:raw:${tableName}`;
+	const cached = cacheGet(cacheKey);
+	if (cached !== undefined) return cached;
+
+	const db = await getDb();
+	if (!db) return {};
+
+	try {
+		const stmt = db.prepare(`SELECT id, json FROM ${tableName}`);
+		const rows = stmt.all();
+		const out = {};
+		for (const row of rows) {
+			try {
+				out[(row.id >>> 0).toString()] = JSON.parse(row.json);
+			} catch {}
+		}
+		cacheSet(cacheKey, out, DB_TTL);
+		return out;
+	} catch (err) {
+		console.warn(`[manifestDb] getRawTable failed ${tableName}:`, err.message);
+		return {};
+	}
+}
+
+/**
+ * Return all historical stats/medals as { [statId]: def }.
+ */
+export async function dbGetAllMedals() {
+	const cacheKey = 'mdb:all-medals';
+	const cached = cacheGet(cacheKey);
+	if (cached !== undefined) return cached;
+
+	const db = await getDb();
+	if (!db) return {};
+
+	try {
+		const rows = db.prepare(`SELECT key, json FROM DestinyHistoricalStatsDefinition`).all();
+		const out = {};
+		for (const row of rows) {
+			try {
+				out[row.key] = JSON.parse(row.json);
+			} catch {}
+		}
+		cacheSet(cacheKey, out, DB_TTL);
+		return out;
+	} catch (err) {
+		console.warn('[manifestDb] getAllMedals failed:', err.message);
+		return {};
+	}
+}
+
+/**
  * Run an arbitrary SELECT query against the manifest.
  * @param {string} sql  — parameterized SQL string
  * @param {Array}  params
