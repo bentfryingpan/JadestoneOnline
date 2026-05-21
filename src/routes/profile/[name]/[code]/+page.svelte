@@ -64,7 +64,7 @@
 		'Maps',
 		'Pursuits',
 		'Loadout',
-		'Vault'
+		'Badges'
 	];
 
 	// ── Inventory (Vault) ──────────────────────────────────────────────────────
@@ -86,10 +86,51 @@
 	}
 
 	$effect(() => {
-		if (tab === 'vault' && !inventory && !inventoryLoading) {
-			fetchInventory();
-		}
+		// Vault tab removed — inventory fetch no longer auto-triggered
+		void inventory;
 	});
+
+	// ── Badge selection (Badges tab) ─────────────────────────────────────────
+	// Keys are "season:slug" strings, matching player_season_awards
+	let selectedBadgeKeys = $state([...(data.pinnedAwardKeys ?? [])]);
+	let badgeSaving = $state(false);
+	let badgeSaveResult = $state(null); // null | 'ok' | 'error'
+
+	function toggleBadge(key) {
+		if (selectedBadgeKeys.includes(key)) {
+			selectedBadgeKeys = selectedBadgeKeys.filter((k) => k !== key);
+		} else if (selectedBadgeKeys.length < 5) {
+			selectedBadgeKeys = [...selectedBadgeKeys, key];
+		}
+	}
+
+	async function saveBadges() {
+		badgeSaving = true;
+		badgeSaveResult = null;
+		try {
+			const res = await fetch('/api/profile/badges', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					playerMembershipId: data.membershipId,
+					pinnedAwardKeys: selectedBadgeKeys
+				})
+			});
+			badgeSaveResult = res.ok ? 'ok' : 'error';
+		} catch {
+			badgeSaveResult = 'error';
+		} finally {
+			badgeSaving = false;
+			setTimeout(() => (badgeSaveResult = null), 3000);
+		}
+	}
+
+	// Awards visible in banner = pinned keys that exist in ended-season awards
+	const displayedAwards = $derived(
+		selectedBadgeKeys.length > 0
+			? (data.awards ?? []).filter((a) => selectedBadgeKeys.includes(`${a.season}:${a.slug}`))
+			: []
+	);
 
 	// ── Lazy loadout — cached per character ───────────────────────────────────
 	let loadouts = $state({});        // { [charId]: loadoutData }
@@ -1609,8 +1650,8 @@
 						</div>
 					</div>
 					<div class="mt-10 flex items-center gap-6">
-						{#if data.awards?.length}
-							{#each data.awards as award}
+						{#if displayedAwards.length}
+							{#each displayedAwards as award}
 								{@render medalBadge({
 									icon: award.tier === '1st' ? '1' : award.tier === '2nd' ? '2' : award.tier === '3rd' ? '3' : award.icon,
 									color: award.color,
@@ -1618,8 +1659,8 @@
 									sublabel: `S${award.season} · ${award.tier === '1st' ? '#1' : award.tier === '2nd' ? '#2' : award.tier === '3rd' ? '#3' : award.tier === 'top5' ? 'TOP 5' : 'TOP 10'}`
 								})}
 							{/each}
-						{:else}
-							<span class="font-sans text-[9px] tracking-[0.2em] text-zinc-700 uppercase">No season awards yet</span>
+						{:else if data.awards?.length && data.isOwner}
+							<span class="font-sans text-[9px] tracking-[0.2em] text-zinc-600 uppercase">Pin badges in the Badges tab</span>
 						{/if}
 					</div>
 				</div>
@@ -2535,40 +2576,127 @@
 									</div>
 								</div>
 							</div>
-						{:else if profileTab === 'vault'}
+						{:else if profileTab === 'badges'}
 							<div
-								class="animate-in fade-in slide-in-from-bottom-2 mx-auto max-w-6xl space-y-10 duration-700"
+								class="animate-in fade-in slide-in-from-bottom-2 mx-auto max-w-4xl space-y-10 duration-700"
 							>
-								<div>
-									{@render engravedHeader({ text: 'PERSONAL_ARSENAL' })}
-									<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-										{#if inventoryLoading}
-											{#each Array(9) as _}
-												<div class="h-20 animate-pulse border border-zinc-800 bg-zinc-900/20"></div>
-											{/each}
-										{:else if inventory?.weapons}
-											{#each inventory.weapons as item}
-												{@render inventoryItemCard({ item })}
-											{/each}
-										{:else}
-											<div
-												class="col-span-full py-20 text-center text-[10px] tracking-[0.3em] text-zinc-700 uppercase"
-											>
-												No inventory data loaded.
+								{@render engravedHeader({ text: 'SEASON_AWARDS' })}
+
+								{#if !data.awards?.length}
+									<!-- No ended-season awards yet -->
+									<div class="border border-zinc-800 bg-[#111111] p-12 text-center">
+										<div class="mb-4 flex justify-center">
+											<div class="flex h-12 w-12 rotate-45 items-center justify-center border border-zinc-700 bg-zinc-900">
+												<span class="-rotate-45 text-xl font-black text-zinc-700">◈</span>
 											</div>
-										{/if}
+										</div>
+										<p class="font-sans text-[10px] tracking-[0.3em] text-zinc-600 uppercase">
+											Awards are granted after each season ends
+										</p>
 									</div>
-								</div>
-								<div>
-									{@render engravedHeader({ text: 'GUARD_PROTECTION' })}
-									<div class="grid grid-cols-1 gap-4 opacity-60 md:grid-cols-2 lg:grid-cols-3">
-										{#if inventory?.armor}
-											{#each inventory.armor as item}
-												{@render inventoryItemCard({ item })}
-											{/each}
-										{/if}
+								{:else}
+									<!-- Award grid -->
+									{#if data.isOwner}
+										<p class="font-sans text-[9px] tracking-[0.2em] text-zinc-500 uppercase">
+											Select up to 5 awards to display on your profile banner.
+											{selectedBadgeKeys.length}/5 selected.
+										</p>
+									{/if}
+
+									<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+										{#each data.awards as award}
+											{@const key = `${award.season}:${award.slug}`}
+											{@const isPinned = selectedBadgeKeys.includes(key)}
+											{@const canPin = isPinned || selectedBadgeKeys.length < 5}
+											{@const colorClasses =
+												award.color === 'amber'
+													? 'border-amber-500/40 bg-amber-950/10 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.12)]'
+													: award.color === 'silver'
+														? 'border-zinc-400/40 bg-zinc-900/50 text-zinc-200'
+														: award.color === 'bronze'
+															? 'border-orange-700/40 bg-orange-950/10 text-orange-400'
+															: award.color === 'emerald'
+																? 'border-emerald-500/40 bg-emerald-950/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
+																: 'border-zinc-600/30 bg-zinc-900/40 text-zinc-400'}
+											<button
+												onclick={() => data.isOwner && canPin && toggleBadge(key)}
+												class="group relative flex flex-col items-center gap-4 border p-6 transition-all duration-300 {colorClasses}
+													{isPinned ? 'scale-[1.02] opacity-100' : 'opacity-60 hover:opacity-80'}
+													{data.isOwner && canPin ? 'cursor-pointer' : 'cursor-default'}
+													{!data.isOwner ? 'cursor-default' : ''}"
+											>
+												<!-- Diamond icon -->
+												<div class="relative flex h-16 w-16 items-center justify-center">
+													<!-- Spinning outer ring when pinned -->
+													{#if isPinned}
+														<div class="absolute inset-0 rotate-45 animate-[spin_8s_linear_infinite] border border-current opacity-30"></div>
+														<div class="absolute inset-2 -rotate-45 animate-[spin_12s_linear_infinite_reverse] border border-current opacity-20"></div>
+													{/if}
+													<div class="flex h-10 w-10 rotate-45 items-center justify-center border-2 border-current bg-current/5">
+														<span class="-rotate-45 text-base font-black">
+															{award.tier === '1st' ? '1' : award.tier === '2nd' ? '2' : award.tier === '3rd' ? '3' : award.icon}
+														</span>
+													</div>
+												</div>
+
+												<!-- Award info -->
+												<div class="text-center">
+													<div class="font-sans text-[10px] font-black tracking-[0.2em] uppercase">
+														{award.title}
+													</div>
+													<div class="mt-1 font-sans text-[8px] tracking-[0.15em] text-zinc-500 uppercase">
+														Season {award.season} ·
+														{award.tier === '1st' ? '1st Place' : award.tier === '2nd' ? '2nd Place' : award.tier === '3rd' ? '3rd Place' : award.tier === 'top5' ? 'Top 5' : 'Top 10'}
+													</div>
+													{#if award.data?.value != null}
+														<div class="mt-2 font-sans text-[11px] font-bold">
+															{typeof award.data.value === 'number' && award.data.value > 1000
+																? award.data.value.toLocaleString()
+																: award.data.value}{award.slug === 'win_rate' || award.slug === 'mote_efficiency' ? '%' : ''}
+														</div>
+													{/if}
+												</div>
+
+												<!-- Pinned indicator -->
+												{#if isPinned}
+													<div class="absolute top-2 right-2 flex h-4 w-4 items-center justify-center bg-current">
+														<span class="text-[8px] font-black text-black">✓</span>
+													</div>
+												{:else if data.isOwner && !canPin}
+													<div class="absolute inset-0 flex items-center justify-center bg-black/40">
+														<span class="font-sans text-[8px] tracking-[0.2em] text-zinc-500 uppercase">Max 5</span>
+													</div>
+												{/if}
+											</button>
+										{/each}
 									</div>
-								</div>
+
+									<!-- Save button — only shown to owner -->
+									{#if data.isOwner}
+										<div class="flex items-center gap-4 pt-4">
+											<button
+												onclick={saveBadges}
+												disabled={badgeSaving}
+												class="border border-emerald-500/30 bg-emerald-950/20 px-6 py-2 font-sans text-[10px] font-black tracking-[0.3em] text-emerald-400 uppercase transition-all hover:border-emerald-500/60 hover:bg-emerald-500/10 disabled:opacity-40"
+											>
+												{badgeSaving ? 'SAVING…' : 'SAVE DISPLAY'}
+											</button>
+											{#if badgeSaveResult === 'ok'}
+												<span class="font-sans text-[9px] tracking-[0.2em] text-emerald-500 uppercase">Saved</span>
+											{:else if badgeSaveResult === 'error'}
+												<span class="font-sans text-[9px] tracking-[0.2em] text-rose-500 uppercase">Error saving</span>
+											{/if}
+											{#if selectedBadgeKeys.length > 0}
+												<button
+													onclick={() => { selectedBadgeKeys = []; }}
+													class="font-sans text-[9px] tracking-[0.2em] text-zinc-600 uppercase transition-colors hover:text-zinc-400"
+												>
+													Clear all
+												</button>
+											{/if}
+										</div>
+									{/if}
+								{/if}
 							</div>
 						{/if}
 					</div>

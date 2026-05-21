@@ -3,7 +3,7 @@ import { supabaseAdmin } from '$lib/supabase-server.js';
 import { error } from '@sveltejs/kit';
 import { cacheWrap, cacheGet, cacheSet, SEARCH_TTL, PROFILE_TTL } from '$lib/server/cache.js';
 
-// Season date ranges — compute seasonal stats from DB matches instead of paginating Bungie
+// Season date ranges — also used to gate award visibility (only after season ends)
 const SEASONS = [
 	{ name: 'Season of the Haunted',    number: 17, start: '2022-05-24', end: '2022-08-23' },
 	{ name: 'Season of Plunder',        number: 18, start: '2022-08-23', end: '2022-12-06' },
@@ -147,14 +147,14 @@ export async function load({ params, parent, url, setHeaders }) {
 				);
 				return { profileData };
 			}),
-			// ── DB: player record (claim + banner) ──
+			// ── DB: player record (claim + banner + pinned badges) ──
 			(async () => {
 				const claimKey = `claim:${membershipId}`;
 				const cachedClaim = cacheGet(claimKey);
 				if (cachedClaim !== undefined) return cachedClaim;
 				const r = await supabaseAdmin
 					.from('players')
-					.select('claimed_by, banner_url')
+					.select('claimed_by, banner_url, pinned_award_keys')
 					.eq('id', membershipId)
 					.single()
 					.then((r) => r.data)
@@ -382,7 +382,14 @@ export async function load({ params, parent, url, setHeaders }) {
 		dbTotals,
 		verifiedMedals,
 		jprRanks,
-		awards: dbAwards ?? [],
-		bannerUrl: dbPlayer?.banner_url ?? null
+		// Only surface awards for seasons that have already ended
+		awards: (dbAwards ?? []).filter((a) => {
+			const season = SEASONS.find((s) => s.number === a.season);
+			if (!season) return false;
+			const today = new Date().toISOString().slice(0, 10);
+			return today >= season.end;
+		}),
+		bannerUrl: dbPlayer?.banner_url ?? null,
+		pinnedAwardKeys: dbPlayer?.pinned_award_keys ?? []
 	};
 }
