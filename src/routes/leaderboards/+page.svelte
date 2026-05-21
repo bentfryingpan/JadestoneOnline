@@ -103,14 +103,19 @@
 	// ── Helpers ──────────────────────────────────────────────────────────────────
 	function playerUrl(row) {
 		const name = row.players?.bungie_name ?? row.bungie_name ?? '';
-		const code = row.players?.bungie_code ?? row.bungie_code ?? '0000';
-		return `/profile/${encodeURIComponent(name)}/${code}`;
+		const code = row.players?.bungie_code ?? row.bungie_code ?? '';
+		if (name && code) return `/profile/${encodeURIComponent(name)}/${String(code).padStart(4, '0')}`;
+		// Fallback: use membership ID + type directly (profile server supports ?mid=&mt=)
+		const mid = row.player_id;
+		const mt  = row.players?.membership_type ?? 3;
+		return `/profile/Guardian/0000?mid=${mid}&mt=${mt}`;
 	}
 
 	function displayName(row) {
-		const name = row.players?.bungie_name ?? row.bungie_name ?? 'Unknown';
-		const code = row.players?.bungie_code ?? row.bungie_code ?? '0000';
-		return `${name}#${code}`;
+		const name = row.players?.bungie_name ?? row.bungie_name ?? '';
+		const code = row.players?.bungie_code ?? row.bungie_code ?? '';
+		if (name && code) return `${name}#${String(code).padStart(4, '0')}`;
+		return `Guardian#${String(row.player_id).slice(-4)}`;
 	}
 
 	const PLATFORM_LABELS = {

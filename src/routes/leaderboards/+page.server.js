@@ -36,12 +36,14 @@ export async function load({ url }) {
 		.select('id, bungie_name, bungie_code, membership_type, platforms')
 		.in('id', allPlayerIds);
 
-	const playerMap = Object.fromEntries((playerRows ?? []).map(p => [p.id, p]));
+	// Keyed by String(id) — bigint columns can come back as number from Postgres,
+	// while player_jpr.player_id may come back as string; normalise both sides.
+	const playerMap = Object.fromEntries((playerRows ?? []).map(p => [String(p.id), p]));
 
 	// Platform-aware filter: uses platforms[] array (cross-save aware).
 	// Falls back to membership_type for players whose platforms array hasn't been populated yet.
 	function inPool(player_id, pool) {
-		const p = playerMap[player_id];
+		const p = playerMap[String(player_id)];
 		if (p?.platforms?.length) {
 			return p.platforms.includes(pool);
 		}
@@ -84,7 +86,7 @@ export async function load({ url }) {
 	  .sort((a, b) => b.jpr - a.jpr)
 	  .slice(0, 100);
 
-	const attach = rows => rows.map(r => ({ ...r, players: playerMap[r.player_id] ?? null }));
+	const attach = rows => rows.map(r => ({ ...r, players: playerMap[String(r.player_id)] ?? null }));
 
 	return {
 		segments: {
