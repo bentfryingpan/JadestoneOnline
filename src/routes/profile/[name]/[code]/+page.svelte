@@ -126,10 +126,11 @@
 	}
 
 	// Awards visible in banner = pinned keys that exist in ended-season awards
-	// Platform pool for this player's rank display ('pc' | 'console')
-	const rankPool = $derived(
-		data.jprRanks ? (Object.values(data.jprRanks)[0]?.pool ?? 'pc') : 'pc'
-	);
+	// Platform pools for this player — may be ['pc'], ['console'], or ['pc','console'] for cross-save
+	const playerPools   = $derived(data.playerPools ?? ['pc']);
+	const primaryPool   = $derived(playerPools[0] ?? 'pc');
+	// Legacy alias used in a few places that only need a single pool label
+	const rankPool      = $derived(primaryPool);
 
 	const displayedAwards = $derived(
 		selectedBadgeKeys.length > 0
@@ -1017,18 +1018,20 @@
 			clan: data.clan?.name ?? null,
 			// avgEgo: authoritative EGO average from PGCR history, then Supabase career
 			avgEgo: egoRating,
-			// jprBestRank: best rank position across all leaderboard segments (null until crawler runs)
+			// jprBestRank: best rank position in primary pool across all leaderboard segments
 			jprBestRank: (() => {
 				const jr = data.jprRanks;
 				if (!jr) return null;
-				const ranks = Object.values(jr).map(v => v.rank).filter(Number.isFinite);
+				const pool = data.playerPools?.[0] ?? 'pc';
+				const ranks = Object.values(jr).map(v => v.poolRanks?.[pool]).filter(Number.isFinite);
 				return ranks.length > 0 ? Math.min(...ranks) : null;
 			})(),
-			// jprAvgRank: average rank position across all segments the player appears in
+			// jprAvgRank: average rank in primary pool across all segments the player appears in
 			jprAvgRank: (() => {
 				const jr = data.jprRanks;
 				if (!jr) return null;
-				const ranks = Object.values(jr).map(v => v.rank).filter(Number.isFinite);
+				const pool = data.playerPools?.[0] ?? 'pc';
+				const ranks = Object.values(jr).map(v => v.poolRanks?.[pool]).filter(Number.isFinite);
 				return ranks.length > 0 ? Math.round(ranks.reduce((a, b) => a + b, 0) / ranks.length) : null;
 			})(),
 			// jprAvgRating: average JPR score value across all segments (the actual rating number)
@@ -1274,8 +1277,9 @@
 
 {#snippet rankMedallion({ tier, value })}
 	{@const jr = data.jprRanks}
-	{@const pool = jr ? Object.values(jr)[0]?.pool ?? 'pc' : 'pc'}
-	{@const poolLabel = pool === 'console' ? 'CON' : 'PC'}
+	{@const pools = data.playerPools ?? ['pc']}
+	{@const pPool = pools[0] ?? 'pc'}
+	{@const poolLabel = pPool === 'console' ? 'CON' : 'PC'}
 	{@const segments = [
 		{ key: 'solo',  label: 'SOLO QUEUE' },
 		{ key: 'duo',   label: 'DUO STACK' },
@@ -1284,10 +1288,7 @@
 	]}
 	{@const activeSegs = jr ? segments.filter(s => jr[s.key]) : []}
 	{@const bestRank = activeSegs.length > 0
-		? Math.min(...activeSegs.map(s => jr[s.key].rank))
-		: null}
-	{@const bestGlobalRank = activeSegs.length > 0
-		? Math.min(...activeSegs.map(s => jr[s.key].globalRank ?? jr[s.key].rank))
+		? Math.min(...activeSegs.map(s => jr[s.key].poolRanks?.[pPool]).filter(Number.isFinite))
 		: null}
 	<div class="group/rank absolute -top-4 -right-4 z-30 flex h-12 w-12 items-center justify-center">
 		<div
@@ -1318,7 +1319,12 @@
 		>
 			<div class="border-b border-zinc-800 px-3 py-2 flex items-center justify-between">
 				<p class="text-[8px] font-black tracking-[0.25em] text-emerald-500 uppercase">LEADERBOARD RANK</p>
-				<span class="text-[8px] font-bold tracking-widest px-1.5 py-0.5 border {pool === 'console' ? 'border-violet-500/40 text-violet-400' : 'border-sky-500/40 text-sky-400'} uppercase">{pool === 'console' ? 'Console' : 'PC'}</span>
+				<!-- Pool chips — one per pool the player is in -->
+				<div class="flex gap-1">
+					{#each pools as pl}
+						<span class="text-[8px] font-bold tracking-widest px-1.5 py-0.5 border {pl === 'console' ? 'border-violet-500/40 text-violet-400' : 'border-sky-500/40 text-sky-400'} uppercase">{pl === 'console' ? 'Con' : 'PC'}</span>
+					{/each}
+				</div>
 			</div>
 			<div class="divide-y divide-zinc-900">
 				{#each segments as seg}
@@ -1327,13 +1333,18 @@
 						<span class="text-[9px] font-bold tracking-widest text-zinc-500 uppercase">{seg.label}</span>
 						{#if entry}
 							<div class="flex items-center gap-2">
-								<!-- Platform rank -->
-								<div class="flex flex-col items-end">
-									<span class="text-xs font-black text-emerald-400">#{entry.rank}</span>
-									<span class="text-[7px] text-zinc-600 uppercase">{poolLabel}</span>
-								</div>
-								{#if entry.globalRank && entry.globalRank !== entry.rank}
-									<!-- Global rank (all platforms) -->
+								<!-- Per-pool ranks -->
+								{#each pools as pl}
+									{@const plRank = entry.poolRanks?.[pl]}
+									{#if plRank != null}
+										<div class="flex flex-col items-end">
+											<span class="text-xs font-black {pl === 'console' ? 'text-violet-400' : 'text-emerald-400'}">#{plRank}</span>
+											<span class="text-[7px] text-zinc-600 uppercase">{pl === 'console' ? 'CON' : 'PC'}</span>
+										</div>
+									{/if}
+								{/each}
+								{#if entry.globalRank && pools.length < 2}
+									<!-- Global rank (all platforms) — only show when single-pool to avoid clutter -->
 									<div class="flex flex-col items-end border-l border-zinc-800 pl-2">
 										<span class="text-xs font-bold text-zinc-500">#{entry.globalRank}</span>
 										<span class="text-[7px] text-zinc-700 uppercase">Global</span>
@@ -1697,9 +1708,18 @@
 								</span>
 								<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
 									{#if playerData.identity.jprAvgRank != null}
-										#{playerData.identity.jprAvgRank} {rankPool === 'console' ? 'CONSOLE' : 'PC'}
+										#{playerData.identity.jprAvgRank} {primaryPool === 'console' ? 'CONSOLE' : 'PC'}
+										{#if playerPools.length > 1}
+											{@const secondPool = playerPools[1]}
+											{@const jr = data.jprRanks}
+											{@const segs = jr ? Object.values(jr).map(v => v.poolRanks?.[secondPool]).filter(Number.isFinite) : []}
+											{@const secondRank = segs.length > 0 ? Math.round(segs.reduce((a,b) => a+b,0)/segs.length) : null}
+											{#if secondRank != null}
+												· #{secondRank} {secondPool === 'console' ? 'CONSOLE' : 'PC'}
+											{/if}
+										{/if}
 									{:else}
-										#— {rankPool === 'console' ? 'CONSOLE' : 'PC'}
+										#— {primaryPool === 'console' ? 'CONSOLE' : 'PC'}
 									{/if}
 								</span>
 							</div>

@@ -147,14 +147,14 @@ export async function load({ params, parent, url, setHeaders }) {
 				);
 				return { profileData };
 			}),
-			// ── DB: player record (claim + banner + pinned badges) ──
+			// ── DB: player record (claim + banner + pinned badges + platforms) ──
 			(async () => {
 				const claimKey = `claim:${membershipId}`;
 				const cachedClaim = cacheGet(claimKey);
 				if (cachedClaim !== undefined) return cachedClaim;
 				const r = await supabaseAdmin
 					.from('players')
-					.select('claimed_by, banner_url, pinned_award_keys')
+					.select('claimed_by, banner_url, pinned_award_keys, platforms')
 					.eq('id', membershipId)
 					.single()
 					.then((r) => r.data)
@@ -337,46 +337,62 @@ export async function load({ params, parent, url, setHeaders }) {
 	// Seasonal stats computed from DB matches — instant, no Bungie pagination
 	const seasonal = computeSeasonalFromMatches(dbMatches);
 
-	// ── JPR Leaderboard Ranks — platform-aware ──────────────────────────────
-	// Determine this player's platform pool
+	// ── JPR Leaderboard Ranks — cross-save aware ────────────────────────────
+	// Determine which platform pools this player participates in.
+	// Uses the platforms[] array if populated, falls back to membership_type.
 	const CONSOLE_TYPES = [1, 2];
 	const playerMt      = parseInt(membershipType, 10);
-	const playerPool    = CONSOLE_TYPES.includes(playerMt) ? 'console' : 'pc';
+	const dbPlatforms   = dbPlayer?.platforms ?? [];
+	const playerPools   = dbPlatforms.length > 0
+		? dbPlatforms.filter((p) => p === 'pc' || p === 'console')
+		: [CONSOLE_TYPES.includes(playerMt) ? 'console' : 'pc'];
 
 	let jprRanks = null;
 	try {
 		if (dbJprRows?.length) {
 			const segments = dbJprRows.map((r) => r.segment);
 
-			// Fetch all qualifying rows for these segments in one call,
-			// then compute both global and platform rank in JS (no N+1 queries).
-			const [{ data: allSegRows }, { data: poolPlayers }] = await Promise.all([
+			// Fetch all qualifying rows for these segments + pool player IDs in parallel.
+			// One query per pool the player participates in (max 2 queries).
+			const poolPlayerQueries = playerPools.map((pool) =>
+				supabaseAdmin
+					.from('players')
+					.select('id')
+					.contains('platforms', [pool])
+					.then((r) => [pool, new Set((r.data ?? []).map((p) => String(p.id)))])
+			);
+
+			const [{ data: allSegRows }, ...poolEntries] = await Promise.all([
 				supabaseAdmin
 					.from('player_jpr')
 					.select('player_id, segment, jpr, games_played')
 					.in('segment', segments)
 					.gte('games_played', 20)
 					.not('jpr', 'is', null),
-				supabaseAdmin
-					.from('players')
-					.select('id, membership_type')
-					.in('membership_type', playerPool === 'console' ? CONSOLE_TYPES : [3, 4, 5, 6]),
+				...poolPlayerQueries,
 			]);
 
-			const poolIds = new Set((poolPlayers ?? []).map((p) => String(p.id)));
+			// Map of pool → Set of player IDs in that pool
+			const poolIdSets = Object.fromEntries(poolEntries);
 
 			jprRanks = Object.fromEntries(
 				dbJprRows.map((row) => {
 					const peers = (allSegRows ?? []).filter((r) => r.segment === row.segment);
 					// Global rank: all qualifying players in this segment with higher JPR
 					const globalRank = peers.filter((r) => r.jpr > row.jpr).length + 1;
-					// Platform rank: only players in the same pool
-					const platformRank = peers.filter(
-						(r) => poolIds.has(String(r.player_id)) && r.jpr > row.jpr
-					).length + 1;
+					// Per-pool rank — one entry per pool the player has played on
+					const poolRanks = Object.fromEntries(
+						playerPools.map((pool) => {
+							const poolIds = poolIdSets[pool] ?? new Set();
+							const rank = peers.filter(
+								(r) => poolIds.has(String(r.player_id)) && r.jpr > row.jpr
+							).length + 1;
+							return [pool, rank];
+						})
+					);
 					return [
 						row.segment,
-						{ rank: platformRank, globalRank, jpr: row.jpr, games: row.games_played, pool: playerPool },
+						{ poolRanks, globalRank, jpr: row.jpr, games: row.games_played, pools: playerPools },
 					];
 				})
 			);
@@ -408,6 +424,7 @@ export async function load({ params, parent, url, setHeaders }) {
 		dbTotals,
 		verifiedMedals,
 		jprRanks,
+		playerPools,
 		// Only surface awards for seasons that have already ended
 		awards: (dbAwards ?? []).filter((a) => {
 			const season = SEASONS.find((s) => s.number === a.season);

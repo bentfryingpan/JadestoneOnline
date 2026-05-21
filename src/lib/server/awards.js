@@ -83,18 +83,16 @@ export async function computeSeasonAwards(seasonNumber, db, platform = 'pc') {
 	const awarded = [];
 	const errors  = [];
 
-	// Platform filter: only include players whose membership_type maps to this pool.
-	// We resolve this by pre-fetching the relevant player IDs from the players table.
-	const consoleMts = [1, 2];
-	let platformPlayerIds = null; // null = no filter needed (shouldn't happen)
+	// Platform filter: include players who have actually played matches on this platform.
+	// Uses the `platforms` text[] column which is maintained by the crawler on every
+	// match write — cross-save players appear in both pools automatically.
+	// Falls back to membership_type filtering for players whose platforms array is empty.
+	let platformPlayerIds = null;
 	try {
-		let q = db.from('players').select('id');
-		if (platform === 'console') {
-			q = q.in('membership_type', consoleMts);
-		} else {
-			q = q.not('membership_type', 'in', `(${consoleMts.join(',')})`);
-		}
-		const { data: pRows } = await q;
+		const { data: pRows } = await db
+			.from('players')
+			.select('id')
+			.contains('platforms', [platform]);
 		platformPlayerIds = new Set((pRows ?? []).map((p) => String(p.id)));
 	} catch (e) {
 		errors.push(`platform_filter: ${e.message}`);
@@ -159,8 +157,6 @@ export async function computeSeasonAwards(seasonNumber, db, platform = 'pc') {
 		for (const m of matches ?? []) {
 			const pid = m.player_id;
 			if (!pid) continue;
-			// Belt-and-suspenders: also filter by platformPlayerIds
-			if (platformPlayerIds && !platformPlayerIds.has(String(pid))) continue;
 			if (!playerStats[pid]) {
 				playerStats[pid] = { games: 0, wins: 0, motes: 0, motesPickedUp: 0, motesLost: 0, invasionKills: 0 };
 			}

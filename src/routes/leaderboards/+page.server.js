@@ -29,18 +29,24 @@ export async function load({ url }) {
 		};
 	}
 
-	// Fetch all players (for name + membership_type for platform filtering)
+	// Fetch all players (for name + platform pool membership)
 	const allPlayerIds = [...new Set(allJpr.map(r => r.player_id))];
 	const { data: playerRows } = await supabaseAdmin
 		.from('players')
-		.select('id, bungie_name, bungie_code, membership_type')
+		.select('id, bungie_name, bungie_code, membership_type, platforms')
 		.in('id', allPlayerIds);
 
 	const playerMap = Object.fromEntries((playerRows ?? []).map(p => [p.id, p]));
 
-	// Platform-aware filter function
+	// Platform-aware filter: uses platforms[] array (cross-save aware).
+	// Falls back to membership_type for players whose platforms array hasn't been populated yet.
 	function inPool(player_id, pool) {
-		const mt = parseInt(playerMap[player_id]?.membership_type ?? 3, 10);
+		const p = playerMap[player_id];
+		if (p?.platforms?.length) {
+			return p.platforms.includes(pool);
+		}
+		// Fallback: derive pool from primary membership_type
+		const mt = parseInt(p?.membership_type ?? 3, 10);
 		const isConsole = CONSOLE_TYPES.includes(mt);
 		return pool === 'console' ? isConsole : !isConsole;
 	}

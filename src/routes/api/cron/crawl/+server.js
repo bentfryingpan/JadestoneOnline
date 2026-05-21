@@ -333,7 +333,7 @@ async function crawlPlayer(queueRow) {
 		// 6. Compute rating deltas — read current NGR, then update per-match
 		const { data: playerRow } = await supabaseAdmin
 			.from('players')
-			.select('ngr, games_played')
+			.select('ngr, games_played, platforms')
 			.eq('id', String(player_id))
 			.single();
 
@@ -363,12 +363,18 @@ async function crawlPlayer(queueRow) {
 				.upsert(ratingHistoryRows, { onConflict: 'player_id,instance_id' });
 		}
 
-		// Update players table with new NGR
+		// Merge platforms seen in new matches with player's existing platforms
+		const newPlatforms = [...new Set(matchRows.map((m) => m.platform).filter(Boolean))];
+		const existingPlatforms = playerRow?.platforms ?? [];
+		const allPlatforms = [...new Set([...existingPlatforms, ...newPlatforms])];
+
+		// Update players table with new NGR + platform tracking
 		await supabaseAdmin.from('players').upsert({
 			id:            String(player_id),
 			bungie_name:   bungie_name ?? null,
 			bungie_code:   bungie_code ?? null,
 			membership_type: membership_type,
+			platforms:     allPlatforms,
 			ngr:           Math.round(currentNgr * 10) / 10,
 			ego_score_avg: Math.round(currentNgr * 10) / 10,
 			games_played:  currentGames,
