@@ -13,6 +13,12 @@ export async function load({ url }) {
 	const initialSegment  = [...SEGMENT_KEYS, 'overall'].includes(seg) ? seg : 'solo';
 	const initialPlatform = ['pc', 'console'].includes(platform) ? platform : 'pc';
 
+	// Fetch alt account IDs so they can be excluded from all rankings
+	const { data: altRows } = await supabaseAdmin
+		.from('alt_accounts')
+		.select('alt_player_id');
+	const altIds = new Set((altRows ?? []).map(r => String(r.alt_player_id)));
+
 	// Single query — all segments at once, ordered by JPR desc
 	const { data: allJpr } = await supabaseAdmin
 		.from('player_jpr')
@@ -53,17 +59,18 @@ export async function load({ url }) {
 		return pool === 'console' ? isConsole : !isConsole;
 	}
 
-	// Group by segment, filtered to platform, top 100 each
+	// Group by segment, filtered to platform + exclude alts, top 100 each
 	const bySegment = {};
 	for (const key of SEGMENT_KEYS) {
 		bySegment[key] = allJpr
-			.filter(r => r.segment === key && inPool(r.player_id, initialPlatform))
+			.filter(r => r.segment === key && !altIds.has(String(r.player_id)) && inPool(r.player_id, initialPlatform))
 			.slice(0, 100);
 	}
 
-	// Overall — best single segment JPR per player (platform-filtered)
+	// Overall — best single segment JPR per player (platform-filtered, alts excluded)
 	const byPlayer = {};
 	for (const r of allJpr) {
+		if (altIds.has(String(r.player_id))) continue;
 		if (!inPool(r.player_id, initialPlatform)) continue;
 		if (!byPlayer[r.player_id]) {
 			byPlayer[r.player_id] = { segments: {}, totalGames: 0 };

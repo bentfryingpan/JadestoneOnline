@@ -25,6 +25,7 @@ import { calcEgo, extractMedals } from '$lib/server/ego.js';
 import { getActivityDef, getItemDef } from '$lib/server/manifest.js';
 import { calcJPR, saveJPR } from '$lib/server/jpr.js';
 import { computeSeasonAwards, currentSeason, membershipTypeToPlatform } from '$lib/server/awards.js';
+import { recomputeGroupJPR } from '$lib/server/alts.js';
 
 const BUNGIE_ROOT  = 'https://www.bungie.net';
 const PGCR_ROOT    = 'https://stats.bungie.net';
@@ -393,6 +394,8 @@ async function crawlPlayer(queueRow) {
 		if (allMatches?.length) {
 			const jprResult = calcJPR(allMatches);
 			await saveJPR(supabaseAdmin, String(player_id), jprResult);
+			// If this player is in an alt group, sync the combined rating to all accounts
+			recomputeGroupJPR(supabaseAdmin, String(player_id)).catch(() => {});
 		}
 
 	} catch (err) {

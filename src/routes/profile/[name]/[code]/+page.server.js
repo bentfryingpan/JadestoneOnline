@@ -137,9 +137,9 @@ export async function load({ params, parent, url, setHeaders }) {
 	const profileKey = `profile:${membershipId}`;
 	const idStr = String(membershipId);
 
-	let profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows, dbAwards;
+	let profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows, dbAwards, dbAltAccounts, dbIsAltOf;
 	try {
-		[profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows, dbAwards] = await Promise.all([
+		[profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows, dbAwards, dbAltAccounts, dbIsAltOf] = await Promise.all([
 			// ── Bungie: profile + triumphs in one call — clan/stats served from DB ──
 			cacheWrap(profileKey, PROFILE_TTL, async () => {
 				const profileData = await bungieGet(
@@ -195,6 +195,22 @@ export async function load({ params, parent, url, setHeaders }) {
 				.order('season', { ascending: false })
 				.then(r => r.data ?? [])
 				.catch(() => []),
+			// ── DB: alt accounts (for owner panel) ──
+			supabaseAdmin
+				.from('alt_accounts')
+				.select('alt_player_id, verified_at, players!alt_accounts_alt_player_id_fkey(bungie_name, bungie_code, membership_type)')
+				.eq('primary_player_id', idStr)
+				.order('verified_at', { ascending: true })
+				.then(r => r.data ?? [])
+				.catch(() => []),
+			// ── DB: is this account an alt of someone? ──
+			supabaseAdmin
+				.from('alt_accounts')
+				.select('primary_player_id, players!alt_accounts_primary_player_id_fkey(bungie_name, bungie_code)')
+				.eq('alt_player_id', idStr)
+				.single()
+				.then(r => r.data ?? null)
+				.catch(() => null),
 		]);
 	} catch (e) {
 		if (e?.status) throw e;
@@ -433,6 +449,20 @@ export async function load({ params, parent, url, setHeaders }) {
 			return today >= season.end;
 		}),
 		bannerUrl: dbPlayer?.banner_url ?? null,
-		pinnedAwardKeys: dbPlayer?.pinned_award_keys ?? []
+		pinnedAwardKeys: dbPlayer?.pinned_award_keys ?? [],
+		// Alt account data — only meaningful to the owner
+		altAccounts: (dbAltAccounts ?? []).map(a => ({
+			altId:    String(a.alt_player_id),
+			name:     a.players?.bungie_name ?? null,
+			code:     a.players?.bungie_code ?? null,
+			mt:       a.players?.membership_type ?? 3,
+			verifiedAt: a.verified_at,
+		})),
+		// If this profile IS an alt, surface the primary so we can show a note to the owner
+		isAltOf: dbIsAltOf ? {
+			primaryId: String(dbIsAltOf.primary_player_id),
+			name: dbIsAltOf.players?.bungie_name ?? null,
+			code: dbIsAltOf.players?.bungie_code ?? null,
+		} : null,
 	};
 }

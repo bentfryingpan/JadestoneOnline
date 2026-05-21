@@ -64,7 +64,8 @@
 		'Maps',
 		'Pursuits',
 		'Loadout',
-		'Badges'
+		'Badges',
+		...(data.isOwner ? ['Accounts'] : [])
 	];
 
 	// ── Inventory (Vault) ──────────────────────────────────────────────────────
@@ -2743,6 +2744,72 @@
 											{/if}
 										</div>
 									{/if}
+								{/if}
+							</div>
+
+						<!-- ── Accounts tab (owner only) ─────────────────────── -->
+						{:else if profileTab === 'accounts' && data.isOwner}
+							<div class="mx-auto w-full max-w-2xl space-y-8 p-6">
+
+								{#if data.isAltOf}
+									<div class="border border-amber-500/30 bg-amber-950/10 p-4">
+										<p class="font-sans text-[10px] font-bold tracking-[0.2em] text-amber-400 uppercase">
+											This account is linked as an alt of
+											<a
+												href={data.isAltOf.name
+													? `/profile/${encodeURIComponent(data.isAltOf.name)}/${String(data.isAltOf.code).padStart(4,'0')}`
+													: `/profile/Guardian/0000?mid=${data.isAltOf.primaryId}&mt=3`}
+												class="underline hover:text-amber-300"
+											>{data.isAltOf.name ? `${data.isAltOf.name}#${String(data.isAltOf.code).padStart(4,'0')}` : 'another account'}</a>.
+											Alt accounts cannot have their own alts.
+										</p>
+									</div>
+								{:else}
+									<div>
+										<p class="mb-4 font-sans text-[9px] tracking-[0.25em] text-zinc-500 uppercase">
+											Linked alt accounts share your rating. Their matches are pooled with yours and they are hidden from leaderboards.
+										</p>
+										{#if data.altAccounts?.length}
+											<div class="divide-y divide-zinc-900 border border-zinc-800">
+												{#each data.altAccounts as alt}
+													<div class="flex items-center justify-between px-4 py-3">
+														<div class="flex flex-col">
+															<span class="font-sans text-sm font-bold text-white">
+																{alt.name ? `${alt.name}#${String(alt.code).padStart(4,'0')}` : `ID: ${alt.altId}`}
+															</span>
+															<span class="font-sans text-[9px] text-zinc-600 uppercase tracking-widest">
+																{alt.mt === 1 ? 'Xbox' : alt.mt === 2 ? 'PlayStation' : alt.mt === 3 ? 'Steam' : alt.mt === 6 ? 'Epic' : 'PC'} · Verified {new Date(alt.verifiedAt).toLocaleDateString()}
+															</span>
+														</div>
+														<button
+															onclick={async () => {
+																if (!confirm('Unlink this alt? Their stats will no longer count toward your rating.')) return;
+																const r = await fetch('/api/profile/alts', {
+																	method: 'DELETE',
+																	headers: { 'Content-Type': 'application/json' },
+																	body: JSON.stringify({ primary_id: data.membershipId, alt_id: alt.altId })
+																});
+																if (r.ok) location.reload();
+																else alert('Failed to unlink. Try again.');
+															}}
+															class="font-sans text-[9px] font-bold tracking-widest text-rose-500 uppercase hover:text-rose-400 transition-colors"
+														>Unlink</button>
+													</div>
+												{/each}
+											</div>
+										{:else}
+											<p class="font-sans text-[10px] text-zinc-600 italic">No alt accounts linked yet.</p>
+										{/if}
+									</div>
+									<div class="border-t border-zinc-900 pt-6">
+										<p class="mb-3 font-sans text-[9px] tracking-[0.2em] text-zinc-500 uppercase">
+											Link a new alt — you'll sign in with it to verify ownership.
+										</p>
+										<a
+											href="/auth/link-alt"
+											class="inline-block border border-emerald-500/40 px-6 py-2 font-sans text-[10px] font-black tracking-[0.3em] text-emerald-400 uppercase transition-all hover:border-emerald-500/60 hover:bg-emerald-500/10"
+										>+ Link Alt Account</a>
+									</div>
 								{/if}
 							</div>
 						{/if}
