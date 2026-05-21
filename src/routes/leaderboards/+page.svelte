@@ -269,9 +269,8 @@
 							<span class="min-w-0">
 								<span class="flex items-center gap-1.5">
 									<span class="truncate text-sm text-zinc-200 font-medium">{displayName(row)}</span>
-									{@const chip = platformChip(row)}
-									{#if chip}
-										<span class="shrink-0 rounded-sm border border-zinc-700/60 bg-zinc-800/60 px-1 py-px text-[8px] font-bold tracking-wider text-zinc-500 uppercase">{chip.label}</span>
+									{#if platformChip(row)}
+										<span class="shrink-0 rounded-sm border border-zinc-700/60 bg-zinc-800/60 px-1 py-px text-[8px] font-bold tracking-wider text-zinc-500 uppercase">{platformChip(row).label}</span>
 									{/if}
 								</span>
 								<span class="text-[10px] text-zinc-600">
@@ -320,9 +319,8 @@
 							{/if}
 							<span class="flex items-center gap-1.5 min-w-0">
 								<span class="truncate text-sm text-zinc-200 font-medium">{displayName(row)}</span>
-								{@const chip = platformChip(row)}
-								{#if chip}
-									<span class="shrink-0 rounded-sm border border-zinc-700/60 bg-zinc-800/60 px-1 py-px text-[8px] font-bold tracking-wider text-zinc-500 uppercase">{chip.label}</span>
+								{#if platformChip(row)}
+									<span class="shrink-0 rounded-sm border border-zinc-700/60 bg-zinc-800/60 px-1 py-px text-[8px] font-bold tracking-wider text-zinc-500 uppercase">{platformChip(row).label}</span>
 								{/if}
 							</span>
 						</span>

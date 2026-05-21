@@ -126,6 +126,11 @@
 	}
 
 	// Awards visible in banner = pinned keys that exist in ended-season awards
+	// Platform pool for this player's rank display ('pc' | 'console')
+	const rankPool = $derived(
+		data.jprRanks ? (Object.values(data.jprRanks)[0]?.pool ?? 'pc') : 'pc'
+	);
+
 	const displayedAwards = $derived(
 		selectedBadgeKeys.length > 0
 			? (data.awards ?? []).filter((a) => selectedBadgeKeys.includes(`${a.season}:${a.slug}`))
@@ -1690,7 +1695,6 @@
 								<span class="font-sans text-5xl leading-none font-light tracking-tighter {playerData.identity.jprAvgRating != null ? 'text-white' : 'text-zinc-700'}">
 									{playerData.identity.jprAvgRating != null ? playerData.identity.jprAvgRating.toLocaleString() : '—'}
 								</span>
-								{@const rankPool = data.jprRanks ? (Object.values(data.jprRanks)[0]?.pool ?? 'pc') : 'pc'}
 								<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
 									{#if playerData.identity.jprAvgRank != null}
 										#{playerData.identity.jprAvgRank} {rankPool === 'console' ? 'CONSOLE' : 'PC'}
