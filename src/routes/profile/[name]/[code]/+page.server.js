@@ -337,23 +337,49 @@ export async function load({ params, parent, url, setHeaders }) {
 	// Seasonal stats computed from DB matches — instant, no Bungie pagination
 	const seasonal = computeSeasonalFromMatches(dbMatches);
 
-	// ── JPR Leaderboard Ranks ────────────────────────────────────────────────
-	// dbJprRows already loaded in parallel — just need rank counts now
+	// ── JPR Leaderboard Ranks — platform-aware ──────────────────────────────
+	// Determine this player's platform pool
+	const CONSOLE_TYPES = [1, 2];
+	const playerMt      = parseInt(membershipType, 10);
+	const playerPool    = CONSOLE_TYPES.includes(playerMt) ? 'console' : 'pc';
+
 	let jprRanks = null;
 	try {
 		if (dbJprRows?.length) {
-			const rankResults = await Promise.all(
-				dbJprRows.map(async (row) => {
-					const { count } = await supabaseAdmin
-						.from('player_jpr')
-						.select('*', { count: 'exact', head: true })
-						.eq('segment', row.segment)
-						.gte('games_played', 20)
-						.gt('jpr', row.jpr);
-					return { segment: row.segment, rank: (count ?? 0) + 1, jpr: row.jpr, games: row.games_played };
+			const segments = dbJprRows.map((r) => r.segment);
+
+			// Fetch all qualifying rows for these segments in one call,
+			// then compute both global and platform rank in JS (no N+1 queries).
+			const [{ data: allSegRows }, { data: poolPlayers }] = await Promise.all([
+				supabaseAdmin
+					.from('player_jpr')
+					.select('player_id, segment, jpr, games_played')
+					.in('segment', segments)
+					.gte('games_played', 20)
+					.not('jpr', 'is', null),
+				supabaseAdmin
+					.from('players')
+					.select('id, membership_type')
+					.in('membership_type', playerPool === 'console' ? CONSOLE_TYPES : [3, 4, 5, 6]),
+			]);
+
+			const poolIds = new Set((poolPlayers ?? []).map((p) => String(p.id)));
+
+			jprRanks = Object.fromEntries(
+				dbJprRows.map((row) => {
+					const peers = (allSegRows ?? []).filter((r) => r.segment === row.segment);
+					// Global rank: all qualifying players in this segment with higher JPR
+					const globalRank = peers.filter((r) => r.jpr > row.jpr).length + 1;
+					// Platform rank: only players in the same pool
+					const platformRank = peers.filter(
+						(r) => poolIds.has(String(r.player_id)) && r.jpr > row.jpr
+					).length + 1;
+					return [
+						row.segment,
+						{ rank: platformRank, globalRank, jpr: row.jpr, games: row.games_played, pool: playerPool },
+					];
 				})
 			);
-			jprRanks = Object.fromEntries(rankResults.map((r) => [r.segment, { rank: r.rank, jpr: r.jpr, games: r.games }]));
 		}
 	} catch {}
 

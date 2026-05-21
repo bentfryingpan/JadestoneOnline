@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Dark background -->
+  <rect width="32" height="32" fill="#080808"/>
+
+  <!-- Outer rotating ring (square, rotated 45°) -->
+  <rect x="4" y="4" width="24" height="24" rx="1"
+        fill="none" stroke="#10b981" stroke-width="1"
+        transform="rotate(45 16 16)" opacity="0.35"/>
+
+  <!-- Inner ring -->
+  <rect x="7" y="7" width="18" height="18" rx="1"
+        fill="none" stroke="#10b981" stroke-width="0.75"
+        transform="rotate(45 16 16)" opacity="0.55"/>
+
+  <!-- Filled diamond core -->
+  <rect x="9.5" y="9.5" width="13" height="13" rx="0.5"
+        fill="#10b981"
+        transform="rotate(45 16 16)"/>
+
+  <!-- Inner letter J — crisp, bold, centred -->
+  <text x="16" y="20.5"
+        font-family="Arial Black, Arial, sans-serif"
+        font-weight="900"
+        font-size="12"
+        fill="#080808"
+        text-anchor="middle"
+        dominant-baseline="auto">J</text>
+</svg>

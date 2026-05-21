@@ -1269,6 +1269,8 @@
 
 {#snippet rankMedallion({ tier, value })}
 	{@const jr = data.jprRanks}
+	{@const pool = jr ? Object.values(jr)[0]?.pool ?? 'pc' : 'pc'}
+	{@const poolLabel = pool === 'console' ? 'CON' : 'PC'}
 	{@const segments = [
 		{ key: 'solo',  label: 'SOLO QUEUE' },
 		{ key: 'duo',   label: 'DUO STACK' },
@@ -1278,6 +1280,9 @@
 	{@const activeSegs = jr ? segments.filter(s => jr[s.key]) : []}
 	{@const bestRank = activeSegs.length > 0
 		? Math.min(...activeSegs.map(s => jr[s.key].rank))
+		: null}
+	{@const bestGlobalRank = activeSegs.length > 0
+		? Math.min(...activeSegs.map(s => jr[s.key].globalRank ?? jr[s.key].rank))
 		: null}
 	<div class="group/rank absolute -top-4 -right-4 z-30 flex h-12 w-12 items-center justify-center">
 		<div
@@ -1290,9 +1295,9 @@
 			class="flex h-8 w-8 rotate-45 flex-col items-center justify-center bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.6)] cursor-help"
 		>
 			{#if bestRank != null}
-				<span class="-rotate-45 text-[7px] leading-none font-black text-black">#</span>
-				<span class="mt-0.5 -rotate-45 text-[11px] leading-none font-black text-black"
-					>{bestRank > 999 ? '999+' : bestRank}</span
+				<span class="-rotate-45 text-[6px] leading-none font-black text-black">{poolLabel}</span>
+				<span class="-rotate-45 text-[10px] leading-none font-black text-black"
+					>#{bestRank > 999 ? '999+' : bestRank}</span
 				>
 			{:else}
 				<span class="-rotate-45 text-[8px] leading-none font-black text-black">RANK</span>
@@ -1304,10 +1309,11 @@
 
 		<!-- Hover popup -->
 		<div
-			class="pointer-events-none absolute top-full right-0 z-[200] mt-3 w-52 border border-zinc-700 bg-[#0a0a0a] shadow-2xl opacity-0 transition-all duration-200 group-hover/rank:opacity-100 group-hover/rank:pointer-events-auto"
+			class="pointer-events-none absolute top-full right-0 z-[200] mt-3 w-60 border border-zinc-700 bg-[#0a0a0a] shadow-2xl opacity-0 transition-all duration-200 group-hover/rank:opacity-100 group-hover/rank:pointer-events-auto"
 		>
-			<div class="border-b border-zinc-800 px-3 py-2">
+			<div class="border-b border-zinc-800 px-3 py-2 flex items-center justify-between">
 				<p class="text-[8px] font-black tracking-[0.25em] text-emerald-500 uppercase">LEADERBOARD RANK</p>
+				<span class="text-[8px] font-bold tracking-widest px-1.5 py-0.5 border {pool === 'console' ? 'border-violet-500/40 text-violet-400' : 'border-sky-500/40 text-sky-400'} uppercase">{pool === 'console' ? 'Console' : 'PC'}</span>
 			</div>
 			<div class="divide-y divide-zinc-900">
 				{#each segments as seg}
@@ -1315,9 +1321,20 @@
 					<div class="flex items-center justify-between px-3 py-2">
 						<span class="text-[9px] font-bold tracking-widest text-zinc-500 uppercase">{seg.label}</span>
 						{#if entry}
-							<div class="flex items-center gap-1.5">
-								<span class="text-xs font-black text-emerald-400">#{entry.rank}</span>
-								<span class="text-[8px] text-zinc-600">{entry.jpr?.toFixed(0)} JPR</span>
+							<div class="flex items-center gap-2">
+								<!-- Platform rank -->
+								<div class="flex flex-col items-end">
+									<span class="text-xs font-black text-emerald-400">#{entry.rank}</span>
+									<span class="text-[7px] text-zinc-600 uppercase">{poolLabel}</span>
+								</div>
+								{#if entry.globalRank && entry.globalRank !== entry.rank}
+									<!-- Global rank (all platforms) -->
+									<div class="flex flex-col items-end border-l border-zinc-800 pl-2">
+										<span class="text-xs font-bold text-zinc-500">#{entry.globalRank}</span>
+										<span class="text-[7px] text-zinc-700 uppercase">Global</span>
+									</div>
+								{/if}
+								<span class="text-[8px] text-zinc-600 ml-1">{entry.jpr?.toFixed(0)} JPR</span>
 							</div>
 						{:else}
 							<span class="text-[9px] font-bold text-zinc-700">—</span>
@@ -1673,11 +1690,12 @@
 								<span class="font-sans text-5xl leading-none font-light tracking-tighter {playerData.identity.jprAvgRating != null ? 'text-white' : 'text-zinc-700'}">
 									{playerData.identity.jprAvgRating != null ? playerData.identity.jprAvgRating.toLocaleString() : '—'}
 								</span>
+								{@const rankPool = data.jprRanks ? (Object.values(data.jprRanks)[0]?.pool ?? 'pc') : 'pc'}
 								<span class="mt-3 font-sans text-[10px] font-bold tracking-[0.3em] text-emerald-500 uppercase italic drop-shadow-md">
 									{#if playerData.identity.jprAvgRank != null}
-										#{playerData.identity.jprAvgRank} WORLDWIDE
+										#{playerData.identity.jprAvgRank} {rankPool === 'console' ? 'CONSOLE' : 'PC'}
 									{:else}
-										#WORLDWIDE
+										#— {rankPool === 'console' ? 'CONSOLE' : 'PC'}
 									{/if}
 								</span>
 							</div>
