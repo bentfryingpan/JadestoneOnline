@@ -55,21 +55,19 @@ export async function POST({ request }) {
 			const platform = CONSOLE_TYPES.has(player.membership_type) ? 'console' : 'pc';
 
 			// Update matches that don't have a platform set yet
-			const { count } = await supabaseAdmin
+			const { error: matchErr, count } = await supabaseAdmin
 				.from('matches')
-				.update({ platform })
+				.update({ platform }, { count: 'exact' })
 				.eq('player_id', String(player.id))
-				.is('platform', null)
-				.select('id', { count: 'exact', head: true });
+				.is('platform', null);
 
 			totalUpdated += count ?? 0;
 
-			// Also ensure players.platforms is set
+			// Also ensure players.platforms is set (always overwrite so it stays accurate)
 			await supabaseAdmin
 				.from('players')
 				.update({ platforms: [platform] })
-				.eq('id', String(player.id))
-				.or('platforms.is.null,platforms.eq.{}');
+				.eq('id', String(player.id));
 		}));
 	}
 
