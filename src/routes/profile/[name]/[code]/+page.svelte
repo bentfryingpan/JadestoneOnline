@@ -1199,15 +1199,19 @@
 	</button>
 {/snippet}
 
-{#snippet medalBadge({ label, color, icon })}
+{#snippet medalBadge({ label, color, icon, sublabel })}
 	{@const colorClasses =
 		color === 'emerald'
 			? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
 			: color === 'amber'
-				? 'border-amber-600/30 bg-amber-950/20 text-amber-500'
-				: color === 'rose'
-					? 'border-rose-600/30 bg-rose-950/20 text-rose-500'
-					: 'border-zinc-500/40 bg-zinc-900/50 text-zinc-200 shadow-[0_0_15px_rgba(255,255,255,0.02)]'}
+				? 'border-amber-500/40 bg-amber-950/20 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+				: color === 'silver'
+					? 'border-zinc-400/40 bg-zinc-900/50 text-zinc-200 shadow-[0_0_15px_rgba(255,255,255,0.05)]'
+					: color === 'bronze'
+						? 'border-orange-700/40 bg-orange-950/20 text-orange-400 shadow-[0_0_12px_rgba(194,120,60,0.15)]'
+						: color === 'rose'
+							? 'border-rose-600/30 bg-rose-950/20 text-rose-500'
+							: 'border-zinc-600/30 bg-zinc-900/40 text-zinc-400'}
 	<div
 		class="group relative flex h-8 w-8 rotate-45 cursor-help items-center justify-center border transition-all hover:scale-110 hover:rotate-90 {colorClasses}"
 	>
@@ -1217,7 +1221,7 @@
 		<div
 			class="pointer-events-none absolute bottom-full z-[100] mb-4 rotate-[-45deg] border border-zinc-800 bg-[#0a0a0a] px-3 py-1.5 font-sans text-[9px] tracking-[0.2em] whitespace-nowrap text-zinc-100 uppercase opacity-0 shadow-2xl transition-opacity group-hover:rotate-[-90deg] group-hover:opacity-100"
 		>
-			{label}
+			{label}{sublabel ? ` · ${sublabel}` : ''}
 		</div>
 	</div>
 {/snippet}
@@ -1540,11 +1544,22 @@
 				class="absolute inset-[-40px] z-0 transition-transform duration-100 ease-out"
 				style="transform: translate({mousePos.x}px, {mousePos.y}px)"
 			>
-				<img
-					src="https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=2000"
-					alt="Background"
-					class="h-full w-full object-cover opacity-30 contrast-150 grayscale-[0.4]"
-				/>
+				{#if data.bannerUrl && /\.(mp4|webm)$/i.test(data.bannerUrl)}
+					<video
+						src={data.bannerUrl}
+						autoplay
+						loop
+						muted
+						playsinline
+						class="h-full w-full object-cover opacity-40 contrast-125"
+					></video>
+				{:else}
+					<img
+						src={data.bannerUrl ?? 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=2000'}
+						alt="Background"
+						class="h-full w-full object-cover opacity-30 contrast-150 grayscale-[0.4]"
+					/>
+				{/if}
 				<div
 					class="absolute inset-0 z-10 bg-gradient-to-t from-[#080808] via-[#080808]/80 to-transparent"
 				></div>
@@ -1594,11 +1609,18 @@
 						</div>
 					</div>
 					<div class="mt-10 flex items-center gap-6">
-						{@render medalBadge({ icon: '✓', color: 'silver', label: 'Verified Identity' })}
-						{@render medalBadge({ icon: '◈', color: 'amber', label: 'Diamond ELO' })}
-						{@render medalBadge({ icon: '⚔', color: 'silver', label: 'Army of One' })}
-						{@render medalBadge({ icon: 'Ω', color: 'emerald', label: 'Awakened Jadestone' })}
-						{@render medalBadge({ icon: 'M', color: 'silver', label: 'Mote Collector' })}
+						{#if data.awards?.length}
+							{#each data.awards as award}
+								{@render medalBadge({
+									icon: award.tier === '1st' ? '1' : award.tier === '2nd' ? '2' : award.tier === '3rd' ? '3' : award.icon,
+									color: award.color,
+									label: award.title,
+									sublabel: `S${award.season} · ${award.tier === '1st' ? '#1' : award.tier === '2nd' ? '#2' : award.tier === '3rd' ? '#3' : award.tier === 'top5' ? 'TOP 5' : 'TOP 10'}`
+								})}
+							{/each}
+						{:else}
+							<span class="font-sans text-[9px] tracking-[0.2em] text-zinc-700 uppercase">No season awards yet</span>
+						{/if}
 					</div>
 				</div>
 				<div class="relative z-10 mb-2 flex shrink-0 gap-14 text-right font-sans">

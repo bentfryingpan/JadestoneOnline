@@ -137,9 +137,9 @@ export async function load({ params, parent, url, setHeaders }) {
 	const profileKey = `profile:${membershipId}`;
 	const idStr = String(membershipId);
 
-	let profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows;
+	let profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows, dbAwards;
 	try {
-		[profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows] = await Promise.all([
+		[profileBundle, dbPlayer, dbGambitStats, dbMatches, dbJprRows, dbAwards] = await Promise.all([
 			// ── Bungie: profile + triumphs in one call — clan/stats served from DB ──
 			cacheWrap(profileKey, PROFILE_TTL, async () => {
 				const profileData = await bungieGet(
@@ -147,14 +147,14 @@ export async function load({ params, parent, url, setHeaders }) {
 				);
 				return { profileData };
 			}),
-			// ── DB: claim check ──
+			// ── DB: player record (claim + banner) ──
 			(async () => {
 				const claimKey = `claim:${membershipId}`;
 				const cachedClaim = cacheGet(claimKey);
 				if (cachedClaim !== undefined) return cachedClaim;
 				const r = await supabaseAdmin
 					.from('players')
-					.select('claimed_by')
+					.select('claimed_by, banner_url')
 					.eq('id', membershipId)
 					.single()
 					.then((r) => r.data)
@@ -185,6 +185,14 @@ export async function load({ params, parent, url, setHeaders }) {
 				.select('segment, jpr, games_played')
 				.eq('player_id', idStr)
 				.gte('games_played', 20)
+				.then(r => r.data ?? [])
+				.catch(() => []),
+			// ── DB: season awards ──
+			supabaseAdmin
+				.from('player_season_awards')
+				.select('season, slug, title, rank, tier, color, icon, data')
+				.eq('player_id', idStr)
+				.order('season', { ascending: false })
 				.then(r => r.data ?? [])
 				.catch(() => []),
 		]);
@@ -373,6 +381,8 @@ export async function load({ params, parent, url, setHeaders }) {
 		seasonal,
 		dbTotals,
 		verifiedMedals,
-		jprRanks
+		jprRanks,
+		awards: dbAwards ?? [],
+		bannerUrl: dbPlayer?.banner_url ?? null
 	};
 }
