@@ -11,8 +11,11 @@
 
 import { json } from '@sveltejs/kit';
 import { supabaseAdmin } from '$lib/supabase-server.js';
-import { CRON_SECRET, INGEST_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { computeSeasonAwards, SEASONS } from '$lib/server/awards.js';
+
+const CRON_SECRET    = env.CRON_SECRET;
+const INGEST_SECRET  = env.INGEST_SECRET;
 
 export async function POST({ request }) {
 	const body = await request.json().catch(() => ({}));
