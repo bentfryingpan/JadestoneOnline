@@ -310,6 +310,81 @@
 						</div>
 					</section>
 
+					<!-- Linked Accounts -->
+					<section class="space-y-6">
+						<div class="flex items-center gap-2">
+							<span class="font-display text-[10px] font-bold tracking-[0.2em] text-zinc-500 uppercase">Linked Accounts</span>
+							<div class="h-[1px] flex-1 bg-zinc-800/50"></div>
+						</div>
+
+						{#if data.isAltOf}
+							<!-- This account is an alt — warn and link to primary -->
+							<div class="border border-amber-500/30 bg-amber-950/10 p-6">
+								<p class="font-sans text-[10px] font-bold tracking-[0.2em] text-amber-400 uppercase">
+									This account is registered as an alt of
+									<a
+										href={data.isAltOf.name
+											? `/profile/${encodeURIComponent(data.isAltOf.name)}/${String(data.isAltOf.code).padStart(4,'0')}`
+											: `/profile/Guardian/0000?mid=${data.isAltOf.primaryId}&mt=3`}
+										class="underline hover:text-amber-300"
+									>{data.isAltOf.name ? `${data.isAltOf.name}#${String(data.isAltOf.code).padStart(4,'0')}` : 'another account'}</a>.
+									Manage linked accounts from the primary profile.
+								</p>
+							</div>
+						{:else}
+							<div class="border border-zinc-800 bg-[#0c0c0c] p-6 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]">
+								<p class="mb-6 font-sans text-[9px] leading-relaxed tracking-[0.2em] text-zinc-500 uppercase">
+									Alt accounts are hidden from leaderboards. Their matches are pooled with yours so you share one combined rating. Only accounts you verify via Bungie OAuth can be linked.
+								</p>
+
+								<!-- Alt list -->
+								{#if data.altAccounts?.length}
+									<div class="mb-6 divide-y divide-zinc-900 border border-zinc-800">
+										{#each data.altAccounts as alt}
+											<div class="flex items-center justify-between px-4 py-3">
+												<div class="flex flex-col gap-0.5">
+													<span class="font-sans text-sm font-bold text-white">
+														{alt.name ? `${alt.name}#${String(alt.code).padStart(4,'0')}` : `ID: ${alt.altId}`}
+													</span>
+													<span class="font-sans text-[9px] tracking-widest text-zinc-600 uppercase">
+														{alt.mt === 1 ? 'Xbox' : alt.mt === 2 ? 'PlayStation' : alt.mt === 3 ? 'Steam' : alt.mt === 6 ? 'Epic' : 'PC'}
+														· Verified {new Date(alt.verifiedAt).toLocaleDateString()}
+													</span>
+												</div>
+												<button
+													onclick={async () => {
+														if (!confirm('Unlink this alt? Their stats will no longer count toward your rating.')) return;
+														const r = await fetch('/api/profile/alts', {
+															method: 'DELETE',
+															headers: { 'Content-Type': 'application/json' },
+															body: JSON.stringify({ primary_id: data.user.membershipId, alt_id: alt.altId })
+														});
+														if (r.ok) location.reload();
+														else alert('Failed to unlink. Try again.');
+													}}
+													class="font-sans text-[9px] font-bold tracking-widest text-rose-500 uppercase transition-colors hover:text-rose-400"
+												>Unlink</button>
+											</div>
+										{/each}
+									</div>
+								{:else}
+									<p class="mb-6 font-sans text-[10px] italic text-zinc-600">No alt accounts linked yet.</p>
+								{/if}
+
+								<!-- Link new alt -->
+								<a
+									href="/auth/link-alt"
+									class="inline-flex items-center gap-3 border border-emerald-500/40 px-6 py-3 font-sans text-[10px] font-black tracking-[0.3em] text-emerald-400 uppercase transition-all hover:border-emerald-500/60 hover:bg-emerald-500/10"
+								>
+									+ Link Alt Account
+									<div class="flex h-4 w-4 rotate-45 items-center justify-center border border-current transition-transform duration-300 hover:rotate-90">
+										<div class="h-1.5 w-1.5 bg-current"></div>
+									</div>
+								</a>
+							</div>
+						{/if}
+					</section>
+
 					<!-- Scan Status -->
 					{#if deepScanning}
 						<div
