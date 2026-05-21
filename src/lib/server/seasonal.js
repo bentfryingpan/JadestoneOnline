@@ -85,6 +85,8 @@ function emptyBucket(season) {
 	return {
 		season: season.name,
 		seasonNumber: season.number,
+		start: season.start,   // ISO date string "YYYY-MM-DD" (inclusive)
+		end:   season.end,     // ISO date string "YYYY-MM-DD" (exclusive)
 		activitiesEntered: 0,
 		wins: 0,
 		kills: 0,

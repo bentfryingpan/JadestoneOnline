@@ -605,10 +605,23 @@
 		})
 	);
 
-	// ── History Aggregation (Instant Recent 250) ──────────────────────────────
-	// Uses matchesList so all field names are already normalised.
+	// ── Season-scoped match list ─────────────────────────────────────────────
+	// When a season tab is selected, filter stored matches to that season's
+	// date window so h250 per-game stats reflect only that season's games.
+	const seasonFilteredMatches = $derived((() => {
+		if (seasonFilter === 'all') return matchesList;
+		const sd = seasonal?.seasons?.find((s) => s.season === seasonFilter);
+		if (!sd?.start) return matchesList;
+		return matchesList.filter((m) => {
+			const p = (m.period ?? '').slice(0, 10);
+			return p >= sd.start && p < sd.end;
+		});
+	})());
+
+	// ── History Aggregation (season-aware) ───────────────────────────────────
+	// Uses seasonFilteredMatches so stats reset cleanly at each season boundary.
 	const historySum = $derived(
-		matchesList.reduce(
+		seasonFilteredMatches.reduce(
 			(acc, m) => {
 				acc.totalCount++;
 				if (m.result === 'WIN') acc.wins++;
@@ -744,22 +757,9 @@
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.activitiesEntered ?? 0)
 	);
 
-	/**
-	 * Season-aware h250 proxy.
-	 * When a specific season is selected, all per-game averages from the recent
-	 * match history (h250) are suppressed so the d* seasonal values take over.
-	 */
-	const NULL_H250 = {
-		moteEff: null, avgMotes: null, avgEgo: null,
-		winRate250: null, kd250: null,
-		avgKills: null, avgDeaths: null, avgAssists: null,
-		avgInvKills: null, avgInvDeaths: null,
-		avgMotesDenied: null, avgMotesLost: null,
-		avgPrimDmg: null, avgMeleeKills: null, avgGrenadeKills: null, avgSuperKills: null,
-		precisionPct: null, hardCarryRate: null, carriedRate: null, avgStack: null,
-		medals: {}, medalsPerGame: {}, n: 0, en: 0
-	};
-	const visH250 = $derived(seasonFilter === 'all' ? h250 : NULL_H250);
+	// h250 is now inherently season-aware (computed from seasonFilteredMatches).
+	// visH250 is kept as an alias so the template doesn't need to change.
+	const visH250 = $derived(h250);
 	const dWon = $derived(
 		seasonFilter === 'all'
 			? Math.max(seasonalTotal?.wins ?? 0, ltWon, data.dbTotals?.lifetime?.wins ?? 0)
@@ -1786,7 +1786,7 @@
 											<span class="text-[9px] font-bold text-zinc-700 uppercase">Matches</span>
 										</div>
 										{#if h250.n > 0}
-											<p class="mt-1 text-[8px] text-zinc-600">{h250.n} loaded · {h250.en} enriched</p>
+											<p class="mt-1 text-[8px] text-zinc-600">{h250.n} {seasonFilter === 'all' ? 'loaded' : 'this season'} · {h250.en} enriched</p>
 										{/if}
 									</div>
 									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
