@@ -2648,6 +2648,11 @@
 														Season {award.season} ·
 														{award.tier === '1st' ? '1st Place' : award.tier === '2nd' ? '2nd Place' : award.tier === '3rd' ? '3rd Place' : award.tier === 'top5' ? 'Top 5' : 'Top 10'}
 													</div>
+													{#if award.platform}
+														<div class="mt-1 font-sans text-[8px] tracking-[0.12em] {award.platform === 'pc' ? 'text-sky-600' : 'text-violet-600'} uppercase">
+															{award.platform === 'pc' ? 'PC' : 'Console'}
+														</div>
+													{/if}
 													{#if award.data?.value != null}
 														<div class="mt-2 font-sans text-[11px] font-bold">
 															{typeof award.data.value === 'number' && award.data.value > 1000

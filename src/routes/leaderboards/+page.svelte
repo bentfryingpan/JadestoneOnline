@@ -15,6 +15,7 @@
 	// ── State ────────────────────────────────────────────────────────────────────
 	let segments  = $state({ ...data.segments });
 	let segment   = $state(data.initialSegment ?? 'solo');
+	let platform  = $state(data.initialPlatform ?? 'pc');
 	let deltas    = $state({});
 	let flashIds  = $state(new Set());
 	let liveCount = $state(0);
@@ -24,17 +25,25 @@
 	$effect(() => {
 		segments = { ...data.segments };
 		segment  = data.initialSegment ?? 'solo';
+		platform = data.initialPlatform ?? 'pc';
 	});
 
 	// ── Current rows — instant, no network ──────────────────────────────────────
 	let rows   = $derived(segments[segment] ?? []);
 	let sorted = $derived([...rows].sort((a, b) => (b.jpr ?? 0) - (a.jpr ?? 0)));
 
-	// ── Tab switch — no goto(), no server round trip ─────────────────────────────
+	// ── Tab/platform switch — navigates to server for platform (different data set) ──
 	function go(seg) {
 		segment = seg;
-		deltas  = {};   // clear stale deltas from previous tab
-		history.replaceState({}, '', `/leaderboards?seg=${seg}`);
+		deltas  = {};
+		history.replaceState({}, '', `/leaderboards?seg=${seg}&platform=${platform}`);
+	}
+
+	function switchPlatform(p) {
+		platform = p;
+		deltas   = {};
+		// Platform switch requires a server round-trip since data is filtered there
+		window.location.href = `/leaderboards?seg=${segment}&platform=${p}`;
 	}
 
 	// ── Single realtime subscription for all segments ────────────────────────────
@@ -104,6 +113,20 @@
 		return `${name}#${code}`;
 	}
 
+	const PLATFORM_LABELS = {
+		1: { label: 'Xbox',        icon: 'X' },
+		2: { label: 'PlayStation', icon: 'P' },
+		3: { label: 'Steam',       icon: 'S' },
+		4: { label: 'PC (Legacy)', icon: 'L' },
+		5: { label: 'Stadia',      icon: 'G' },
+		6: { label: 'Epic',        icon: 'E' },
+	};
+
+	function platformChip(row) {
+		const mt = row.players?.membership_type;
+		return mt != null ? (PLATFORM_LABELS[mt] ?? null) : null;
+	}
+
 	function winRate(row) {
 		if (segment === 'overall') return null;
 		const expectedWR = { solo: 0.50, duo: 0.55, trio: 0.62, stack: 0.66 }[segment] ?? 0.50;
@@ -171,6 +194,23 @@
 		</div>
 	</div>
 
+	<!-- ── Platform toggle ───────────────────────────────────────────────────────── -->
+	<div class="mb-6 flex items-center gap-1">
+		<span class="mr-2 text-[10px] font-semibold tracking-widest text-zinc-600 uppercase">Pool</span>
+		{#each [{ id: 'pc', label: 'PC', sub: 'Steam · Epic' }, { id: 'console', label: 'Console', sub: 'PlayStation · Xbox' }] as p}
+			<button
+				onclick={() => switchPlatform(p.id)}
+				class="flex flex-col items-center px-5 py-2 text-xs font-semibold tracking-wide transition-colors border
+					{platform === p.id
+						? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-400'
+						: 'border-white/5 text-zinc-500 hover:text-zinc-300 hover:border-white/10'}"
+			>
+				{p.label}
+				<span class="text-[9px] font-normal tracking-normal {platform === p.id ? 'text-zinc-400' : 'text-zinc-600'}">{p.sub}</span>
+			</button>
+		{/each}
+	</div>
+
 	<!-- ── Segment tabs ──────────────────────────────────────────────────────────── -->
 	<div class="mb-6 flex gap-1 border-b border-white/5 pb-0">
 		{#each Object.entries(SEGMENTS) as [seg, cfg]}
@@ -227,7 +267,13 @@
 								<span class="text-base leading-none">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
 							{/if}
 							<span class="min-w-0">
-								<span class="truncate text-sm text-zinc-200 font-medium block">{displayName(row)}</span>
+								<span class="flex items-center gap-1.5">
+									<span class="truncate text-sm text-zinc-200 font-medium">{displayName(row)}</span>
+									{@const chip = platformChip(row)}
+									{#if chip}
+										<span class="shrink-0 rounded-sm border border-zinc-700/60 bg-zinc-800/60 px-1 py-px text-[8px] font-bold tracking-wider text-zinc-500 uppercase">{chip.label}</span>
+									{/if}
+								</span>
 								<span class="text-[10px] text-zinc-600">
 									{row.segments_qualified ?? 0} segment{(row.segments_qualified ?? 0) !== 1 ? 's' : ''}
 								</span>
@@ -272,7 +318,13 @@
 							{#if i < 3}
 								<span class="text-base leading-none">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
 							{/if}
-							<span class="truncate text-sm text-zinc-200 font-medium">{displayName(row)}</span>
+							<span class="flex items-center gap-1.5 min-w-0">
+								<span class="truncate text-sm text-zinc-200 font-medium">{displayName(row)}</span>
+								{@const chip = platformChip(row)}
+								{#if chip}
+									<span class="shrink-0 rounded-sm border border-zinc-700/60 bg-zinc-800/60 px-1 py-px text-[8px] font-bold tracking-wider text-zinc-500 uppercase">{chip.label}</span>
+								{/if}
+							</span>
 						</span>
 						<span class="text-right text-sm font-bold tabular-nums {jprColor(row.jpr)}">
 							{row.jpr?.toFixed(1) ?? '—'}

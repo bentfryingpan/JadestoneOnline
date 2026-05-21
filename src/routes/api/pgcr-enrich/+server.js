@@ -12,6 +12,7 @@ import { calcEgo, extractMedals as _extractMedals, detectRole } from '$lib/serve
 import { getItemDef, getActivityDef } from '$lib/server/manifest.js';
 import { cacheGet, cacheSet } from '$lib/server/cache.js';
 import { calcJPR, saveJPR } from '$lib/server/jpr.js';
+import { membershipTypeToPlatform } from '$lib/server/awards.js';
 
 const BUNGIE_ROOT = 'https://www.bungie.net';
 const PGCR_ROOT = 'https://stats.bungie.net';
@@ -227,9 +228,22 @@ export async function POST({ request }) {
 						.replace(/^Gambit[:\-]\s*/i, '')
 						.trim();
 
+					// Detect platform from the target player's entry in the PGCR.
+					// destinyUserInfo.membershipType reflects what platform they
+					// actually played this specific match on (handles cross-save switching).
+					const pgcrEntries = pgcrRes.Response.entries ?? [];
+					const targetEntry = pgcrEntries.find((e) => {
+						const eId = String(e.player?.destinyUserInfo?.membershipId ?? '');
+						return eId === String(membershipId);
+					});
+					const matchMembershipType =
+						targetEntry?.player?.destinyUserInfo?.membershipType ?? membershipType;
+					const platform = membershipTypeToPlatform(matchMembershipType);
+
 					return {
 						id: id,
 						player_id: String(membershipId),
+						platform,
 						map_name: mapName,
 						outcome: enriched.outcome,
 						ego_score: enriched.ego.finalScore,

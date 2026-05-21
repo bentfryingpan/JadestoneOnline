@@ -2,9 +2,16 @@ import { supabaseAdmin } from '$lib/supabase-server.js';
 
 const SEGMENT_KEYS = ['solo', 'duo', 'trio', 'stack'];
 
+// membershipTypes that belong to each pool
+const CONSOLE_TYPES = [1, 2];
+// PC = everything else (3 Steam, 4 Blizzard/defunct, 5 Stadia/defunct, 6 Epic)
+
 export async function load({ url }) {
-	const seg = url.searchParams.get('seg') ?? 'solo';
-	const initialSegment = [...SEGMENT_KEYS, 'overall'].includes(seg) ? seg : 'solo';
+	const seg      = url.searchParams.get('seg')      ?? 'solo';
+	const platform = url.searchParams.get('platform') ?? 'pc';
+
+	const initialSegment  = [...SEGMENT_KEYS, 'overall'].includes(seg) ? seg : 'solo';
+	const initialPlatform = ['pc', 'console'].includes(platform) ? platform : 'pc';
 
 	// Single query — all segments at once, ordered by JPR desc
 	const { data: allJpr } = await supabaseAdmin
@@ -18,18 +25,38 @@ export async function load({ url }) {
 		return {
 			segments: { solo: [], duo: [], trio: [], stack: [], overall: [] },
 			initialSegment,
+			initialPlatform,
 		};
 	}
 
-	// Group by segment, top 100 each
-	const bySegment = {};
-	for (const key of SEGMENT_KEYS) {
-		bySegment[key] = allJpr.filter(r => r.segment === key).slice(0, 100);
+	// Fetch all players (for name + membership_type for platform filtering)
+	const allPlayerIds = [...new Set(allJpr.map(r => r.player_id))];
+	const { data: playerRows } = await supabaseAdmin
+		.from('players')
+		.select('id, bungie_name, bungie_code, membership_type')
+		.in('id', allPlayerIds);
+
+	const playerMap = Object.fromEntries((playerRows ?? []).map(p => [p.id, p]));
+
+	// Platform-aware filter function
+	function inPool(player_id, pool) {
+		const mt = parseInt(playerMap[player_id]?.membership_type ?? 3, 10);
+		const isConsole = CONSOLE_TYPES.includes(mt);
+		return pool === 'console' ? isConsole : !isConsole;
 	}
 
-	// Overall — best single segment JPR per player
+	// Group by segment, filtered to platform, top 100 each
+	const bySegment = {};
+	for (const key of SEGMENT_KEYS) {
+		bySegment[key] = allJpr
+			.filter(r => r.segment === key && inPool(r.player_id, initialPlatform))
+			.slice(0, 100);
+	}
+
+	// Overall — best single segment JPR per player (platform-filtered)
 	const byPlayer = {};
 	for (const r of allJpr) {
+		if (!inPool(r.player_id, initialPlatform)) continue;
 		if (!byPlayer[r.player_id]) {
 			byPlayer[r.player_id] = { segments: {}, totalGames: 0 };
 		}
@@ -51,14 +78,6 @@ export async function load({ url }) {
 	  .sort((a, b) => b.jpr - a.jpr)
 	  .slice(0, 100);
 
-	// One player lookup for all unique IDs across all segments
-	const allPlayerIds = [...new Set(allJpr.map(r => r.player_id))];
-	const { data: playerRows } = await supabaseAdmin
-		.from('players')
-		.select('id, bungie_name, bungie_code, membership_type')
-		.in('id', allPlayerIds);
-
-	const playerMap = Object.fromEntries((playerRows ?? []).map(p => [p.id, p]));
 	const attach = rows => rows.map(r => ({ ...r, players: playerMap[r.player_id] ?? null }));
 
 	return {
@@ -70,5 +89,6 @@ export async function load({ url }) {
 			overall: attach(overallRows),
 		},
 		initialSegment,
+		initialPlatform,
 	};
 }

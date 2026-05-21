@@ -36,6 +36,17 @@ export function currentSeason() {
 	return SEASONS.find((s) => today >= s.start && today < s.end) ?? null;
 }
 
+/**
+ * Map a Bungie membershipType to a pool name.
+ * Console pool: PlayStation (2), Xbox (1)
+ * PC pool: Steam (3), Blizzard/defunct (4), Stadia/defunct (5), Epic (6)
+ * These pools cannot cross-play, so rankings must be separate.
+ */
+export function membershipTypeToPlatform(membershipType) {
+	const mt = parseInt(membershipType ?? 0, 10);
+	return mt === 1 || mt === 2 ? 'console' : 'pc';
+}
+
 const TIERS = [
 	{ maxRank: 1,  tier: '1st',   color: 'amber',   icon: '1'  },
 	{ maxRank: 2,  tier: '2nd',   color: 'silver',  icon: '2'  },
@@ -57,19 +68,37 @@ const CATEGORIES = [
 ];
 
 /**
- * Compute and persist season awards for `seasonNumber`.
+ * Compute and persist season awards for `seasonNumber` and a platform pool.
  *
  * @param {number}  seasonNumber  - e.g. 27
  * @param {object}  db            - supabaseAdmin client
+ * @param {'pc'|'console'} platform - which pool to rank ('pc' | 'console')
  * @returns {{ awarded: number, removed: number, errors: string[] }}
  */
-export async function computeSeasonAwards(seasonNumber, db) {
+export async function computeSeasonAwards(seasonNumber, db, platform = 'pc') {
 	const season = SEASONS.find((s) => s.number === seasonNumber);
 	if (!season) throw new Error(`Unknown season: ${seasonNumber}`);
 
 	const { start, end } = season;
 	const awarded = [];
 	const errors  = [];
+
+	// Platform filter: only include players whose membership_type maps to this pool.
+	// We resolve this by pre-fetching the relevant player IDs from the players table.
+	const consoleMts = [1, 2];
+	let platformPlayerIds = null; // null = no filter needed (shouldn't happen)
+	try {
+		let q = db.from('players').select('id');
+		if (platform === 'console') {
+			q = q.in('membership_type', consoleMts);
+		} else {
+			q = q.not('membership_type', 'in', `(${consoleMts.join(',')})`);
+		}
+		const { data: pRows } = await q;
+		platformPlayerIds = new Set((pRows ?? []).map((p) => String(p.id)));
+	} catch (e) {
+		errors.push(`platform_filter: ${e.message}`);
+	}
 
 	// ── 1. JPR leaderboard ───────────────────────────────────────────────────
 	try {
@@ -81,6 +110,8 @@ export async function computeSeasonAwards(seasonNumber, db) {
 
 		const bestPerPlayer = {};
 		for (const row of jprRows ?? []) {
+			// Skip players not in this platform pool
+			if (platformPlayerIds && !platformPlayerIds.has(String(row.player_id))) continue;
 			if (!bestPerPlayer[row.player_id] || row.jpr > bestPerPlayer[row.player_id].jpr) {
 				bestPerPlayer[row.player_id] = row;
 			}
@@ -98,6 +129,7 @@ export async function computeSeasonAwards(seasonNumber, db) {
 				tier: tier.tier,
 				color: tier.color,
 				icon: tier.icon,
+				platform,
 				data: { value: ranked[i].jpr, segment: ranked[i].segment },
 			});
 		}
@@ -107,17 +139,28 @@ export async function computeSeasonAwards(seasonNumber, db) {
 
 	// ── 2. Season stats from matches ─────────────────────────────────────────
 	try {
-		const { data: matches } = await db
+		let matchQuery = db
 			.from('matches')
 			.select('player_id, outcome, stats_json, period')
 			.gte('period', start)
 			.lt('period', end)
 			.not('stats_json', 'is', null);
 
+		// Filter by platform column if it exists on the matches table
+		if (platform === 'console') {
+			matchQuery = matchQuery.eq('platform', 'console');
+		} else {
+			matchQuery = matchQuery.eq('platform', 'pc');
+		}
+
+		const { data: matches } = await matchQuery;
+
 		const playerStats = {};
 		for (const m of matches ?? []) {
 			const pid = m.player_id;
 			if (!pid) continue;
+			// Belt-and-suspenders: also filter by platformPlayerIds
+			if (platformPlayerIds && !platformPlayerIds.has(String(pid))) continue;
 			if (!playerStats[pid]) {
 				playerStats[pid] = { games: 0, wins: 0, motes: 0, motesPickedUp: 0, motesLost: 0, invasionKills: 0 };
 			}
@@ -139,7 +182,7 @@ export async function computeSeasonAwards(seasonNumber, db) {
 			const tier = getTier(i + 1);
 			if (!tier) continue;
 			const [pid, s] = motesRanked[i];
-			awarded.push({ player_id: pid, season: seasonNumber, slug: 'motes', title: 'Mote Lord', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, data: { value: s.motes } });
+			awarded.push({ player_id: pid, season: seasonNumber, slug: 'motes', title: 'Mote Lord', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, platform, data: { value: s.motes } });
 		}
 
 		// Invasion kills
@@ -150,7 +193,7 @@ export async function computeSeasonAwards(seasonNumber, db) {
 			const tier = getTier(i + 1);
 			if (!tier) continue;
 			const [pid, s] = invRanked[i];
-			awarded.push({ player_id: pid, season: seasonNumber, slug: 'invasion_kills', title: 'Invasion King', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, data: { value: s.invasionKills } });
+			awarded.push({ player_id: pid, season: seasonNumber, slug: 'invasion_kills', title: 'Invasion King', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, platform, data: { value: s.invasionKills } });
 		}
 
 		// Win rate (min 50)
@@ -162,7 +205,7 @@ export async function computeSeasonAwards(seasonNumber, db) {
 			const tier = getTier(i + 1);
 			if (!tier) continue;
 			const [pid, s, wr] = wrRanked[i];
-			awarded.push({ player_id: pid, season: seasonNumber, slug: 'win_rate', title: 'Flawless Record', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, data: { value: +(wr * 100).toFixed(1), games: s.games } });
+			awarded.push({ player_id: pid, season: seasonNumber, slug: 'win_rate', title: 'Flawless Record', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, platform, data: { value: +(wr * 100).toFixed(1), games: s.games } });
 		}
 
 		// Mote efficiency (min 50)
@@ -179,20 +222,19 @@ export async function computeSeasonAwards(seasonNumber, db) {
 			const tier = getTier(i + 1);
 			if (!tier) continue;
 			const [pid, , eff] = effRanked[i];
-			awarded.push({ player_id: pid, season: seasonNumber, slug: 'mote_efficiency', title: 'Mote Machine', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, data: { value: +(eff * 100).toFixed(1) } });
+			awarded.push({ player_id: pid, season: seasonNumber, slug: 'mote_efficiency', title: 'Mote Machine', rank: i + 1, tier: tier.tier, color: tier.color, icon: tier.icon, platform, data: { value: +(eff * 100).toFixed(1) } });
 		}
 	} catch (e) {
 		errors.push(`match_stats: ${e.message}`);
 	}
 
 	// ── 3. Remove stale top-10 entries (players who dropped out) ────────────
-	// For each category, delete any existing award for this season whose
-	// player_id is NOT in the new top-10.
+	// For each category+platform, delete awards whose player_id is no longer top-10.
 	let removed = 0;
 	for (const cat of CATEGORIES) {
 		try {
 			const newTop = awarded
-				.filter((r) => r.slug === cat.slug)
+				.filter((r) => r.slug === cat.slug && r.platform === platform)
 				.map((r) => r.player_id);
 
 			// Only prune if we actually computed rankings (avoid wiping on error)
@@ -203,6 +245,7 @@ export async function computeSeasonAwards(seasonNumber, db) {
 				.delete({ count: 'exact' })
 				.eq('season', seasonNumber)
 				.eq('slug', cat.slug)
+				.eq('platform', platform)
 				.not('player_id', 'in', `(${newTop.join(',')})`);
 			removed += count ?? 0;
 		} catch {
@@ -214,7 +257,7 @@ export async function computeSeasonAwards(seasonNumber, db) {
 	if (awarded.length > 0) {
 		const { error: upsertErr } = await db
 			.from('player_season_awards')
-			.upsert(awarded, { onConflict: 'player_id,season,slug' });
+			.upsert(awarded, { onConflict: 'player_id,season,slug,platform' });
 		if (upsertErr) errors.push(`upsert: ${upsertErr.message}`);
 	}
 

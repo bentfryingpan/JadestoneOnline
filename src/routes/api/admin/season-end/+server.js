@@ -27,13 +27,26 @@ export async function POST({ request }) {
 		return json({ error: 'Invalid or missing season number' }, { status: 400 });
 	}
 
-	const result = await computeSeasonAwards(season, supabaseAdmin);
+	// Optional: restrict to one platform pool. Defaults to running both.
+	const platformParam = body.platform;
+	const platforms = platformParam === 'pc' ? ['pc']
+		: platformParam === 'console' ? ['console']
+		: ['pc', 'console'];
+
+	const results = await Promise.all(
+		platforms.map((p) => computeSeasonAwards(season, supabaseAdmin, p))
+	);
+
+	const awarded = results.reduce((s, r) => s + r.awarded, 0);
+	const removed = results.reduce((s, r) => s + r.removed, 0);
+	const errors  = results.flatMap((r) => r.errors);
 
 	return json({
 		season,
-		awarded: result.awarded,
-		removed: result.removed,
+		platforms,
+		awarded,
+		removed,
 		categories: ['jpr_overall', 'motes', 'invasion_kills', 'win_rate', 'mote_efficiency'],
-		errors: result.errors.length ? result.errors : undefined,
+		errors: errors.length ? errors : undefined,
 	});
 }

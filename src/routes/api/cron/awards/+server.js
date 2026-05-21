@@ -54,11 +54,13 @@ export async function POST({ request }) {
 	}
 
 	for (const seasonNumber of toProcess) {
-		try {
-			const result = await computeSeasonAwards(seasonNumber, supabaseAdmin);
-			results.push({ season: seasonNumber, ...result });
-		} catch (e) {
-			results.push({ season: seasonNumber, error: e.message });
+		for (const platform of ['pc', 'console']) {
+			try {
+				const result = await computeSeasonAwards(seasonNumber, supabaseAdmin, platform);
+				results.push({ season: seasonNumber, platform, ...result });
+			} catch (e) {
+				results.push({ season: seasonNumber, platform, error: e.message });
+			}
 		}
 	}
 

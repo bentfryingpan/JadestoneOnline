@@ -190,7 +190,7 @@ export async function load({ params, parent, url, setHeaders }) {
 			// ── DB: season awards ──
 			supabaseAdmin
 				.from('player_season_awards')
-				.select('season, slug, title, rank, tier, color, icon, data')
+				.select('season, slug, title, rank, tier, color, icon, platform, data')
 				.eq('player_id', idStr)
 				.order('season', { ascending: false })
 				.then(r => r.data ?? [])

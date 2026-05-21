@@ -24,7 +24,7 @@ import { cacheGet, cacheSet } from '$lib/server/cache.js';
 import { calcEgo, extractMedals } from '$lib/server/ego.js';
 import { getActivityDef, getItemDef } from '$lib/server/manifest.js';
 import { calcJPR, saveJPR } from '$lib/server/jpr.js';
-import { computeSeasonAwards, currentSeason } from '$lib/server/awards.js';
+import { computeSeasonAwards, currentSeason, membershipTypeToPlatform } from '$lib/server/awards.js';
 
 const BUNGIE_ROOT  = 'https://www.bungie.net';
 const PGCR_ROOT    = 'https://stats.bungie.net';
@@ -175,6 +175,7 @@ async function processPgcr(pgcr, targetId) {
 				ego,
 				outcome: e.values?.standing?.basic?.value === 0 ? 'Win' : 'Loss',
 				fireteam_size: ftSize,
+				membershipType: pMt, // platform the player used for THIS match
 			};
 		}
 	}
@@ -299,6 +300,9 @@ async function crawlPlayer(queueRow) {
 		const matchRows = enriched.map(({ instanceId, period, mapName, processed }) => ({
 			id:            instanceId,
 			player_id:     String(player_id),
+			// Use the per-match membershipType from the PGCR entry so cross-save
+			// players are bucketed by the platform they actually played on.
+			platform:      membershipTypeToPlatform(processed.membershipType ?? membership_type),
 			map_name:      mapName,
 			outcome:       processed.outcome,
 			ego_score:     processed.ego.finalScore,
@@ -453,7 +457,9 @@ export async function GET({ request }) {
 	if (totalNew > 0) {
 		const activeSeason = currentSeason();
 		if (activeSeason) {
-			computeSeasonAwards(activeSeason.number, supabaseAdmin).catch(() => {});
+			// Refresh both platform pools asynchronously — doesn't block the response
+			computeSeasonAwards(activeSeason.number, supabaseAdmin, 'pc').catch(() => {});
+			computeSeasonAwards(activeSeason.number, supabaseAdmin, 'console').catch(() => {});
 		}
 	}
 
