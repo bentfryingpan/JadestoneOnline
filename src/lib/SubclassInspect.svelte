@@ -195,7 +195,7 @@
 							onmouseleave={onItemLeave}
 						>
 							<div
-								class="relative h-20 w-20 overflow-hidden rounded-full border-2 {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
+								class="relative h-20 w-20 overflow-hidden border-2 {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
 							>
 								{#if superAbility.icon}
 									<img
@@ -378,7 +378,7 @@
 										<!-- Icon + name row -->
 										<div class="flex items-center gap-2">
 											<div
-												class="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
+												class="relative h-8 w-8 shrink-0 overflow-hidden border {el.iconBorder} bg-zinc-950 transition-all duration-300 {el.iconGlow}"
 											>
 												{#if frag.icon}
 													<img src={frag.icon} alt={frag.name} class="h-full w-full object-cover" />

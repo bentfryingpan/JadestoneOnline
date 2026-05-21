@@ -31,8 +31,20 @@
 		highlight: 'text-white font-semibold'
 	};
 
+	/**
+	 * Clarity marks ability keywords (Jolt, Ignite, Suspend, etc.) with
+	 * classNames like 'trait' or 'mainTrait'. We colour those with the
+	 * subclass accent so e.g. "Jolt" turns cyan when inspecting Arc items.
+	 */
 	function partClass(classNames) {
 		for (const cn of classNames) {
+			const lower = cn.toLowerCase();
+			// 'trait' / 'mainTrait' / 'abilityTrait' → element accent colour
+			if (lower === 'trait' || lower === 'maintrait' || lower.includes('trait')) {
+				return accentClass + ' font-bold';
+			}
+			// Direct element match (e.g. 'arc', 'Arc', 'solar' …)
+			if (ELEMENT_COLORS[lower]) return ELEMENT_COLORS[lower];
 			if (ELEMENT_COLORS[cn]) return ELEMENT_COLORS[cn];
 		}
 		return null; // unstyled

@@ -18,9 +18,9 @@ const PGCR_ROOT = 'https://stats.bungie.net';
 const PGCR_TTL = 86_400_000;
 
 const SLOT_BUCKETS = {
-	1491708835: 'Kinetic',
+	1498876634: 'Kinetic',
 	2465295065: 'Energy',
-	95395402: 'Power'
+	953998645:  'Power'
 };
 
 const LOCAL_MEDALS = [

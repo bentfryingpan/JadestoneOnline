@@ -534,7 +534,7 @@
 	// h250.avgEgo is authoritative (computed from real PGCR EGO scores).
 	// Falls back to Supabase career average once history loads.
 	const egoRating = $derived(
-		h250.avgEgo ?? career?.avgScore ?? null
+		visH250.avgEgo ?? career?.avgScore ?? null
 	);
 
 	// ── Match list (must come before historySum since historySum uses it) ────────
@@ -743,6 +743,23 @@
 			? Math.max(seasonalTotal?.activitiesEntered ?? 0, sv('activitiesEntered'), data.dbTotals?.lifetime?.entered ?? 0)
 			: (seasonal?.seasons?.find((s) => s.season === seasonFilter)?.activitiesEntered ?? 0)
 	);
+
+	/**
+	 * Season-aware h250 proxy.
+	 * When a specific season is selected, all per-game averages from the recent
+	 * match history (h250) are suppressed so the d* seasonal values take over.
+	 */
+	const NULL_H250 = {
+		moteEff: null, avgMotes: null, avgEgo: null,
+		winRate250: null, kd250: null,
+		avgKills: null, avgDeaths: null, avgAssists: null,
+		avgInvKills: null, avgInvDeaths: null,
+		avgMotesDenied: null, avgMotesLost: null,
+		avgPrimDmg: null, avgMeleeKills: null, avgGrenadeKills: null, avgSuperKills: null,
+		precisionPct: null, hardCarryRate: null, carriedRate: null, avgStack: null,
+		medals: {}, medalsPerGame: {}, n: 0, en: 0
+	};
+	const visH250 = $derived(seasonFilter === 'all' ? h250 : NULL_H250);
 	const dWon = $derived(
 		seasonFilter === 'all'
 			? Math.max(seasonalTotal?.wins ?? 0, ltWon, data.dbTotals?.lifetime?.wins ?? 0)
@@ -940,7 +957,7 @@
 					if (slot === 'kinetic') grouped.kinetic.push(item);
 					else if (slot === 'energy') grouped.energy.push(item);
 					else if (slot === 'power') grouped.power.push(item);
-					else grouped.kinetic.push(item);
+					// 'Unknown' (old bad bucket hash data) — skip rather than dump in kinetic
 				});
 			}
 			return grouped;
@@ -1477,9 +1494,9 @@
 	})}
 {/snippet}
 
-<div class="flex h-screen overflow-hidden bg-[#080808] font-sans text-slate-200">
+<div class="flex min-h-screen bg-[#080808] font-sans text-slate-200">
 	<nav
-		class="z-50 flex w-16 shrink-0 flex-col items-center border-r border-zinc-800 bg-[#0a0a0a] py-8"
+		class="sticky top-0 z-50 flex h-screen w-16 shrink-0 flex-col items-center border-r border-zinc-800 bg-[#0a0a0a] py-8 self-start"
 	>
 		<div
 			class="mb-12 flex h-9 w-9 rotate-45 cursor-pointer items-center justify-center bg-zinc-100 font-black text-black shadow-2xl transition-colors duration-500 hover:bg-emerald-500"
@@ -1510,7 +1527,7 @@
 	</nav>
 
 	<div
-		class="relative flex min-w-0 flex-1 flex-col overflow-hidden"
+		class="relative flex min-w-0 flex-1 flex-col"
 		onmousemove={onHeroMouseMove}
 		onmouseleave={onHeroMouseLeave}
 	>
@@ -1632,7 +1649,7 @@
 			{/each}
 		</nav>
 
-		<main class="scrollbar-hide flex-1 overflow-y-auto bg-[#080808] p-10">
+		<main class="bg-[#080808] p-10">
 			<div class="mx-auto max-w-6xl">
 				{#key profileTab}
 					<div in:fly={{ y: 10, duration: 400 }}>
@@ -1763,7 +1780,7 @@
 								<!-- Summary Bar -->
 								<div class="grid grid-cols-4 gap-4">
 									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
-										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Deployment Count</span>
+										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Matches</span>
 										<div class="mt-1 flex items-baseline gap-2">
 											<span class="text-3xl font-light tracking-tighter text-white italic">{fmt(dEntered)}</span>
 											<span class="text-[9px] font-bold text-zinc-700 uppercase">Matches</span>
@@ -1776,7 +1793,7 @@
 										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Success Rate</span>
 										<div class="mt-1 flex items-baseline gap-2">
 											<span class="text-3xl font-light tracking-tighter text-emerald-500 italic">
-												{h250.winRate250 != null ? h250.winRate250 + '%' : (dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—')}
+												{visH250.winRate250 != null ? visH250.winRate250 + '%' : (dWinRate != null ? fmtF(dWinRate, 1) + '%' : '—')}
 											</span>
 										</div>
 										<p class="mt-1 text-[8px] text-zinc-600 uppercase tracking-wider">
@@ -1787,20 +1804,20 @@
 										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Lethality Index</span>
 										<div class="mt-1 flex items-baseline gap-2">
 											<span class="text-3xl font-light tracking-tighter text-white italic">
-												{h250.kd250 != null ? h250.kd250 : (dKD != null ? fmtF(dKD, 2) : '—')}
+												{visH250.kd250 != null ? visH250.kd250 : (dKD != null ? fmtF(dKD, 2) : '—')}
 											</span>
 											<span class="text-[9px] font-bold text-zinc-700 uppercase">K/D</span>
 										</div>
 										<p class="mt-1 text-[8px] text-zinc-600 uppercase tracking-wider">
-											{h250.avgKills != null ? `${h250.avgKills} kills / game` : ''}
+											{visH250.avgKills != null ? `${visH250.avgKills} kills / game` : ''}
 										</p>
 									</div>
 									<div class="relative border border-zinc-800 bg-[#0c0c0c] p-4 shadow-[inset_0_0_40px_rgba(0,0,0,0.7)]">
 										<span class="block text-[8px] font-bold tracking-widest text-zinc-600 uppercase">Avg EGO Score</span>
 										<div class="mt-1 flex items-baseline gap-2">
-											{#if h250.avgEgo != null}
+											{#if visH250.avgEgo != null}
 												<span class="text-3xl font-light tracking-tighter text-amber-500 italic">
-													{h250.avgEgo}
+													{visH250.avgEgo}
 												</span>
 											{:else if career?.avgScore}
 												<span class="text-3xl font-light tracking-tighter text-amber-500 italic">
@@ -1825,25 +1842,25 @@
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: `COMBAT_PERFORMANCE · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'K/D Ratio', value: h250.kd250 ?? fmtF(dKD, 2), awakened: (h250.kd250 ?? dKD ?? 0) >= 1.0, rank: h250.n > 0 ? `${fmt(historySum.kills)}K · ${fmt(historySum.deaths)}D` : null })}
-												{@render detailStatCompact({ label: 'Kills / Game', value: h250.avgKills ?? fmtF(dKills, 0), rank: h250.n > 0 ? `${fmt(historySum.kills)} total` : null, awakened: (h250.avgKills ?? 0) > 20 })}
-												{@render detailStatCompact({ label: 'Deaths / Game', value: h250.avgDeaths ?? fmtF(dDeaths, 0), rank: h250.n > 0 ? `${fmt(historySum.deaths)} total` : null })}
-												{@render detailStatCompact({ label: 'Assists / Game', value: h250.avgAssists ?? '—', rank: h250.n > 0 ? `${fmt(historySum.assists)} total` : null })}
-												{@render detailStatCompact({ label: 'Precision %', value: h250.precisionPct != null ? h250.precisionPct + '%' : '—', awakened: (h250.precisionPct ?? 0) > 30 })}
-												{#if (h250.medals?.maximumCarnage ?? 0) > 0 || statsCache.maximumCarnage > 0}
-													{@render detailStatCompact({ label: 'Maximum Carnage', value: fmt(Math.max(h250.medals?.maximumCarnage ?? 0, statsCache.maximumCarnage)), awakened: true, rank: h250.medalsPerGame?.maximumCarnage ? h250.medalsPerGame.maximumCarnage + '/game' : null })}
+												{@render detailStatCompact({ label: 'K/D Ratio', value: visH250.kd250 ?? fmtF(dKD, 2), awakened: (visH250.kd250 ?? dKD ?? 0) >= 1.0, rank: h250.n > 0 ? `${fmt(historySum.kills)}K · ${fmt(historySum.deaths)}D` : null })}
+												{@render detailStatCompact({ label: 'Kills / Game', value: visH250.avgKills ?? fmtF(dKills, 0), rank: h250.n > 0 ? `${fmt(historySum.kills)} total` : null, awakened: (visH250.avgKills ?? 0) > 20 })}
+												{@render detailStatCompact({ label: 'Deaths / Game', value: visH250.avgDeaths ?? fmtF(dDeaths, 0), rank: h250.n > 0 ? `${fmt(historySum.deaths)} total` : null })}
+												{@render detailStatCompact({ label: 'Assists / Game', value: visH250.avgAssists ?? '—', rank: h250.n > 0 ? `${fmt(historySum.assists)} total` : null })}
+												{@render detailStatCompact({ label: 'Precision %', value: visH250.precisionPct != null ? visH250.precisionPct + '%' : '—', awakened: (visH250.precisionPct ?? 0) > 30 })}
+												{#if (visH250.medals?.maximumCarnage ?? 0) > 0 || statsCache.maximumCarnage > 0}
+													{@render detailStatCompact({ label: 'Maximum Carnage', value: fmt(Math.max(visH250.medals?.maximumCarnage ?? 0, statsCache.maximumCarnage)), awakened: true, rank: visH250.medalsPerGame?.maximumCarnage ? visH250.medalsPerGame.maximumCarnage + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.massacre ?? 0) > 0 || dMassacre > 0}
-													{@render detailStatCompact({ label: 'Massacre Medals', value: fmt(Math.max(h250.medals?.massacre ?? 0, dMassacre)), awakened: true, rank: h250.medalsPerGame?.massacre ? h250.medalsPerGame.massacre + '/game' : null })}
+												{#if (visH250.medals?.massacre ?? 0) > 0 || dMassacre > 0}
+													{@render detailStatCompact({ label: 'Massacre Medals', value: fmt(Math.max(visH250.medals?.massacre ?? 0, dMassacre)), awakened: true, rank: visH250.medalsPerGame?.massacre ? visH250.medalsPerGame.massacre + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.thrillmonger ?? 0) > 0 || statsCache.thrillmonger > 0}
-													{@render detailStatCompact({ label: 'Thrillmonger Medals', value: fmt(Math.max(h250.medals?.thrillmonger ?? 0, statsCache.thrillmonger)), awakened: true, rank: h250.medalsPerGame?.thrillmonger ? h250.medalsPerGame.thrillmonger + '/game' : null })}
+												{#if (visH250.medals?.thrillmonger ?? 0) > 0 || statsCache.thrillmonger > 0}
+													{@render detailStatCompact({ label: 'Thrillmonger Medals', value: fmt(Math.max(visH250.medals?.thrillmonger ?? 0, statsCache.thrillmonger)), awakened: true, rank: visH250.medalsPerGame?.thrillmonger ? visH250.medalsPerGame.thrillmonger + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.overkillmonger ?? 0) > 0 || statsCache.overkillmonger > 0}
-													{@render detailStatCompact({ label: 'Overkillmonger Medals', value: fmt(Math.max(h250.medals?.overkillmonger ?? 0, statsCache.overkillmonger)), rank: h250.medalsPerGame?.overkillmonger ? h250.medalsPerGame.overkillmonger + '/game' : null })}
+												{#if (visH250.medals?.overkillmonger ?? 0) > 0 || statsCache.overkillmonger > 0}
+													{@render detailStatCompact({ label: 'Overkillmonger Medals', value: fmt(Math.max(visH250.medals?.overkillmonger ?? 0, statsCache.overkillmonger)), rank: visH250.medalsPerGame?.overkillmonger ? visH250.medalsPerGame.overkillmonger + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.killmonger ?? 0) > 0 || statsCache.killmonger > 0}
-													{@render detailStatCompact({ label: 'Killmonger Medals', value: fmt(Math.max(h250.medals?.killmonger ?? 0, statsCache.killmonger)), rank: h250.medalsPerGame?.killmonger ? h250.medalsPerGame.killmonger + '/game' : null })}
+												{#if (visH250.medals?.killmonger ?? 0) > 0 || statsCache.killmonger > 0}
+													{@render detailStatCompact({ label: 'Killmonger Medals', value: fmt(Math.max(visH250.medals?.killmonger ?? 0, statsCache.killmonger)), rank: visH250.medalsPerGame?.killmonger ? visH250.medalsPerGame.killmonger + '/game' : null })}
 												{/if}
 											</div>
 										</div>
@@ -1851,12 +1868,12 @@
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: `ABILITY_METRICS · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Super Kills / Game', value: h250.avgSuperKills ?? fmtF(dSuperKills, 0), rank: h250.n > 0 ? `${fmt(historySum.superKills)} total` : null, awakened: (h250.avgSuperKills ?? 0) > 0.5 })}
-												{@render detailStatCompact({ label: 'Melee Kills / Game', value: h250.avgMeleeKills ?? fmtF(dMeleeKills, 0), rank: h250.n > 0 ? `${fmt(historySum.meleeKills)} total` : null })}
-												{@render detailStatCompact({ label: 'Grenade Kills / Game', value: h250.avgGrenadeKills ?? fmtF(dGrenadeKills, 0), rank: h250.n > 0 ? `${fmt(historySum.grenadeKills)} total` : null })}
-												{@render detailStatCompact({ label: 'Ability Kills / Game', value: h250.avgMeleeKills != null && h250.avgGrenadeKills != null ? fmtF(h250.avgMeleeKills + h250.avgGrenadeKills, 1) : fmt(dAbility), awakened: (h250.avgMeleeKills ?? 0) + (h250.avgGrenadeKills ?? 0) > 3 })}
-												{#if (h250.medals?.lightVersusLight ?? 0) > 0 || statsCache.lightVersusLight > 0}
-													{@render detailStatCompact({ label: 'Light vs. Light (Super)', value: fmt(Math.max(h250.medals?.lightVersusLight ?? 0, statsCache.lightVersusLight)), awakened: true, rank: h250.medalsPerGame?.lightVersusLight ? h250.medalsPerGame.lightVersusLight + '/game' : null })}
+												{@render detailStatCompact({ label: 'Super Kills / Game', value: visH250.avgSuperKills ?? fmtF(dSuperKills, 0), rank: h250.n > 0 ? `${fmt(historySum.superKills)} total` : null, awakened: (visH250.avgSuperKills ?? 0) > 0.5 })}
+												{@render detailStatCompact({ label: 'Melee Kills / Game', value: visH250.avgMeleeKills ?? fmtF(dMeleeKills, 0), rank: h250.n > 0 ? `${fmt(historySum.meleeKills)} total` : null })}
+												{@render detailStatCompact({ label: 'Grenade Kills / Game', value: visH250.avgGrenadeKills ?? fmtF(dGrenadeKills, 0), rank: h250.n > 0 ? `${fmt(historySum.grenadeKills)} total` : null })}
+												{@render detailStatCompact({ label: 'Ability Kills / Game', value: visH250.avgMeleeKills != null && visH250.avgGrenadeKills != null ? fmtF(visH250.avgMeleeKills + visH250.avgGrenadeKills, 1) : fmt(dAbility), awakened: (visH250.avgMeleeKills ?? 0) + (visH250.avgGrenadeKills ?? 0) > 3 })}
+												{#if (visH250.medals?.lightVersusLight ?? 0) > 0 || statsCache.lightVersusLight > 0}
+													{@render detailStatCompact({ label: 'Light vs. Light (Super)', value: fmt(Math.max(visH250.medals?.lightVersusLight ?? 0, statsCache.lightVersusLight)), awakened: true, rank: visH250.medalsPerGame?.lightVersusLight ? visH250.medalsPerGame.lightVersusLight + '/game' : null })}
 												{/if}
 											</div>
 										</div>
@@ -1867,25 +1884,25 @@
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: `MOTE_ANALYSIS · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Banked / Game', value: h250.avgMotes ?? fmtF(dAvgMotes, 1), rank: h250.n > 0 ? `${fmt(historySum.motes)} total` : null, awakened: (h250.avgMotes ?? 0) > 40 })}
-												{@render detailStatCompact({ label: 'Mote Efficiency', value: h250.moteEff != null ? h250.moteEff + '%' : ((dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '—'), awakened: (h250.moteEff ?? 0) > 90, rank: h250.moteEff != null ? (h250.moteEff > 90 ? 'ELITE' : h250.moteEff > 80 ? 'SOLID' : 'LOW') : null })}
-												{@render detailStatCompact({ label: 'Lost / Game', value: h250.avgMotesLost ?? fmtF(dMotesLost, 0), rank: h250.n > 0 ? `${fmt(historySum.motesLost)} total` : null })}
-												{@render detailStatCompact({ label: 'Denied / Game', value: h250.avgMotesDenied ?? fmtF(dMotesDenied, 0), rank: h250.n > 0 ? `${fmt(historySum.motesDenied)} total` : null, awakened: (h250.avgMotesDenied ?? 0) > 5 })}
-												{@render detailStatCompact({ label: 'Primeval Dmg / Game', value: h250.avgPrimDmg != null ? fmtNum(h250.avgPrimDmg) : fmtNum(dPrimevalDmg), rank: h250.n > 0 ? `${fmtNum(historySum.primevalDmg)} total` : null, awakened: (h250.avgPrimDmg ?? 0) > 200000 })}
-												{#if (h250.medals?.halfBanked ?? 0) > 0 || statsCache.halfBanked > 0}
-													{@render detailStatCompact({ label: 'Half-Banked Medals', value: fmt(Math.max(h250.medals?.halfBanked ?? 0, statsCache.halfBanked)), awakened: true, rank: h250.medalsPerGame?.halfBanked ? h250.medalsPerGame.halfBanked + '/game' : null })}
+												{@render detailStatCompact({ label: 'Banked / Game', value: visH250.avgMotes ?? fmtF(dAvgMotes, 1), rank: h250.n > 0 ? `${fmt(historySum.motes)} total` : null, awakened: (visH250.avgMotes ?? 0) > 40 })}
+												{@render detailStatCompact({ label: 'Mote Efficiency', value: visH250.moteEff != null ? visH250.moteEff + '%' : ((dMotes + dMotesLost) > 0 ? fmtF((dMotes / (dMotes + dMotesLost)) * 100, 1) + '%' : '—'), awakened: (visH250.moteEff ?? 0) > 90, rank: visH250.moteEff != null ? (visH250.moteEff > 90 ? 'ELITE' : visH250.moteEff > 80 ? 'SOLID' : 'LOW') : null })}
+												{@render detailStatCompact({ label: 'Lost / Game', value: visH250.avgMotesLost ?? fmtF(dMotesLost, 0), rank: h250.n > 0 ? `${fmt(historySum.motesLost)} total` : null })}
+												{@render detailStatCompact({ label: 'Denied / Game', value: visH250.avgMotesDenied ?? fmtF(dMotesDenied, 0), rank: h250.n > 0 ? `${fmt(historySum.motesDenied)} total` : null, awakened: (visH250.avgMotesDenied ?? 0) > 5 })}
+												{@render detailStatCompact({ label: 'Primeval Dmg / Game', value: visH250.avgPrimDmg != null ? fmtNum(visH250.avgPrimDmg) : fmtNum(dPrimevalDmg), rank: h250.n > 0 ? `${fmtNum(historySum.primevalDmg)} total` : null, awakened: (visH250.avgPrimDmg ?? 0) > 200000 })}
+												{#if (visH250.medals?.halfBanked ?? 0) > 0 || statsCache.halfBanked > 0}
+													{@render detailStatCompact({ label: 'Half-Banked Medals', value: fmt(Math.max(visH250.medals?.halfBanked ?? 0, statsCache.halfBanked)), awakened: true, rank: visH250.medalsPerGame?.halfBanked ? visH250.medalsPerGame.halfBanked + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.fastFill ?? 0) > 0 || statsCache.fastFill > 0}
-													{@render detailStatCompact({ label: 'Fast Fill Medals', value: fmt(Math.max(h250.medals?.fastFill ?? 0, statsCache.fastFill)), rank: h250.medalsPerGame?.fastFill ? h250.medalsPerGame.fastFill + '/game' : null })}
+												{#if (visH250.medals?.fastFill ?? 0) > 0 || statsCache.fastFill > 0}
+													{@render detailStatCompact({ label: 'Fast Fill Medals', value: fmt(Math.max(visH250.medals?.fastFill ?? 0, statsCache.fastFill)), rank: visH250.medalsPerGame?.fastFill ? visH250.medalsPerGame.fastFill + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.locksmith ?? 0) > 0 || statsCache.locksmith > 0}
-													{@render detailStatCompact({ label: 'Locksmith Medals', value: fmt(Math.max(h250.medals?.locksmith ?? 0, statsCache.locksmith)), awakened: true, rank: h250.medalsPerGame?.locksmith ? h250.medalsPerGame.locksmith + '/game' : null })}
+												{#if (visH250.medals?.locksmith ?? 0) > 0 || statsCache.locksmith > 0}
+													{@render detailStatCompact({ label: 'Locksmith Medals', value: fmt(Math.max(visH250.medals?.locksmith ?? 0, statsCache.locksmith)), awakened: true, rank: visH250.medalsPerGame?.locksmith ? visH250.medalsPerGame.locksmith + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.firstToBlock ?? 0) > 0 || statsCache.firstToBlock > 0}
-													{@render detailStatCompact({ label: 'First to Block', value: fmt(Math.max(h250.medals?.firstToBlock ?? 0, statsCache.firstToBlock)), rank: h250.medalsPerGame?.firstToBlock ? h250.medalsPerGame.firstToBlock + '/game' : null })}
+												{#if (visH250.medals?.firstToBlock ?? 0) > 0 || statsCache.firstToBlock > 0}
+													{@render detailStatCompact({ label: 'First to Block', value: fmt(Math.max(visH250.medals?.firstToBlock ?? 0, statsCache.firstToBlock)), rank: visH250.medalsPerGame?.firstToBlock ? visH250.medalsPerGame.firstToBlock + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.blockbuster ?? 0) > 0 || statsCache.blockbuster > 0}
-													{@render detailStatCompact({ label: 'Blockbuster Medals', value: fmt(Math.max(h250.medals?.blockbuster ?? 0, statsCache.blockbuster)), rank: h250.medalsPerGame?.blockbuster ? h250.medalsPerGame.blockbuster + '/game' : null })}
+												{#if (visH250.medals?.blockbuster ?? 0) > 0 || statsCache.blockbuster > 0}
+													{@render detailStatCompact({ label: 'Blockbuster Medals', value: fmt(Math.max(visH250.medals?.blockbuster ?? 0, statsCache.blockbuster)), rank: visH250.medalsPerGame?.blockbuster ? visH250.medalsPerGame.blockbuster + '/game' : null })}
 												{/if}
 												{#if statsCache.protectTheRunner > 0}
 													{@render detailStatCompact({ label: 'Protect the Runner', value: fmt(statsCache.protectTheRunner), awakened: true })}
@@ -1896,28 +1913,28 @@
 										<div class="border border-zinc-800 bg-[#0c0c0c]/50 p-6">
 											{@render ghostLabel({ text: `INVASION_REPORT · ${h250.n || '?'} GAMES`, className: 'mb-6' })}
 											<div class="space-y-4">
-												{@render detailStatCompact({ label: 'Inv. Kills / Game', value: h250.avgInvKills ?? fmtF(dInvKills, 0), rank: h250.n > 0 ? `${fmt(historySum.invKills)} total` : null, awakened: (h250.avgInvKills ?? 0) >= 1 })}
-												{@render detailStatCompact({ label: 'Inv. Deaths / Game', value: h250.avgInvDeaths ?? fmtF(dInvaderDeaths, 0), rank: h250.n > 0 ? `${fmt(historySum.invDeaths)} total` : null })}
-												{@render detailStatCompact({ label: 'Kills / Invasion', value: (historySum.invKills > 0 && historySum.n > 0) ? fmtF(historySum.invKills / Math.max(1, historySum.n * (h250.avgInvKills ?? 0) / Math.max(1, historySum.invKills)), 1) : fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
-												{@render detailStatCompact({ label: 'Motes Denied / Game', value: h250.avgMotesDenied ?? fmtF(dMotesDenied, 0), rank: h250.n > 0 ? `${fmt(historySum.motesDenied)} total` : null, awakened: (h250.avgMotesDenied ?? 0) > 5 })}
+												{@render detailStatCompact({ label: 'Inv. Kills / Game', value: visH250.avgInvKills ?? fmtF(dInvKills, 0), rank: h250.n > 0 ? `${fmt(historySum.invKills)} total` : null, awakened: (visH250.avgInvKills ?? 0) >= 1 })}
+												{@render detailStatCompact({ label: 'Inv. Deaths / Game', value: visH250.avgInvDeaths ?? fmtF(dInvaderDeaths, 0), rank: h250.n > 0 ? `${fmt(historySum.invDeaths)} total` : null })}
+												{@render detailStatCompact({ label: 'Kills / Invasion', value: (historySum.invKills > 0 && historySum.n > 0) ? fmtF(historySum.invKills / Math.max(1, historySum.n * (visH250.avgInvKills ?? 0) / Math.max(1, historySum.invKills)), 1) : fmtF(dInvasions > 0 ? dInvKills / dInvasions : 0, 1) })}
+												{@render detailStatCompact({ label: 'Motes Denied / Game', value: visH250.avgMotesDenied ?? fmtF(dMotesDenied, 0), rank: h250.n > 0 ? `${fmt(historySum.motesDenied)} total` : null, awakened: (visH250.avgMotesDenied ?? 0) > 5 })}
 												{@render detailStatCompact({ label: 'Invaders Shut Down', value: fmt(dShutDowns), rank: h250.n > 0 && dShutDowns > 0 ? fmtF(dShutDowns / h250.n, 2) + '/game' : null })}
-												{#if (h250.medals?.armyOfOne ?? 0) > 0 || dArmyOfOne > 0}
-													{@render detailStatCompact({ label: 'Army of One', value: fmt(Math.max(h250.medals?.armyOfOne ?? 0, dArmyOfOne)), awakened: true, rank: h250.medalsPerGame?.armyOfOne ? h250.medalsPerGame.armyOfOne + '/game' : null })}
+												{#if (visH250.medals?.armyOfOne ?? 0) > 0 || dArmyOfOne > 0}
+													{@render detailStatCompact({ label: 'Army of One', value: fmt(Math.max(visH250.medals?.armyOfOne ?? 0, dArmyOfOne)), awakened: true, rank: visH250.medalsPerGame?.armyOfOne ? visH250.medalsPerGame.armyOfOne + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.notOnMyWatch ?? 0) > 0 || statsCache.notOnMyWatch > 0}
-													{@render detailStatCompact({ label: 'Not on My Watch', value: fmt(Math.max(h250.medals?.notOnMyWatch ?? 0, statsCache.notOnMyWatch)), awakened: true, rank: h250.medalsPerGame?.notOnMyWatch ? h250.medalsPerGame.notOnMyWatch + '/game' : null })}
+												{#if (visH250.medals?.notOnMyWatch ?? 0) > 0 || statsCache.notOnMyWatch > 0}
+													{@render detailStatCompact({ label: 'Not on My Watch', value: fmt(Math.max(visH250.medals?.notOnMyWatch ?? 0, statsCache.notOnMyWatch)), awakened: true, rank: visH250.medalsPerGame?.notOnMyWatch ? visH250.medalsPerGame.notOnMyWatch + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.bigGameHunter ?? 0) > 0 || statsCache.bigGameHunter > 0}
-													{@render detailStatCompact({ label: 'Big Game Hunter', value: fmt(Math.max(h250.medals?.bigGameHunter ?? 0, statsCache.bigGameHunter)), rank: h250.medalsPerGame?.bigGameHunter ? h250.medalsPerGame.bigGameHunter + '/game' : null })}
+												{#if (visH250.medals?.bigGameHunter ?? 0) > 0 || statsCache.bigGameHunter > 0}
+													{@render detailStatCompact({ label: 'Big Game Hunter', value: fmt(Math.max(visH250.medals?.bigGameHunter ?? 0, statsCache.bigGameHunter)), rank: visH250.medalsPerGame?.bigGameHunter ? visH250.medalsPerGame.bigGameHunter + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.noEscape ?? 0) > 0 || statsCache.noEscape > 0}
-													{@render detailStatCompact({ label: 'No Escape Medals', value: fmt(Math.max(h250.medals?.noEscape ?? 0, statsCache.noEscape)), rank: h250.medalsPerGame?.noEscape ? h250.medalsPerGame.noEscape + '/game' : null })}
+												{#if (visH250.medals?.noEscape ?? 0) > 0 || statsCache.noEscape > 0}
+													{@render detailStatCompact({ label: 'No Escape Medals', value: fmt(Math.max(visH250.medals?.noEscape ?? 0, statsCache.noEscape)), rank: visH250.medalsPerGame?.noEscape ? visH250.medalsPerGame.noEscape + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.payback ?? 0) > 0 || statsCache.payback > 0}
-													{@render detailStatCompact({ label: 'Payback Medals', value: fmt(Math.max(h250.medals?.payback ?? 0, statsCache.payback)), rank: h250.medalsPerGame?.payback ? h250.medalsPerGame.payback + '/game' : null })}
+												{#if (visH250.medals?.payback ?? 0) > 0 || statsCache.payback > 0}
+													{@render detailStatCompact({ label: 'Payback Medals', value: fmt(Math.max(visH250.medals?.payback ?? 0, statsCache.payback)), rank: visH250.medalsPerGame?.payback ? visH250.medalsPerGame.payback + '/game' : null })}
 												{/if}
-												{#if (h250.medals?.lastGuardianStanding ?? 0) > 0 || statsCache.lastGuardianStanding > 0}
-													{@render detailStatCompact({ label: 'Last Guardian Standing', value: fmt(Math.max(h250.medals?.lastGuardianStanding ?? 0, statsCache.lastGuardianStanding)), awakened: true, rank: h250.medalsPerGame?.lastGuardianStanding ? h250.medalsPerGame.lastGuardianStanding + '/game' : null })}
+												{#if (visH250.medals?.lastGuardianStanding ?? 0) > 0 || statsCache.lastGuardianStanding > 0}
+													{@render detailStatCompact({ label: 'Last Guardian Standing', value: fmt(Math.max(visH250.medals?.lastGuardianStanding ?? 0, statsCache.lastGuardianStanding)), awakened: true, rank: visH250.medalsPerGame?.lastGuardianStanding ? visH250.medalsPerGame.lastGuardianStanding + '/game' : null })}
 												{/if}
 											</div>
 										</div>
@@ -2113,11 +2130,10 @@
 														</p>
 													</div>
 												</div>
-												<a
-													href="https://destinyitemmanager.com/en/inspect/{w.hash}"
-													target="_blank"
-													class="border border-emerald-500/20 px-2 py-1 text-[8px] font-black text-emerald-500"
-													>DIM</a
+												<button
+													onclick={() => w.hash && (inspectedWeapon = { hash: String(w.hash), membershipId: data.membershipId, membershipType: data.membershipType })}
+													class="border border-emerald-500/20 px-2 py-1 text-[8px] font-black text-emerald-500 transition-colors hover:border-emerald-500/60 hover:bg-emerald-500/10"
+													>INSPECT</button
 												>
 											</div>
 											<div class="relative z-10 grid grid-cols-2 gap-4">

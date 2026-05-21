@@ -33,9 +33,9 @@ const MAX_NEW_PGCRS = 15; // max new PGCRs to enrich per player per run
 const PGCR_PARALLEL = 8;  // parallel PGCR fetches per player
 
 const SLOT_BUCKETS = {
-	1491708835: 'Kinetic',
+	1498876634: 'Kinetic',
 	2465295065: 'Energy',
-	95395402:   'Power',
+	953998645:  'Power',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

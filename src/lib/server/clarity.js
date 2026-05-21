@@ -57,7 +57,7 @@ export function flattenClarity(entry) {
 	return entry.descriptions.en
 		.flatMap((section) => {
 			if (!section.linesContent) return []; // spacer
-			return section.linesContent.map((line) => line.text ?? '').filter(Boolean);
+			return section.linesContent.map((line) => cleanIconChars(line.text)).filter(Boolean);
 		})
 		.join(' ')
 		.trim();
@@ -70,6 +70,15 @@ export function flattenClarity(entry) {
  *
  * @returns {{ parts: {text:string, classNames:string[]}[] }[] | null}
  */
+/**
+ * Strip Destiny icon characters (Unicode Private Use Area U+E000–U+F8FF)
+ * that only render correctly with the Destiny icon font.
+ * Also collapses any double-spaces left behind.
+ */
+function cleanIconChars(text) {
+	return (text ?? '').replace(/[-]/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
 export function parseClarityDescription(entry) {
 	if (!entry?.descriptions?.en) return null;
 	const sections = [];
@@ -80,7 +89,7 @@ export function parseClarityDescription(entry) {
 			continue;
 		}
 		const parts = section.linesContent
-			.map((line) => ({ text: line.text ?? '', classNames: line.classNames ?? [] }))
+			.map((line) => ({ text: cleanIconChars(line.text), classNames: line.classNames ?? [] }))
 			.filter((p) => p.text);
 		if (parts.length > 0) sections.push({ parts });
 	}
