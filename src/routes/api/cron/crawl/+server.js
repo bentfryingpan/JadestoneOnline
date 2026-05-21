@@ -24,6 +24,7 @@ import { cacheGet, cacheSet } from '$lib/server/cache.js';
 import { calcEgo, extractMedals } from '$lib/server/ego.js';
 import { getActivityDef, getItemDef } from '$lib/server/manifest.js';
 import { calcJPR, saveJPR } from '$lib/server/jpr.js';
+import { computeSeasonAwards, currentSeason } from '$lib/server/awards.js';
 
 const BUNGIE_ROOT  = 'https://www.bungie.net';
 const PGCR_ROOT    = 'https://stats.bungie.net';
@@ -444,11 +445,21 @@ export async function GET({ request }) {
 	);
 	await Promise.all(periodUpdates);
 
-	const elapsed = Date.now() - startTime;
+	const totalNew = results.reduce((s, r) => s + (r.newMatches ?? 0), 0);
+	const elapsed  = Date.now() - startTime;
+
+	// Fire-and-forget award standings refresh whenever new matches were ingested.
+	// This keeps the live leaderboard fresh so rankings are accurate when a season ends.
+	if (totalNew > 0) {
+		const activeSeason = currentSeason();
+		if (activeSeason) {
+			computeSeasonAwards(activeSeason.number, supabaseAdmin).catch(() => {});
+		}
+	}
 
 	return json({
 		processed:   results.length,
-		totalNew:    results.reduce((s, r) => s + (r.newMatches ?? 0), 0),
+		totalNew,
 		newPlayers:  results.reduce((s, r) => s + (r.newPlayers ?? 0), 0),
 		elapsedMs:   elapsed,
 		results,

@@ -9,5 +9,10 @@
 			"headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
 		}
 	],
-	"crons": []
+	"crons": [
+		{
+			"path": "/api/cron/awards",
+			"schedule": "0 4 * * *"
+		}
+	]
 }
