@@ -88,7 +88,7 @@
     z-index: 9999;
     letter-spacing: 0.01em;
 ">
-    ⚠️ <strong>Jadestone is paused.</strong> Destiny 2 is shutting down on <strong>June 17, 2025</strong> — this site is no longer being updated. Leaderboards and stats are preserved as a snapshot.
+    ⚠️ <strong>Live updates are ending June 9, 2026.</strong> Leaderboards and stats will be preserved as a final snapshot.
 </div>
 
 <!-- ── App shell ─────────────────────────────────────────────────────────────── -->
