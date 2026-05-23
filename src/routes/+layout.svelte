@@ -75,6 +75,22 @@
 	></div>
 </div>
 
+<!-- ── Maintenance banner ─────────────────────────────────────────────────────── -->
+<div style="
+    background: linear-gradient(90deg, #78350f, #92400e, #78350f);
+    border-bottom: 1px solid rgba(251,191,36,0.3);
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #fde68a;
+    position: sticky;
+    top: 0;
+    z-index: 9999;
+    letter-spacing: 0.01em;
+">
+    ⚠️ <strong>Jadestone is paused.</strong> Destiny 2 is shutting down on <strong>June 17, 2025</strong> — this site is no longer being updated. Leaderboards and stats are preserved as a snapshot.
+</div>
+
 <!-- ── App shell ─────────────────────────────────────────────────────────────── -->
 <div class="min-h-screen font-sans text-base text-slate-200">
 	<Nav user={data.user} />
